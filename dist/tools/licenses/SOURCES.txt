@@ -1,0 +1,18 @@
+Included tools: exact versions and source code
+==============================================
+
+Both are redistributed unchanged, exactly as published by their author.
+
+dovi_tool 2.3.4
+  Author:   quietvoid
+  Licence:  MIT (dovi_tool-LICENSE.txt)
+  Binary:   dovi_tool-2.3.4-x86_64-pc-windows-msvc.zip from https://github.com/quietvoid/dovi_tool/releases/tag/2.3.4
+            zip SHA-256 0d9733d311dfe49f9dca0c350f7e6d978182673d333c6f07f7365daf9e6c81eb
+  Source:   https://github.com/quietvoid/dovi_tool/tree/2.3.4
+
+hdr10plus_tool 1.7.2
+  Author:   quietvoid
+  Licence:  MIT (hdr10plus_tool-LICENSE.txt)
+  Binary:   hdr10plus_tool-1.7.2-x86_64-pc-windows-msvc.zip from https://github.com/quietvoid/hdr10plus_tool/releases/tag/1.7.2
+            zip SHA-256 82b2d560073941b14c6511a431f429e33e134e5caefb60d7e8f6f6e6da8e16ba
+  Source:   https://github.com/quietvoid/hdr10plus_tool/tree/1.7.2

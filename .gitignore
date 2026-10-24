@@ -1,0 +1,6 @@
+# built programs (the releases carry them)
+*.exe
+# unfinished transcodes and temp folders
+*.partial.mkv
+*.partial.mp4
+.keepthelight-*/

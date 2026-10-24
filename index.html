@@ -1,0 +1,818 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keep the Light</title>
+<style>
+  :root {
+    --bg: #14161a; --panel: #1d2026; --panel2: #252932; --line: #333844; --text: #e6e8ec; --muted: #98a0ae;
+    --accent: #5b9dff; --accent2: #3d7de0; --ok: #4cc38a; --warn: #f0b74a; --bad: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
+  .wrap { max-width: 940px; margin: 0 auto; padding: 20px 20px 40px; }
+  header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+  header .about { margin-left: auto; background: none; border: 0; padding: 2px 4px; color: var(--muted); font-size: 13px; }
+  header .about:hover { color: var(--text); text-decoration: underline; }
+  h1 { font-size: 20px; margin: 0; font-weight: 600; }
+  header span { color: var(--muted); font-size: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+  .card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+  label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+  input[type=text], select {
+    width: 100%; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
+    padding: 8px 10px; font: inherit; outline: none;
+  }
+  input[type=text]:focus, select:focus { border-color: var(--accent); }
+  .row { display: flex; gap: 8px; align-items: flex-end; }
+  .row > .grow { flex: 1; min-width: 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+  button {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px 14px;
+    font: inherit; cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--accent2); border-color: var(--accent2); color: #fff; font-weight: 600; padding: 10px 22px; }
+  button.primary:hover:not(:disabled) { background: var(--accent); }
+  button.danger { border-color: var(--bad); color: var(--bad); }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .badge { padding: 2px 9px; border-radius: 99px; font-size: 12px; font-weight: 600; background: var(--panel2); border: 1px solid var(--line); }
+  .badge.hdr { background: #1f3a5f; border-color: #2f5b94; color: #9cc4ff; }
+  .badge.dv { background: #3b2a55; border-color: #5d4388; color: #cdb2ff; }
+  .badge.plus { background: #1f4a3a; border-color: #2f7a5e; color: #8fe0bd; }
+  .meta { color: var(--muted); font-size: 12.5px; }
+  .note { margin-top: 8px; padding: 8px 10px; border-radius: 6px; font-size: 13px; }
+  .note.warn { background: #3a2f17; border: 1px solid #6b5420; color: var(--warn); }
+  .note.bad { background: #3b1c1c; border: 1px solid #7a2e2e; color: var(--bad); }
+  .note.info { background: #1b2a3f; border: 1px solid #2c4a73; color: #9cc4ff; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg label { margin: 0; padding: 7px 14px; cursor: pointer; color: var(--text); font-size: 13px; background: var(--panel2); border-right: 1px solid var(--line); }
+  .seg label:last-child { border-right: 0; }
+  .seg input { display: none; }
+  .seg input:checked + span { color: #fff; }
+  .seg label:has(input:checked) { background: var(--accent2); color: #fff; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 3px; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  details[open] summary { margin-bottom: 12px; }
+  .bar { height: 14px; background: var(--panel2); border-radius: 99px; overflow: hidden; border: 1px solid var(--line); }
+  .bar > div { height: 100%; width: 0%; background: var(--accent); transition: width .3s; }
+  .bar.done > div { background: var(--ok); }
+  .bar.fail > div { background: var(--bad); }
+  .stage { display: flex; justify-content: space-between; margin-bottom: 6px; font-weight: 600; }
+  .prog { color: var(--muted); font: 12px/1.4 Consolas, monospace; margin-top: 6px; word-break: break-all; }
+  pre#log { background: #0e1013; border: 1px solid var(--line); border-radius: 6px; padding: 10px; max-height: 260px; overflow: auto;
+    font: 12px/1.45 Consolas, monospace; white-space: pre-wrap; word-break: break-all; margin: 10px 0 0; color: #c3c8d2; }
+  .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .hidden { display: none !important; }
+  .tools { font-size: 12.5px; margin: 0 0 14px; }
+  #dropNote { margin: 0 0 14px; }
+  .tools .tool-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .tools .tool-actions button, .tools .tool-actions a { font-size: 12.5px; padding: 5px 11px; }
+  .tools .tool-actions a { background: var(--accent2); border: 1px solid var(--accent2); color: #fff; border-radius: 6px; text-decoration: none; }
+
+  /* collapsible sections */
+  details.sect > summary { list-style: none; display: flex; align-items: center; gap: 10px; margin: -16px; padding: 16px;
+    border-radius: 10px; user-select: none; }
+  details.sect > summary::-webkit-details-marker { display: none; }
+  details.sect > summary::before { content: ""; width: 7px; height: 7px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+    transform: rotate(-45deg); transition: transform .15s; flex: none; margin-right: 2px; }
+  details.sect[open] > summary::before { transform: rotate(45deg) translate(-2px, -1px); }
+  details.sect > summary:hover { background: #22262d; }
+  details.sect > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  details.sect[open] > summary { margin-bottom: -4px; }
+  .card h2.sect-title { flex: none; margin: 0; }
+  .sum { color: var(--text); opacity: .75; font-size: 13px; text-transform: none; letter-spacing: 0; font-weight: 400;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .sum .warnmark { color: var(--warn); font-weight: 600; }
+  details.sect[open] .sum { display: none; }
+
+  /* queue */
+  .qrow { display: grid; grid-template-columns: 1fr auto auto; gap: 4px 12px; align-items: center; padding: 9px 10px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); margin-bottom: 6px; }
+  .qname { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .qsub { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .qnote { font-size: 12px; margin-top: 2px; }
+  .qstat { font-size: 12.5px; font-weight: 600; white-space: nowrap; color: var(--muted); }
+  .qrow.st-running { border-color: var(--accent2); } .qrow.st-running .qstat { color: var(--accent); }
+  .qrow.st-done .qstat { color: var(--ok); }
+  .qrow.st-failed .qstat, .qrow.st-problem .qstat, .qrow.st-problem .qnote, .qrow.st-failed .qnote { color: var(--bad); }
+  .qrow.st-skipped .qstat, .qrow.st-waiting .qnote { color: var(--warn); }
+  .qbtns { display: flex; gap: 4px; }
+  .qbtns button { padding: 3px 8px; font-size: 12px; }
+  .qmini { height: 4px; border-radius: 9px; background: var(--line); overflow: hidden; grid-column: 1 / -1; }
+  .qmini > div { height: 100%; background: var(--accent); width: 0; }
+  .qlog { grid-column: 1 / -1; background: #0e1013; border: 1px solid var(--line); border-radius: 6px; padding: 8px; max-height: 200px;
+    overflow: auto; font: 12px/1.45 Consolas, monospace; white-space: pre-wrap; word-break: break-all; margin: 4px 0 0; color: #c3c8d2; }
+  .after { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+  .after label { margin: 0; }
+  .after select { width: auto; padding: 6px 8px; }
+  #powerNote { display: flex; align-items: center; gap: 10px; margin: 12px 0 0; }
+
+  /* About */
+  dialog#about { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 0;
+    width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 48px); box-shadow: 0 18px 50px rgba(0,0,0,.55); }
+  dialog#about::backdrop { background: rgba(0,0,0,.55); }
+  .about-in { padding: 22px 24px 20px; }
+  .about-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+  .about-head img { width: 64px; height: 64px; flex: none; }
+  .about-head h2 { margin: 0; font-size: 19px; font-weight: 600; }
+  .about-head .x { margin-left: auto; align-self: flex-start; background: none; border: 0; color: var(--muted); font-size: 22px; line-height: 1; padding: 2px 6px; }
+  .about-head .x:hover { color: var(--text); }
+  .about-body p { margin: 0 0 10px; }
+  .about-body a, .about-claude a { color: var(--accent); }
+  .about-claude { color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--line); padding-top: 12px; margin: 14px 0 10px; }
+  pre.lic { white-space: pre-wrap; font: 11.5px/1.45 Consolas, monospace; color: #c3c8d2; background: #0e1013; border: 1px solid var(--line);
+    border-radius: 6px; padding: 10px; max-height: 220px; overflow: auto; margin: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>Keep the Light</h1><span>HDR10 · HLG · HDR10+ · Dolby Vision &nbsp;|&nbsp; v__VERSION__</span>
+    <button class="about" id="aboutBtn">About</button></header>
+
+  <div id="toolsNote" class="note bad tools hidden"></div>
+  <div id="tmpNote" class="note warn hidden" style="margin:0 0 14px"></div>
+  <div id="dropNote" class="note info hidden">Dropping a file on the window can't tell Keep the Light where the file is. Use Browse, paste the path, or drop the video onto Keep the Light.exe itself.</div>
+
+  <details class="card sect" id="secFiles" data-key="files" open>
+    <summary><h2 class="sect-title">Files</h2><span class="sum" id="sumFiles"></span></summary>
+    <div class="row" style="margin-bottom:12px">
+      <div class="grow"><label for="input">Input video</label><input type="text" id="input" spellcheck="false" placeholder="Choose a file or paste its path"></div>
+      <button id="browseIn">Browse…</button>
+    </div>
+    <div class="row">
+      <div class="grow"><label for="output">Output file</label><input type="text" id="output" spellcheck="false" placeholder="Where to save the result"></div>
+      <div><label for="container">Format</label>
+        <select id="container"><option value=".mkv">MKV</option><option value=".mp4">MP4</option></select></div>
+      <button id="browseOut">Save as…</button>
+    </div>
+  </details>
+
+  <details class="card sect hidden" id="infoCard" data-key="source" open>
+    <summary><h2 class="sect-title">Source</h2><span class="sum" id="sumSource"></span></summary>
+    <div class="badges" id="badges"></div>
+    <div class="meta" id="meta"></div>
+    <div id="notes"></div>
+  </details>
+
+  <details class="card sect" id="secVideo" data-key="video" open>
+    <summary><h2 class="sect-title">Video</h2><span class="sum" id="sumVideo"></span></summary>
+    <div class="seg" style="margin-bottom:12px" id="modeSeg">
+      <label><input type="radio" name="mode" value="encode" checked><span>Re-encode (keep HDR)</span></label>
+      <label><input type="radio" name="mode" value="copy"><span>Copy video untouched</span></label>
+    </div>
+    <div id="encodeOpts">
+      <div class="grid">
+        <div><label for="codec">Encoder</label>
+          <select id="codec"><option value="x265">x265 (CPU, best quality)</option><option value="nvenc">NVENC (NVIDIA GPU, fast)</option><option value="qsv">QuickSync (Intel GPU, fast)</option></select>
+          <div class="hint hidden" id="gpuHint">GPU encoders: no HDR10+, and the quality number is a different scale than x265 (the same value gives a bigger file). Try a short clip first.</div></div>
+        <div><label for="preset">Speed / efficiency</label>
+          <select id="preset">
+            <option>ultrafast</option><option>superfast</option><option>veryfast</option><option>faster</option><option>fast</option>
+            <option selected>medium</option><option>slow</option><option>slower</option><option>veryslow</option></select>
+          <div class="hint">Slower = smaller file at the same quality</div></div>
+        <div id="dvWrap" class="hidden"><label for="dv">Dolby Vision</label>
+          <select id="dv"><option value="auto">Keep Dolby Vision</option><option value="drop">Drop (plain HDR10)</option></select></div>
+      </div>
+      <div style="margin-top:14px">
+        <div class="seg" id="qualSeg">
+          <label><input type="radio" name="quality" value="crf" checked><span>Constant quality</span></label>
+          <label><input type="radio" name="quality" value="bitrate"><span>Target bitrate</span></label>
+          <label><input type="radio" name="quality" value="size"><span>Target file size</span></label>
+        </div>
+        <div id="crfBox" style="margin-top:10px">
+          <label for="crf">Quality (CRF): <b id="crfVal">18</b></label>
+          <input type="range" id="crf" min="12" max="30" value="18">
+          <div class="hint">Lower = better quality, bigger file. 16–20 is visually transparent for most 4K HDR.</div>
+        </div>
+        <div id="brBox" class="hidden" style="margin-top:10px; max-width:240px">
+          <label for="bitrate">Video bitrate</label><input type="text" id="bitrate" value="20M">
+          <div class="hint">For example 20M or 8000k</div>
+        </div>
+        <div id="sizeBox" class="hidden" style="margin-top:10px">
+          <label for="targetNum">Target file size</label>
+          <div class="row" style="max-width:300px">
+            <div class="grow"><input type="text" id="targetNum" inputmode="decimal" value="8" spellcheck="false"></div>
+            <div><select id="targetUnit"><option value="G" selected>GB</option><option value="M">MB</option></select></div>
+          </div>
+          <div class="hint" id="sizeHint"></div>
+          <div id="retryWrap" class="hidden" style="margin-top:10px; max-width:300px">
+            <label for="retries">If the first result misses, re-encode up to</label>
+            <select id="retries"><option value="0">0 more times</option><option value="1">1 more time</option><option value="2" selected>2 more times</option><option value="3">3 more times</option></select>
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <details class="card sect" id="secAudio" data-key="audio" open>
+    <summary><h2 class="sect-title">Audio</h2><span class="sum" id="sumAudio"></span></summary>
+    <div class="grid">
+      <div><label for="audio">Audio</label>
+        <select id="audio">
+          <option value="copy">Copy all tracks (no re-encode)</option>
+          <option value="eac3">Convert to E-AC-3</option><option value="ac3">Convert to AC-3</option>
+          <option value="aac">Convert to AAC</option><option value="opus">Convert to Opus</option><option value="flac">Convert to FLAC</option>
+        </select></div>
+      <div id="abrWrap" class="hidden"><label for="abitrate">Audio bitrate</label><input type="text" id="abitrate" placeholder="e.g. 640k"></div>
+    </div>
+    <div id="mp4AudioNote" class="note warn hidden">MP4 cannot hold TrueHD, DTS or DTS-HD audio. Choose MKV to copy those, or convert the audio.</div>
+  </details>
+
+  <details class="card sect" id="secAdv" data-key="advanced">
+    <summary><h2 class="sect-title">Advanced</h2><span class="sum" id="sumAdv"></span></summary>
+      <div class="grid">
+        <div><label for="master">Master-display override</label><input type="text" id="master" spellcheck="false" placeholder="auto (from the source)"></div>
+        <div><label for="cll">MaxCLL,MaxFALL override</label><input type="text" id="cll" spellcheck="false" placeholder="auto, e.g. 1000,400"></div>
+        <div><label for="tmp">Temp folder (Dolby Vision / HDR10+)</label>
+          <div class="row"><div class="grow"><input type="text" id="tmp" spellcheck="false" placeholder="next to the output file"></div><button id="browseTmp">…</button></div></div>
+      </div>
+  </details>
+
+  <details class="card sect" id="secQueue" data-key="queue">
+    <summary><h2 class="sect-title">Queue</h2><span class="sum" id="sumQueue"></span></summary>
+    <div class="hint" id="queueHint" style="margin:0 0 10px">Add several files to transcode them one after another. Each file keeps the settings that were set when it was added.</div>
+    <div id="queueList"></div>
+    <div class="actions" style="margin-top:6px">
+      <button id="qAddFiles">Add files…</button>
+      <button id="qAddFolder">Add folder…</button>
+      <button id="qApply" class="hidden" title="Give every file that has not started the settings shown above">Use current settings for waiting files</button>
+      <button id="qClear" class="hidden">Clear finished</button>
+    </div>
+  </details>
+
+  <div class="card">
+    <div class="actions">
+      <button class="primary" id="start" disabled>Start transcode</button>
+      <button id="addQueue" disabled>Add to queue</button>
+      <button class="danger hidden" id="cancel">Cancel</button>
+      <button class="hidden" id="stopQueue" title="Cancel this file and do not start the rest">Stop queue</button>
+      <button id="reveal" class="hidden">Show in folder</button>
+      <button id="again" class="hidden">New job</button>
+      <span class="meta" id="planLine"></span>
+      <span class="after hidden" id="afterWrap"><label for="after">When finished</label>
+        <select id="after"><option value="">Do nothing</option><option value="sleep">Sleep</option><option value="shutdown">Shut down</option></select></span>
+    </div>
+    <div id="powerNote" class="note warn hidden"><span id="powerText"></span><button id="powerCancel">Cancel</button></div>
+    <div id="jobBox" class="hidden" style="margin-top:14px">
+      <div class="stage"><span id="stage">Starting</span><span id="pct"></span></div>
+      <div class="bar" id="bar"><div></div></div>
+      <div class="prog" id="prog"></div>
+      <details style="margin-top:10px"><summary>Log</summary><pre id="log"></pre></details>
+    </div>
+  </div>
+</div>
+
+<dialog id="about" aria-labelledby="aboutTitle">
+  <div class="about-in">
+    <div class="about-head">
+      <img src="__ICON__" alt="">
+      <div><h2 id="aboutTitle">Keep the Light</h2><div class="meta">Version __VERSION__</div></div>
+      <button class="x" id="aboutClose" aria-label="Close">×</button>
+    </div>
+    <div class="about-body">
+__ABOUT__
+    </div>
+    <p class="about-claude">Keep the Light was written with the help of Claude, an AI model made by Anthropic.</p>
+    <details><summary>Open-source licenses</summary><pre class="lic">__NOTICES__</pre></details>
+  </div>
+</dialog>
+
+<script>
+const T = new URLSearchParams(location.search).get('t');
+const INITIAL = __INITIAL_FILE__;
+const $ = id => document.getElementById(id);
+const radio = name => document.querySelector('input[name="' + name + '"]:checked').value;
+let info = null, outTouched = false, polling = null, since = 0, jobActive = false, probeSeq = 0;
+let curJob = 0, queue = { items: [], counts: {}, running: false }, jobBoxDismissed = false, restoredNotice = false;
+
+// Window mode: requests go to Go through the bound ktlPost function and come
+// back via __ktlDone. Browser mode (fallback): HTTP to the local server.
+const BRIDGE = typeof window.ktlPost === 'function';
+const pending = {};
+let callSeq = 0;
+window.__ktlDone = (id, res) => { const done = pending[id]; delete pending[id]; if (done) done(res); };
+
+async function api(path, body) {
+  if (BRIDGE) {
+    return new Promise(resolve => {
+      const id = ++callSeq;
+      pending[id] = resolve;
+      window.ktlPost(id, path, body === undefined ? null : body)
+        .catch(e => { delete pending[id]; resolve({ ok: false, error: 'Keep the Light did not answer: ' + e }); });
+    });
+  }
+  try {
+    const r = await fetch('/api/' + path, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: { 'X-Token': T, 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body)
+    });
+    return await r.json();
+  } catch (e) { return { ok: false, error: 'Lost connection to Keep the Light: ' + e }; }
+}
+
+function showError(msg) {
+  if (BRIDGE) api('message', { text: msg }); else alert(msg);
+}
+
+function settings() {
+  return {
+    input: $('input').value.trim(), output: $('output').value.trim(), mode: radio('mode'),
+    codec: $('codec').value, quality: radio('quality'), crf: +$('crf').value, bitrate: $('bitrate').value.trim(),
+    preset: $('preset').value, audio: $('audio').value, audioBitrate: $('abitrate').value.trim(),
+    dv: $('dv').value, masterDisplay: $('master').value.trim(), maxCLL: $('cll').value.trim(), tmp: $('tmp').value.trim(),
+    targetSize: $('targetNum').value.trim().replace(',', '.') + $('targetUnit').value, retries: +$('retries').value
+  };
+}
+
+function baseName(p) { return p.replace(/^.*[\\\/]/, ''); }
+function stem(p) { const b = baseName(p); const i = b.lastIndexOf('.'); return i > 0 ? b.slice(0, i) : b; }
+function dirOf(p) { const i = Math.max(p.lastIndexOf('\\'), p.lastIndexOf('/')); return i >= 0 ? p.slice(0, i + 1) : ''; }
+function extOf(p) { const m = /\.[A-Za-z0-9]+$/.exec(p); return m ? m[0].toLowerCase() : ''; }
+
+function suggestOutput() {
+  const inp = $('input').value.trim();
+  if (!inp) return;
+  $('output').value = dirOf(inp) + stem(inp) + '_hdr' + $('container').value;
+  outTouched = false;
+}
+
+function syncContainerFromOutput() {
+  const e = extOf($('output').value);
+  if (e === '.mkv' || e === '.mp4') $('container').value = e;
+  updateAudioNote();
+}
+
+function updateAudioNote() {
+  $('mp4AudioNote').classList.toggle('hidden', !($('container').value === '.mp4' && $('audio').value === 'copy'));
+}
+
+function updateVisibility() {
+  const enc = radio('mode') === 'encode';
+  $('encodeOpts').classList.toggle('hidden', !enc);
+  $('dvWrap').classList.toggle('hidden', !(info && info.dv));
+  const q = radio('quality'), hw = $('codec').value !== 'x265';
+  $('brBox').classList.toggle('hidden', q !== 'bitrate');
+  $('crfBox').classList.toggle('hidden', q !== 'crf');
+  $('sizeBox').classList.toggle('hidden', q !== 'size');
+  $('retryWrap').classList.toggle('hidden', !(q === 'size' && hw));
+  $('sizeHint').textContent = hw
+    ? 'GB here means what Windows Explorer shows. Hardware encoders miss their bitrate, so the video may be re-encoded with a corrected bitrate to land on the size.'
+    : 'GB here means what Windows Explorer shows. x265 encodes twice (about double the time) and lands within a couple of percent, slightly under the target.';
+  $('abrWrap').classList.toggle('hidden', $('audio').value === 'copy');
+  $('crfVal').textContent = $('crf').value;
+  $('gpuHint').classList.toggle('hidden', $('codec').value === 'x265');
+  updateAudioNote();
+  updateSummaries();
+}
+
+// ---------- collapsible sections ----------
+// A closed section shows a one-line summary of its settings in its header.
+function updateSummaries() {
+  const inp = $('input').value.trim(), out = $('output').value.trim();
+  $('sumFiles').textContent = inp ? baseName(inp) + (out ? '  →  ' + baseName(out) : '') : 'no file chosen';
+  let v;
+  if (radio('mode') === 'copy') v = 'Copy video untouched';
+  else {
+    const q = radio('quality');
+    const quality = q === 'crf' ? 'CRF ' + $('crf').value
+      : q === 'bitrate' ? $('bitrate').value.trim()
+      : 'target ' + $('targetNum').value.trim() + ' ' + ($('targetUnit').value === 'G' ? 'GB' : 'MB');
+    v = [{ x265: 'x265', nvenc: 'NVENC', qsv: 'QuickSync' }[$('codec').value], quality, $('preset').value].join('  ·  ');
+    if (info && info.dv && $('dv').value === 'drop') v += '  ·  drop Dolby Vision';
+  }
+  $('sumVideo').textContent = v;
+  const a = $('audio');
+  let at = a.value === 'copy' ? 'Copy all tracks' : a.options[a.selectedIndex].text.replace(/^Convert to /, '');
+  if (a.value !== 'copy' && $('abitrate').value.trim()) at += '  ·  ' + $('abitrate').value.trim();
+  $('sumAudio').textContent = at;
+  const adv = [$('master').value.trim() && 'master display', $('cll').value.trim() && 'MaxCLL/FALL', $('tmp').value.trim() && 'temp folder'].filter(Boolean);
+  $('sumAdv').textContent = adv.length ? 'custom: ' + adv.join(', ') : 'defaults';
+}
+
+// Which sections are open is remembered between runs. Only the user's own
+// clicks are saved; sections opened automatically (a problem with the file) are not.
+const sections = Array.from(document.querySelectorAll('details.sect'));
+function saveSections() {
+  const state = {};
+  sections.forEach(d => { state[d.dataset.key] = d.open; });
+  api('setPref', { name: 'sections', value: state });
+}
+sections.forEach(d => d.querySelector('summary').addEventListener('click', () => setTimeout(saveSections, 0)));
+// Restores the saved section layout and temp folder.
+async function restorePrefs() {
+  const r = await api('prefs');
+  if (!r || !r.ok || !r.prefs) return;
+  const state = r.prefs.sections;
+  if (state) sections.forEach(d => { if (typeof state[d.dataset.key] === 'boolean') d.open = state[d.dataset.key]; });
+  if (r.tmpDirMissing) {
+    const box = $('tmpNote');
+    box.textContent = 'The saved temp folder "' + r.tmpDirMissing + '" is not available (deleted, or its drive is not connected), ' +
+      'so temporary files will go next to the output file. Choose another folder under Advanced to change this.';
+    box.classList.remove('hidden');
+    $('tmp').addEventListener('change', () => box.classList.add('hidden'), { once: true });
+  } else if (typeof r.prefs.tmpDir === 'string') {
+    $('tmp').value = r.prefs.tmpDir;
+  }
+}
+
+function badge(text, cls) {
+  const s = document.createElement('span');
+  s.className = 'badge ' + (cls || ''); s.textContent = text; return s;
+}
+function note(text, cls) {
+  const d = document.createElement('div'); d.className = 'note ' + cls; d.textContent = text; return d;
+}
+function fmtDur(s) {
+  if (!s) return '';
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = Math.floor(s % 60);
+  return (h ? h + 'h ' : '') + m + 'm ' + sec + 's';
+}
+
+function showInfo(r) {
+  const card = $('infoCard'), b = $('badges'), notes = $('notes');
+  b.innerHTML = ''; notes.innerHTML = ''; $('meta').textContent = '';
+  $('sumSource').textContent = '';
+  if (!r || (!r.ok && !r.error)) { card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
+  // A problem that stops the job must not hide in a closed section.
+  if (!r.ok || r.blocker) card.open = true;
+  if (!r.ok) { notes.appendChild(note(r.error, 'bad')); return; }
+  if (r.kind === 'hdr10') b.appendChild(badge('HDR10 (PQ)', 'hdr'));
+  else if (r.kind === 'hlg') b.appendChild(badge('HLG', 'hdr'));
+  else b.appendChild(badge('SDR'));
+  if (r.dv) b.appendChild(badge('Dolby Vision ' + r.dv, 'dv'));
+  if (r.hdr10plus) b.appendChild(badge('HDR10+', 'plus'));
+  b.appendChild(badge(r.width + '×' + r.height));
+  b.appendChild(badge(r.codec + ' ' + r.pixFmt));
+  const bits = [];
+  if (r.duration) bits.push(fmtDur(r.duration));
+  if (r.cll) bits.push('MaxCLL/FALL ' + r.cll);
+  bits.push(r.hasMastering ? 'mastering display metadata found' : 'no mastering display metadata');
+  $('meta').textContent = bits.join('  ·  ');
+  if (r.blocker) notes.appendChild(note(r.blocker, 'bad'));
+  else if (r.mode) notes.appendChild(note('Plan: ' + r.mode, 'info'));
+  if (r.sizeText) notes.appendChild(note(r.sizeText + (r.sizeExact ? '' : ' (audio size estimated)'), 'info'));
+  (r.warnings || []).forEach(w => notes.appendChild(note(w, 'warn')));
+  if (r.kind === 'sdr' && !r.dv) notes.appendChild(note('This file does not look like HDR. It will still be transcoded, but there is no HDR to preserve.', 'warn'));
+  // summary for the closed section: what the file is, plus a marker if there are warnings
+  const sum = $('sumSource');
+  sum.textContent = [r.kind === 'hdr10' ? 'HDR10' : r.kind === 'hlg' ? 'HLG' : 'SDR', r.dv && 'Dolby Vision ' + r.dv,
+    r.hdr10plus && 'HDR10+', r.width + '×' + r.height, r.duration && fmtDur(r.duration)].filter(Boolean).join('  ·  ');
+  const nWarn = notes.querySelectorAll('.note.warn').length;
+  if (nWarn) {
+    const m = document.createElement('span');
+    m.className = 'warnmark'; m.textContent = '  ·  ⚠ ' + nWarn + (nWarn === 1 ? ' warning' : ' warnings');
+    sum.appendChild(m);
+  }
+}
+
+let probeTimer = null;
+function scheduleProbe(delay) { clearTimeout(probeTimer); probeTimer = setTimeout(probe, delay === undefined ? 350 : delay); }
+
+async function probe() {
+  const s = settings();
+  const seq = ++probeSeq;
+  if (!s.input) { info = null; showInfo(null); updateVisibility(); updateStart(); return; }
+  const r = await api('probe', s);
+  if (seq !== probeSeq) return;
+  info = r.ok ? r : null;
+  showInfo(r);
+  updateVisibility();
+  $('planLine').textContent = '';
+  updateStart();
+}
+
+function updateStart() {
+  const waiting = (queue.counts.waiting || 0) + (queue.counts.checking || 0);
+  const formOk = info && !info.blocker && $('output').value.trim();
+  $('start').textContent = waiting && !queue.running ? 'Start queue (' + waiting + (waiting === 1 ? ' file)' : ' files)') : 'Start transcode';
+  $('start').disabled = jobActive || !(waiting || formOk);
+  $('addQueue').disabled = !formOk;
+  return;
+  $('start').disabled = !ok;
+}
+
+async function browse(kind, target, initial) {
+  const r = await api('browse', { kind, initial });
+  if (!r.ok) { if (r.error) showError(r.error); return; }
+  if (!r.path) return;
+  target.value = r.path;
+  target.dispatchEvent(new Event('change'));
+}
+
+$('browseIn').onclick = async () => {
+  const r = await api('browse', { kind: 'openMulti', initial: $('input').value });
+  if (!r.ok) { if (r.error) showError(r.error); return; }
+  if (!r.paths || !r.paths.length) return;
+  if (r.paths.length === 1) { $('input').value = r.paths[0]; $('input').dispatchEvent(new Event('change')); return; }
+  addToQueue(r.paths.map(settingsFor)); // several files: they go into the queue with the current settings
+};
+$('browseOut').onclick = () => browse('save', $('output'), $('output').value);
+$('browseTmp').onclick = () => browse('folder', $('tmp'), $('tmp').value);
+
+$('input').addEventListener('change', () => { if (!outTouched || !$('output').value) suggestOutput(); scheduleProbe(50); });
+$('output').addEventListener('input', () => { outTouched = true; });
+$('output').addEventListener('change', () => { outTouched = true; syncContainerFromOutput(); scheduleProbe(); updateStart(); });
+$('container').addEventListener('change', () => {
+  const o = $('output').value.trim();
+  if (o) $('output').value = o.replace(/\.[A-Za-z0-9]+$/, '') + $('container').value; else suggestOutput();
+  updateAudioNote(); scheduleProbe();
+});
+['preset', 'dv', 'bitrate', 'abitrate', 'master', 'cll', 'tmp', 'targetNum', 'targetUnit', 'retries'].forEach(id => $(id).addEventListener('change', () => scheduleProbe(200)));
+$('targetNum').addEventListener('input', () => scheduleProbe(600));
+$('audio').addEventListener('change', () => { updateVisibility(); });
+$('codec').addEventListener('change', () => { updateVisibility(); scheduleProbe(200); });
+$('crf').addEventListener('input', updateVisibility);
+document.querySelectorAll('input[name="mode"], input[name="quality"]').forEach(el => el.addEventListener('change', () => { updateVisibility(); scheduleProbe(100); }));
+['input', 'change'].forEach(t => document.querySelector('.wrap').addEventListener(t, updateSummaries));
+// The temp folder is remembered between runs (an empty field means "next to the output file").
+$('tmp').addEventListener('change', () => api('setPref', { name: 'tmpDir', value: $('tmp').value.trim() }));
+
+// ---------- About ----------
+$('aboutBtn').onclick = () => $('about').showModal();
+$('aboutClose').onclick = () => $('about').close();
+$('about').addEventListener('click', e => { if (e.target === $('about')) $('about').close(); }); // click outside the box
+// Links open in the normal browser / mail program, never inside this window.
+document.addEventListener('click', e => {
+  const a = e.target.closest && e.target.closest('a[href]');
+  if (!a) return;
+  e.preventDefault();
+  if (/^(https?|mailto):/i.test(a.getAttribute('href'))) api('open', { url: a.href });
+});
+
+// ---------- running a job ----------
+function setJobUI(running) {
+  jobActive = running;
+  $('start').classList.toggle('hidden', running);
+  $('cancel').classList.toggle('hidden', !running);
+  updateStart();
+}
+
+function settingsFor(path) { // the current settings, for another input file
+  const st = settings();
+  st.input = path; st.output = dirOf(path) + stem(path) + '_hdr' + $('container').value; st.overwrite = false;
+  return st;
+}
+function showQueue() { if (!$('secQueue').open) $('secQueue').open = true; } // not saved: it was not the user's click
+
+async function addToQueue(items) {
+  const r = await api('queueAdd', { items });
+  if (r.errors && r.errors.length) showError('Not added:\n' + r.errors.join('\n'));
+  if (r.added) { showQueue(); poll(); }
+  return r;
+}
+
+$('start').onclick = async () => {
+  jobBoxDismissed = false;
+  const waiting = (queue.counts.waiting || 0) + (queue.counts.checking || 0);
+  let r;
+  if (waiting) r = await api('queueStart', {});
+  else {
+    r = await api('start', settings());
+    if (!r.ok && r.exists && await askUser(r.error + '\n\nReplace it?')) r = await api('start', Object.assign(settings(), { overwrite: true }));
+    else if (!r.ok && r.exists) return;
+  }
+  if (!r.ok) { showError(r.error || 'Could not start'); return; }
+  poll();
+};
+$('addQueue').onclick = () => addToQueue([settings()]);
+$('cancel').onclick = async () => { $('cancel').disabled = true; await api('cancel', {}); setTimeout(() => $('cancel').disabled = false, 1500); };
+$('stopQueue').onclick = () => api('queueStop', {});
+$('reveal').onclick = () => api('reveal', {});
+$('again').onclick = () => { jobBoxDismissed = true; $('jobBox').classList.add('hidden'); $('again').classList.add('hidden'); $('reveal').classList.add('hidden'); };
+$('after').onchange = () => api('after', { action: $('after').value });
+$('powerCancel').onclick = async () => { await api('powerCancel', {}); $('after').value = ''; poll(); };
+$('qAddFiles').onclick = async () => {
+  const r = await api('browse', { kind: 'openMulti', initial: $('input').value });
+  if (!r.ok) { if (r.error) showError(r.error); return; }
+  if (r.paths && r.paths.length) addToQueue(r.paths.map(settingsFor));
+};
+$('qAddFolder').onclick = async () => {
+  const r = await api('browse', { kind: 'folderFiles', initial: $('input').value });
+  if (!r.ok) { if (r.error) showError(r.error); return; }
+  if (r.folder && !r.paths.length) { showError('No video files were found in ' + r.folder + '.'); return; }
+  if (r.paths.length) addToQueue(r.paths.map(settingsFor));
+};
+$('qApply').onclick = async () => {
+  const r = await api('queueApply', { settings: settings() });
+  if (r.errors && r.errors.length) showError(r.errors.join('\n'));
+  poll();
+};
+$('qClear').onclick = async () => { await api('queueClear', {}); poll(); };
+
+async function askUser(text) {
+  if (BRIDGE) { const r = await api('ask', { text }); return !!(r && r.yes); }
+  return confirm(text);
+}
+
+// ---------- queue list ----------
+const STATUS_TEXT = { checking: 'Checking…', waiting: 'Waiting', problem: "Can't transcode", running: '', done: 'Done',
+  failed: 'Failed', skipped: 'Skipped', canceled: 'Canceled' };
+function settingsText(st) {
+  const ext = (extOf(st.output || '') || '.mkv').slice(1).toUpperCase();
+  if (st.mode === 'copy') return 'copy video · ' + ext;
+  const q = st.quality === 'bitrate' ? st.bitrate : st.quality === 'size'
+    ? 'target ' + String(st.targetSize).replace(/G$/, ' GB').replace(/M$/, ' MB') : 'CRF ' + st.crf;
+  const parts = [{ x265: 'x265', nvenc: 'NVENC', qsv: 'QuickSync' }[st.codec] || st.codec, q, st.preset];
+  if (st.audio && st.audio !== 'copy') parts.push('audio ' + st.audio.toUpperCase() + (st.audioBitrate ? ' ' + st.audioBitrate : ''));
+  parts.push(ext);
+  return parts.join(' · ');
+}
+function rowButton(text, title, fn) {
+  const b = document.createElement('button'); b.textContent = text; b.title = title; b.onclick = fn; return b;
+}
+function renderQueue(q) {
+  if (!q) return;
+  queue = q;
+  const list = $('queueList'), seen = new Set();
+  q.items.forEach(it => {
+    seen.add(String(it.id));
+    let row = list.querySelector('[data-id="' + it.id + '"]');
+    if (!row) {
+      row = document.createElement('div'); row.dataset.id = it.id;
+      row.innerHTML = '<div><div class="qname"></div><div class="qsub"></div><div class="qnote"></div></div><div class="qstat"></div><div class="qbtns"></div><div class="qmini"><div></div></div>';
+    }
+    list.appendChild(row); // also keeps the order
+    row.className = 'qrow st-' + it.status;
+    row.querySelector('.qname').textContent = it.name;
+    row.querySelector('.qname').title = it.input + '  →  ' + it.output;
+    row.querySelector('.qsub').textContent = [it.info, settingsText(it.settings)].filter(Boolean).join('   |   ');
+    row.querySelector('.qnote').textContent = it.note || '';
+    row.querySelector('.qstat').textContent = it.status === 'running' ? Math.floor(it.percent) + '%' : STATUS_TEXT[it.status];
+    row.querySelector('.qmini').classList.toggle('hidden', it.status !== 'running');
+    row.querySelector('.qmini > div').style.width = it.percent + '%';
+    const key = it.status + (q.running ? 'r' : '');
+    const btns = row.querySelector('.qbtns');
+    if (btns.dataset.key !== key) { // rebuild the buttons only when they change
+      btns.dataset.key = key; btns.innerHTML = '';
+      if (it.status === 'waiting' || it.status === 'checking' || it.status === 'problem') {
+        btns.append(rowButton('↑', 'Move up', () => api('queueMove', { id: it.id, dir: -1 }).then(poll)),
+          rowButton('↓', 'Move down', () => api('queueMove', { id: it.id, dir: 1 }).then(poll)));
+      }
+      if (it.status === 'failed' || it.status === 'done' || it.status === 'canceled') {
+        btns.append(rowButton('Log', 'Show the log of this file', async () => {
+          const old = row.querySelector('.qlog');
+          if (old) { old.remove(); return; }
+          const r = await api('queueLog', { id: it.id });
+          const pre = document.createElement('pre'); pre.className = 'qlog';
+          pre.textContent = r.ok ? r.lines.join('\n') : r.error;
+          row.appendChild(pre); pre.scrollTop = pre.scrollHeight;
+        }));
+      }
+      if (it.status !== 'running') btns.append(rowButton('✕', 'Remove from the queue', () => api('queueRemove', { id: it.id }).then(poll)));
+    }
+  });
+  list.querySelectorAll('.qrow').forEach(r => { if (!seen.has(r.dataset.id)) r.remove(); });
+
+  const c = q.counts, waiting = (c.waiting || 0) + (c.checking || 0);
+  const finished = (c.done || 0) + (c.failed || 0) + (c.skipped || 0) + (c.canceled || 0) + (c.problem || 0);
+  const bits = [];
+  if (q.running && q.total > 1) bits.push('file ' + q.index + ' of ' + q.total);
+  if (waiting) bits.push(waiting + ' waiting');
+  ['done', 'failed', 'skipped', 'problem'].forEach(k => { if (c[k]) bits.push(c[k] + ' ' + (k === 'problem' ? "can't transcode" : k)); });
+  $('sumQueue').textContent = bits.length ? bits.join('  ·  ') : 'empty';
+  if (q.running) restoredNotice = false;
+  $('queueHint').classList.toggle('hidden', q.items.length > 0 && !restoredNotice);
+  $('qApply').classList.toggle('hidden', !(waiting || c.problem));
+  $('qClear').classList.toggle('hidden', !finished);
+  $('afterWrap').classList.toggle('hidden', !(q.running || waiting > 0 || q.after));
+  if (document.activeElement !== $('after')) $('after').value = q.after || '';
+  const power = q.powerIn !== undefined;
+  $('powerNote').classList.toggle('hidden', !power);
+  if (power) $('powerText').textContent = (q.after === 'sleep' ? 'The PC will go to sleep in ' : 'The PC will shut down in ') + q.powerIn + ' s.';
+}
+
+// ---------- status ----------
+async function poll() {
+  clearTimeout(polling);
+  const r = await api('status?since=' + since);
+  renderQueue(r.queue);
+  if (r.title) document.title = r.title;
+  const q = r.queue || queue;
+  if (r.active && r.jobId !== curJob) { // the next file in the queue started
+    curJob = r.jobId; since = 0; $('log').textContent = '';
+    $('bar').className = 'bar'; $('bar').firstElementChild.style.width = '0%';
+    jobBoxDismissed = false;
+    polling = setTimeout(poll, 0); return;
+  }
+  const busy = !!(r.running || q.running);
+  if (r.active) {
+    if (r.lines && r.lines.length) {
+      const log = $('log'), atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 20;
+      log.textContent += r.lines.join('\n') + '\n';
+      if (atBottom) log.scrollTop = log.scrollHeight;
+    }
+    since = r.next;
+    $('jobBox').classList.toggle('hidden', jobBoxDismissed && !busy);
+    $('stage').textContent = (q.running && q.total > 1 ? 'File ' + q.index + ' of ' + q.total + ': ' : '') + (r.stage || '');
+    $('prog').textContent = r.running ? (r.progress || '') : '';
+    const pct = Math.max(0, Math.min(100, r.percent || 0));
+    $('bar').firstElementChild.style.width = pct + '%';
+    $('pct').textContent = (pct > 0 ? pct.toFixed(1) + '%' : '') + (r.running && r.eta ? (pct > 0 ? '  ·  ' : '') + r.eta : '');
+  }
+  setJobUI(busy);
+  $('stopQueue').classList.toggle('hidden', !(q.running && ((q.counts.waiting || 0) + (q.counts.checking || 0)) > 0));
+  if (!busy && r.active && !jobBoxDismissed) { // everything has finished: show how the last run ended
+    $('again').classList.remove('hidden');
+    $('bar').classList.remove('done', 'fail');
+    const many = q.items.filter(it => ['done', 'failed', 'skipped', 'canceled'].includes(it.status)).length > 1;
+    const c = q.counts;
+    if (many) {
+      $('stage').textContent = 'Queue finished: ' + [c.done && c.done + ' done', c.failed && c.failed + ' failed',
+        c.skipped && c.skipped + ' skipped', c.canceled && c.canceled + ' canceled'].filter(Boolean).join(', ');
+      $('bar').classList.add(c.failed ? 'fail' : 'done'); $('bar').firstElementChild.style.width = '100%'; $('pct').textContent = '';
+      if (c.failed) $('secQueue').open = true;
+    } else if (r.canceled) { $('stage').textContent = 'Canceled'; $('bar').classList.add('fail'); }
+    else if (r.exitCode === 0) { $('bar').classList.add('done'); $('pct').textContent = '100%'; $('bar').firstElementChild.style.width = '100%'; }
+    else { $('bar').classList.add('fail'); $('stage').textContent = 'Failed - see the log'; $('jobBox').querySelector('details').open = true; }
+    $('reveal').classList.toggle('hidden', !(r.exitCode === 0 && !r.canceled));
+  } else if (busy) {
+    $('again').classList.add('hidden'); $('reveal').classList.add('hidden');
+  }
+  const checking = (q.counts.checking || 0) > 0 || q.powerIn !== undefined;
+  polling = setTimeout(poll, busy || checking ? 500 : 2000);
+}
+
+// ---------- drag and drop ----------
+// A file dropped on the page would otherwise replace the whole window with the
+// video. The page cannot see where a dropped file lives, so point to the ways that work.
+['dragover', 'drop'].forEach(t => window.addEventListener(t, e => {
+  if (!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes('Files')) return; // text drags work as usual
+  e.preventDefault();
+  if (t === 'drop' && !jobActive) {
+    const box = $('dropNote');
+    box.classList.remove('hidden');
+    clearTimeout(box._t); box._t = setTimeout(() => box.classList.add('hidden'), 8000);
+  }
+}));
+
+// ---------- tools ----------
+// FFmpeg is not included with Keep the Light (its licence makes bundling it a burden),
+// so when it is missing the banner helps the user get it.
+const FFMPEG_URL = 'https://www.gyan.dev/ffmpeg/builds/#release-builds';
+const GPAC_URL = 'https://gpac.io/downloads/';
+const VCREDIST_URL = 'https://aka.ms/vs/17/release/vc_redist.x64.exe';
+function linkButton(text, href) { const a = document.createElement('a'); a.href = href; a.textContent = text; return a; }
+async function checkTools() {
+  const t = await api('tools');
+  const box = $('toolsNote');
+  box.innerHTML = ''; box.className = 'note tools hidden';
+  const miss = ['ffmpeg', 'ffprobe'].filter(k => !t[k]);
+  const msgs = [], links = [];
+  if (miss.length) {
+    msgs.push('FFmpeg is needed and was not found (missing ' + miss.map(k => k + '.exe').join(' and ') + '). ' +
+      'Download the free "ffmpeg-release-essentials.zip" build, open it, and copy ffmpeg.exe and ffprobe.exe from its bin folder into the tools folder.');
+    links.push(linkButton('Get FFmpeg', FFMPEG_URL));
+  }
+  if (!t.mp4box) {
+    msgs.push('Dolby Vision files need MP4Box: install GPAC (free) with its normal installer and Keep the Light will find it. HDR10, HLG and HDR10+ work without it.');
+    links.push(linkButton('Get GPAC', GPAC_URL));
+  }
+  if (!t.dovi_tool || !t.hdr10plus_tool) {
+    msgs.push([!t.dovi_tool && 'dovi_tool.exe', !t.hdr10plus_tool && 'hdr10plus_tool.exe'].filter(Boolean).join(' and ') +
+      ' should be in the tools folder (they come with Keep the Light). Unzip the download again if they are missing.');
+  }
+  if ((t.dovi_tool || t.hdr10plus_tool) && !t.vcruntime) {
+    msgs.push('dovi_tool and hdr10plus_tool need the Microsoft Visual C++ Runtime, which is not installed on this PC.');
+    links.push(linkButton('Get the runtime', VCREDIST_URL));
+  }
+  if (!msgs.length) return t;
+  box.className = 'note tools ' + (miss.length ? 'bad' : 'warn');
+  msgs.forEach(m => { const d = document.createElement('div'); d.textContent = m; d.style.marginBottom = '4px'; box.append(d); });
+  const actions = document.createElement('div'); actions.className = 'tool-actions';
+  const open = document.createElement('button'); open.textContent = 'Open tools folder';
+  open.onclick = async () => { const r = await api('openTools', {}); if (!r.ok) showError(r.error); };
+  const again = document.createElement('button'); again.textContent = 'Check again';
+  again.onclick = async () => { await checkTools(); if ($('input').value.trim()) probe(); };
+  actions.append(...links, open, again);
+  box.append(actions);
+  return t;
+}
+
+// ---------- startup ----------
+(async function init() {
+  updateVisibility();
+  await restorePrefs();
+  updateSummaries();
+  await checkTools();
+  if (INITIAL.length === 1) { $('input').value = INITIAL[0]; suggestOutput(); probe(); }
+  else if (INITIAL.length > 1) addToQueue(INITIAL.map(settingsFor));
+  await poll();
+  if (queue.items.length && !queue.running && INITIAL.length < 2) { // files left over from last time
+    showQueue();
+    $('queueHint').textContent = 'These files were still waiting when Keep the Light was closed. Press Start queue to continue.';
+    restoredNotice = true; renderQueue(queue);
+  }
+  if (!BRIDGE) {
+    setInterval(() => api('ping'), 3000);
+    window.addEventListener('pagehide', () => { try { navigator.sendBeacon('/api/bye?t=' + T); } catch (e) {} });
+  }
+})();
+</script>
+</body>
+</html>
