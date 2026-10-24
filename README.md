@@ -45,7 +45,8 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
 - **Queue (batch):** add several files with **Add files…**, **Add folder…**, by choosing several in **Browse…**,
   by dropping several videos on `Keep the Light.exe`, or with **Add to queue**. Each file keeps the settings it
   was added with (**Use current settings for waiting files** updates them). Results go next to each input as
-  `name_hdr.mkv`; files whose result already exists are skipped. Files run one after another; one that fails
+  `name_hdr.mkv`, or into one folder you choose under **Save converted files** (remembered); files whose
+  result already exists are skipped. Files run one after another; one that fails
   does not stop the rest. Unfinished queues are remembered and come back when you reopen Keep the Light.
   **When finished** can put the PC to sleep or shut it down (with 60 seconds to cancel).
 - The PC is kept awake while a transcode runs. Results are written as `name_hdr.partial.mkv` and renamed when

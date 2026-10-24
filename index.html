@@ -234,6 +234,13 @@
 
   <details class="card sect" id="secQueue" data-key="queue">
     <summary><h2 class="sect-title">Queue</h2><span class="sum" id="sumQueue"></span></summary>
+    <div class="row qout" style="margin:0 0 12px; flex-wrap:wrap">
+      <div><label for="qOutMode">Save converted files</label>
+        <select id="qOutMode"><option value="">next to each original</option><option value="dir">in this folder:</option></select></div>
+      <div class="grow hidden" id="qOutDirWrap"><label for="qOutDir">&nbsp;</label>
+        <div class="row"><div class="grow"><input type="text" id="qOutDir" spellcheck="false" placeholder="choose a folder"></div><button id="qOutBrowse">…</button></div></div>
+    </div>
+    <div id="qOutNote" class="note warn hidden" style="margin:0 0 10px"></div>
     <div class="hint" id="queueHint" style="margin:0 0 10px">Add several files to transcode them one after another. Each file keeps the settings that were set when it was added.</div>
     <div id="queueList"></div>
     <div class="actions" style="margin-top:6px">
@@ -418,6 +425,16 @@ async function restorePrefs() {
   } else if (typeof r.prefs.tmpDir === 'string') {
     $('tmp').value = r.prefs.tmpDir;
   }
+  const bo = r.prefs.batchOut;
+  if (bo && bo.mode === 'dir') {
+    $('qOutDir').value = bo.dir || '';
+    if (r.batchOutMissing) { // keep the choice (the drive may come back) but use the default for now
+      $('qOutNote').textContent = 'The folder for converted files "' + r.batchOutMissing + '" is not available (deleted, or its drive is not connected), ' +
+        'so batch files will be saved next to each original. Choose the folder again to use it.';
+      $('qOutNote').classList.remove('hidden');
+    } else $('qOutMode').value = 'dir';
+  }
+  $('qOutDirWrap').classList.toggle('hidden', $('qOutMode').value !== 'dir');
 }
 
 function badge(text, cls) {
@@ -510,7 +527,7 @@ $('browseIn').onclick = async () => {
   if (!r.ok) { if (r.error) showError(r.error); return; }
   if (!r.paths || !r.paths.length) return;
   if (r.paths.length === 1) { $('input').value = r.paths[0]; $('input').dispatchEvent(new Event('change')); return; }
-  addToQueue(r.paths.map(settingsFor)); // several files: they go into the queue with the current settings
+  if (batchOutReady()) addToQueue(r.paths.map(settingsFor)); // several files: they go into the queue with the current settings
 };
 $('browseOut').onclick = () => browse('save', $('output'), $('output').value);
 $('browseTmp').onclick = () => browse('folder', $('tmp'), $('tmp').value);
@@ -553,11 +570,31 @@ function setJobUI(running) {
   updateStart();
 }
 
+// Where batch files are saved: next to each original, or in one chosen folder (remembered).
+function batchOutDir() { return $('qOutMode').value === 'dir' ? $('qOutDir').value.trim().replace(/[\\\/]+$/, '') : ''; }
 function settingsFor(path) { // the current settings, for another input file
-  const st = settings();
-  st.input = path; st.output = dirOf(path) + stem(path) + '_hdr' + $('container').value; st.overwrite = false;
+  const st = settings(), dir = batchOutDir();
+  const sep = dir.includes('/') && !dir.includes('\\') ? '/' : '\\';
+  st.input = path; st.overwrite = false;
+  st.output = (dir ? dir + sep : dirOf(path)) + stem(path) + '_hdr' + $('container').value;
   return st;
 }
+function batchOutReady() {
+  if ($('qOutMode').value === 'dir' && !batchOutDir()) { showError('Choose the folder for converted files (Queue section), or set it to "next to each original".'); return false; }
+  return true;
+}
+function saveBatchOut() {
+  $('qOutDirWrap').classList.toggle('hidden', $('qOutMode').value !== 'dir');
+  api('setPref', { name: 'batchOut', value: { mode: $('qOutMode').value, dir: $('qOutDir').value.trim() } });
+  $('qOutNote').classList.add('hidden');
+}
+$('qOutMode').addEventListener('change', saveBatchOut);
+$('qOutDir').addEventListener('change', saveBatchOut);
+$('qOutBrowse').onclick = async () => {
+  const r = await api('browse', { kind: 'folder', initial: $('qOutDir').value });
+  if (!r.ok) { if (r.error) showError(r.error); return; }
+  if (r.path) { $('qOutDir').value = r.path; saveBatchOut(); }
+};
 function showQueue() { if (!$('secQueue').open) $('secQueue').open = true; } // not saved: it was not the user's click
 
 async function addToQueue(items) {
@@ -590,16 +627,17 @@ $('powerCancel').onclick = async () => { await api('powerCancel', {}); $('after'
 $('qAddFiles').onclick = async () => {
   const r = await api('browse', { kind: 'openMulti', initial: $('input').value });
   if (!r.ok) { if (r.error) showError(r.error); return; }
-  if (r.paths && r.paths.length) addToQueue(r.paths.map(settingsFor));
+  if (r.paths && r.paths.length && batchOutReady()) addToQueue(r.paths.map(settingsFor));
 };
 $('qAddFolder').onclick = async () => {
   const r = await api('browse', { kind: 'folderFiles', initial: $('input').value });
   if (!r.ok) { if (r.error) showError(r.error); return; }
   if (r.folder && !r.paths.length) { showError('No video files were found in ' + r.folder + '.'); return; }
-  if (r.paths.length) addToQueue(r.paths.map(settingsFor));
+  if (r.paths.length && batchOutReady()) addToQueue(r.paths.map(settingsFor));
 };
 $('qApply').onclick = async () => {
-  const r = await api('queueApply', { settings: settings() });
+  if (!batchOutReady()) return;
+  const r = await api('queueApply', { settings: Object.assign(settings(), { outDir: batchOutDir() }) });
   if (r.errors && r.errors.length) showError(r.errors.join('\n'));
   poll();
 };
@@ -801,7 +839,7 @@ async function checkTools() {
   updateSummaries();
   await checkTools();
   if (INITIAL.length === 1) { $('input').value = INITIAL[0]; suggestOutput(); probe(); }
-  else if (INITIAL.length > 1) addToQueue(INITIAL.map(settingsFor));
+  else if (INITIAL.length > 1 && batchOutReady()) addToQueue(INITIAL.map(settingsFor));
   await poll();
   if (queue.items.length && !queue.running && INITIAL.length < 2) { // files left over from last time
     showQueue();

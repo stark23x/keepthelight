@@ -350,3 +350,41 @@ func TestClosingDuringQueue(t *testing.T) {
 		t.Error("partial file left behind")
 	}
 }
+
+func TestBatchOutputFolder(t *testing.T) {
+	src, outDir := t.TempDir(), t.TempDir()
+	p := filepath.Join(src, "film.mkv")
+	_ = os.WriteFile(p, []byte("x"), 0o644)
+	g := newGUIServer()
+	g.prefsPath = filepath.Join(t.TempDir(), "settings.json")
+	// an output folder that does not exist is refused when adding
+	if _, errs := g.queueAdd([]json.RawMessage{itemSettings(p, filepath.Join(src, "gone", "film_hdr.mkv"))}); len(errs) != 1 ||
+		!strings.Contains(errs[0], "output folder does not exist") {
+		t.Fatalf("missing output folder: %v", errs)
+	}
+	g.queueAdd([]json.RawMessage{itemSettings(p, filepath.Join(src, "film_hdr.mkv"))})
+	tmpl := func(dir string) json.RawMessage {
+		b, _ := json.Marshal(map[string]any{"output": "x.mkv", "codec": "x265", "crf": 18, "preset": "medium", "mode": "encode",
+			"quality": "crf", "audio": "copy", "dv": "auto", "outDir": dir})
+		return b
+	}
+	out := func() string { g.mu.Lock(); defer g.mu.Unlock(); return g.q.items[0].Output }
+	g.queueApply(tmpl(outDir)) // move waiting files to the chosen folder
+	if out() != filepath.Join(outDir, "film_hdr.mkv") {
+		t.Fatalf("to folder: %s", out())
+	}
+	g.queueApply(tmpl("")) // and back next to the original
+	if out() != filepath.Join(src, "film_hdr.mkv") {
+		t.Fatalf("back next to the original: %s", out())
+	}
+	// the remembered folder is reported when it has gone
+	gone := filepath.Join(outDir, "removed")
+	callJSON(t, g, "setPref", map[string]any{"name": "batchOut", "value": map[string]any{"mode": "dir", "dir": gone}})
+	if m := callJSON(t, g, "prefs", nil); m["batchOutMissing"] != gone {
+		t.Fatalf("missing batch folder not reported: %v", m)
+	}
+	callJSON(t, g, "setPref", map[string]any{"name": "batchOut", "value": map[string]any{"mode": "dir", "dir": outDir}})
+	if m := callJSON(t, g, "prefs", nil); m["batchOutMissing"] != nil {
+		t.Fatalf("existing batch folder reported missing: %v", m)
+	}
+}

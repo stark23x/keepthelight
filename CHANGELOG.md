@@ -18,6 +18,14 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.3.1 - 2026-10-23
+
+- **Output folder for batches:** the Queue section has "Save converted files: next to each original / in this
+  folder", and the choice is remembered. If the saved folder is not available (deleted, or its drive is not
+  connected), the window says so and files are saved next to the originals. **Use current settings for waiting
+  files** also moves waiting files to the chosen location.
+- Files are now refused when they are added if their output folder does not exist, instead of failing later.
+
 ## 1.3.0 - 2026-10-23
 
 - **Batch transcoding.** A new **Queue** section holds files to transcode one after another.

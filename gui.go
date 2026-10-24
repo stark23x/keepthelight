@@ -543,6 +543,9 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		if missing := g.missingTmpDir(); missing != "" {
 			res["tmpDirMissing"] = missing
 		}
+		if missing := g.missingBatchDir(); missing != "" {
+			res["batchOutMissing"] = missing
+		}
 		return res
 	case "setPref":
 		var pr struct {
@@ -628,6 +631,19 @@ func (g *guiServer) missingTmpDir() string {
 		return ""
 	}
 	return dir
+}
+
+// missingBatchDir returns the saved output folder for batches if it no longer
+// exists, so the page can fall back to saving next to each original.
+func (g *guiServer) missingBatchDir() string {
+	var b struct{ Mode, Dir string }
+	if raw, ok := g.loadPrefs()["batchOut"]; !ok || json.Unmarshal(raw, &b) != nil || b.Mode != "dir" || b.Dir == "" {
+		return ""
+	}
+	if st, err := os.Stat(b.Dir); err == nil && st.IsDir() {
+		return ""
+	}
+	return b.Dir
 }
 
 func (g *guiServer) savePref(name string, value json.RawMessage) error {

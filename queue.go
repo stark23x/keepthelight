@@ -97,6 +97,9 @@ func validateSettings(s settings) (*Config, error) {
 	if cfg.Output == "" {
 		return nil, errors.New("choose an output file")
 	}
+	if st, err := os.Stat(filepath.Dir(cfg.Output)); err != nil || !st.IsDir() {
+		return nil, errors.New("the output folder does not exist: " + filepath.Dir(cfg.Output))
+	}
 	switch strings.ToLower(filepath.Ext(cfg.Output)) {
 	case ".mkv", ".mp4":
 	default:
@@ -261,6 +264,14 @@ func (g *guiServer) queueApply(raw json.RawMessage) (n int, errs []string) {
 		if ext == ".mkv" || ext == ".mp4" {
 			out = strings.TrimSuffix(out, filepath.Ext(out)) + ext
 		}
+		// where converted files go: "outDir" is a folder, or "" for next to each original
+		if dir, ok := tmpl["outDir"].(string); ok {
+			if dir == "" {
+				dir = filepath.Dir(it.Input)
+			}
+			out = filepath.Join(dir, filepath.Base(out))
+		}
+		delete(m, "outDir")
 		m["input"], m["output"], m["overwrite"] = it.Input, out, false
 		b, _ := json.Marshal(m)
 		var s settings
