@@ -51,6 +51,8 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   **When finished** can put the PC to sleep or shut it down (with 60 seconds to cancel).
 - **Low priority** (under Advanced): other programs come first, so the PC stays responsive while encoding; it
   still runs at full speed when the PC is otherwise idle. Remembered, and takes effect at once.
+- **One window at a time:** starting Keep the Light again, or dropping videos on the exe while it is open,
+  brings the open window to the front and adds the files there.
 - The PC is kept awake while a transcode runs. Results are written as `name_hdr.partial.mkv` and renamed when
   complete.
 - **Temp folder** (under Advanced): Dolby Vision and two-pass jobs write large temporary files, next to the

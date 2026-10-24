@@ -18,6 +18,13 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.4.3 - 2026-10-24
+
+- **One window at a time.** Starting Keep the Light while it is already open brings the open window to the front
+  instead of opening a second one (two windows would share, and fight over, the same remembered queue and
+  settings). Videos dropped on `Keep the Light.exe` while it is open go to that window: one file into the form,
+  several into the queue. If the open window does not respond, a new one opens after a few seconds.
+
 ## 1.4.2 - 2026-10-24
 
 - The Keep the Light logo now appears at the top of the window, to the left of the name.

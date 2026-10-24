@@ -40,6 +40,8 @@ var (
 	procGetClassName      = user32.NewProc("GetClassNameW")
 	procCurrentThreadID   = kernel32.NewProc("GetCurrentThreadId")
 	procMoveMemory        = kernel32.NewProc("RtlMoveMemory")
+	procIsIconic          = user32.NewProc("IsIconic")
+	procShowWindow        = user32.NewProc("ShowWindow")
 )
 
 const (
@@ -95,6 +97,15 @@ func runWindow(g *guiServer) error {
 	dialogParent.Store(hwnd)
 	g.notify = func(msg string) { messageBox(hwnd, msg, true) }
 	g.ask = func(msg string) bool { return askYesNo(hwnd, msg) }
+	g.raise = func() { // another start of Keep the Light: come to the front and fetch its files now
+		w.Dispatch(func() {
+			if iconic, _, _ := procIsIconic.Call(hwnd); iconic != 0 {
+				_, _, _ = procShowWindow.Call(hwnd, 9) // SW_RESTORE
+			}
+			_, _, _ = procSetForeground.Call(hwnd)
+			w.Eval("poll()")
+		})
+	}
 	hookWindow(hwnd, g)
 
 	// Requests from the page run on their own goroutines (probing a file or
@@ -270,6 +281,7 @@ func (l *webviewLog) last() string {
 
 func startBrowserFallback(initial []string, reason string) {
 	destroyOurWindows()
+	releaseInstance() // the replacement process becomes the one window
 	exe, err := os.Executable()
 	if err == nil {
 		cmd := exec.Command(exe, append([]string{"-server"}, initial...)...)

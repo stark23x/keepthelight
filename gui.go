@@ -67,9 +67,12 @@ type guiServer struct {
 	ask      func(msg string) bool // asks a yes/no question (window mode)
 	now      func() time.Time      // clock for the time estimate (nil = time.Now)
 
-	q       batch // the queue; guarded by mu
-	closing bool  // the window is closing
-	lowPrio bool  // run transcodes at low priority (a remembered setting)
+	q       batch    // the queue; guarded by mu
+	closing bool     // the window is closing
+	lowPrio bool     // run transcodes at low priority (a remembered setting)
+	inbox   []string // files sent by a later start of Keep the Light, for the page
+	opened  int      // how many times that happened (tests)
+	raise   func()   // brings the window to the front (window mode)
 	jobSeq  int
 
 	prefsMu   sync.Mutex
@@ -215,6 +218,10 @@ func runGUI(initialFiles []string, forceServer bool) (code int) {
 		}
 	}()
 	g := newGUIServer(initialFiles...)
+	if claimInstance(g) {
+		return 0 // the window that is already open took the files
+	}
+	defer releaseInstance()
 	g.restoreQueue()
 	if !forceServer {
 		if hasConsole() {
@@ -836,7 +843,7 @@ func (g *guiServer) status(since int) map[string]any {
 	defer g.mu.Unlock()
 	j := g.job
 	if j == nil {
-		return map[string]any{"active": false, "queue": g.queueStatusLocked()}
+		return map[string]any{"active": false, "queue": g.queueStatusLocked(), "open": g.takeInboxLocked()}
 	}
 	if since < j.base {
 		since = j.base
@@ -848,7 +855,7 @@ func (g *guiServer) status(since int) map[string]any {
 	return map[string]any{
 		"active": true, "running": j.running, "lines": lines, "next": j.base + len(j.lines),
 		"progress": j.progress, "percent": j.prog.percent(), "eta": g.remainingLocked(g.clock()), "stage": j.stage, "exitCode": j.exitCode,
-		"jobId": j.id, "queue": g.queueStatusLocked(), "title": g.titleLocked(g.clock()),
+		"jobId": j.id, "queue": g.queueStatusLocked(), "title": g.titleLocked(g.clock()), "open": g.takeInboxLocked(),
 		"canceled": j.canceled, "output": j.output,
 	}
 }

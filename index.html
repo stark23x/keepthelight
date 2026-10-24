@@ -735,12 +735,19 @@ function renderQueue(q) {
   if (power) $('powerText').textContent = (q.after === 'sleep' ? 'The PC will go to sleep in ' : 'The PC will shut down in ') + q.powerIn + ' s.';
 }
 
+// Files given at start-up or by a later start: one goes into the form, several into the queue.
+function openFiles(files) {
+  if (files.length === 1) { $('input').value = files[0]; suggestOutput(); probe(); $('secFiles').open = true; }
+  else if (files.length > 1 && batchOutReady()) addToQueue(files.map(settingsFor));
+}
+
 // ---------- status ----------
 async function poll() {
   clearTimeout(polling);
   const r = await api('status?since=' + since);
   renderQueue(r.queue);
   if (r.title) document.title = r.title;
+  if (r.open && r.open.length) openFiles(r.open); // Keep the Light was started again with files
   const q = r.queue || queue;
   if (r.active && r.jobId !== curJob) { // the next file in the queue started
     curJob = r.jobId; since = 0; $('log').textContent = '';
@@ -850,8 +857,7 @@ async function checkTools() {
   await restorePrefs();
   updateSummaries();
   await checkTools();
-  if (INITIAL.length === 1) { $('input').value = INITIAL[0]; suggestOutput(); probe(); }
-  else if (INITIAL.length > 1 && batchOutReady()) addToQueue(INITIAL.map(settingsFor));
+  openFiles(INITIAL);
   await poll();
   if (queue.items.length && !queue.running && INITIAL.length < 2) { // files left over from last time
     showQueue();
