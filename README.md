@@ -1,6 +1,6 @@
 # Keep the Light
 
-Windows transcoder that keeps HDR10, HLG, HDR10+ and Dolby Vision intact, with its own window and a command-line version.
+Windows only transcoder that keeps HDR10, HLG, HDR10+ and Dolby Vision intact, with its own window and a command-line version.
 It orchestrates FFmpeg, dovi_tool, MP4Box and (optionally) hdr10plus_tool.
 
 ## Download
