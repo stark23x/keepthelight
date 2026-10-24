@@ -2,6 +2,9 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -321,5 +324,47 @@ func TestTargetConflicts(t *testing.T) {
 	cfg.TargetBytes, cfg.Bitrate = 8<<30, "10M"
 	if _, err := makePlan(cfg, p); err == nil {
 		t.Error("target size with an explicit bitrate must be refused")
+	}
+}
+
+// A copy of MP4Box that cannot start (e.g. mp4box.exe copied without its DLLs)
+// must be skipped in favour of a working GPAC install, and reported if it is the only one.
+func TestFindToolSkipsBrokenCopies(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses Unix executables")
+	}
+	mk := func(dir string) string {
+		_ = os.MkdirAll(dir, 0o755)
+		p := filepath.Join(dir, map[bool]string{true: "mp4box", false: "MP4Box"}[strings.Contains(dir, "GPAC")])
+		_ = os.WriteFile(p, []byte("#!/bin/sh\n"), 0o755)
+		return p
+	}
+	onPath := mk(filepath.Join(t.TempDir(), "bin"))
+	pf := t.TempDir()
+	gpac := mk(filepath.Join(pf, "GPAC"))
+	t.Setenv("PATH", filepath.Dir(onPath))
+	t.Setenv("ProgramW6432", pf)
+	old := toolStartProblem
+	defer func() { toolStartProblem = old }()
+	broken := map[string]bool{onPath: true}
+	toolStartProblem = func(p string) string {
+		if broken[p] {
+			return "a DLL it needs is missing, error 0xc0000135"
+		}
+		return ""
+	}
+	if p, err := findTool("MP4Box", ""); err != nil || p != gpac {
+		t.Fatalf("got %q, %v; want the GPAC install %q", p, err, gpac)
+	}
+	broken[gpac] = true // now nothing works
+	_, err := findTool("MP4Box", "")
+	if err == nil || !strings.Contains(err.Error(), "0xc0000135") || !strings.Contains(err.Error(), onPath) || !strings.Contains(err.Error(), "Install GPAC") {
+		t.Fatalf("unhelpful error: %v", err)
+	}
+	if _, err := need("MP4Box", ""); err == nil || strings.Contains(err.Error(), "not found.") {
+		t.Fatalf("need() hid the reason: %v", err)
+	}
+	if p := loaderProblem(int(int32(-1073741515))); !strings.Contains(p, "0xc0000135") { // how Windows reports it
+		t.Fatalf("loaderProblem: %q", p)
 	}
 }

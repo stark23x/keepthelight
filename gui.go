@@ -689,13 +689,18 @@ func (g *guiServer) savePref(name string, value json.RawMessage) error {
 }
 
 func (g *guiServer) tools() map[string]any {
-	res := map[string]any{}
+	startChecks.Clear() // "Check again" after installing GPAC or the runtime: test the tools afresh
+	res, problems := map[string]any{}, map[string]string{}
 	for _, t := range []struct{ key, exe string }{
 		{"ffmpeg", "ffmpeg"}, {"ffprobe", "ffprobe"}, {"dovi_tool", "dovi_tool"}, {"mp4box", "MP4Box"}, {"hdr10plus_tool", "hdr10plus_tool"},
 	} {
 		_, err := findTool(t.exe, "")
 		res[t.key] = err == nil
+		if err != nil && !strings.HasSuffix(err.Error(), "not found") {
+			problems[t.key] = err.Error() // found, but it cannot start
+		}
 	}
+	res["problems"] = problems
 	res["vcruntime"] = hasVCRuntime()
 	return res
 }
@@ -740,6 +745,18 @@ func (g *guiServer) probe(ctx context.Context, s settings) map[string]any {
 	if err != nil {
 		resp["blocker"] = err.Error()
 		return resp
+	}
+	if plan.UseDV { // a Dolby Vision job needs both tools to actually start; find out now, not halfway through
+		for _, tool := range []string{"dovi_tool", "MP4Box"} {
+			if _, err := findTool(tool, ""); err != nil {
+				msg := "Keeping Dolby Vision needs " + tool + ", which is not installed. "
+				if !strings.HasSuffix(err.Error(), "not found") {
+					msg = "Keeping Dolby Vision needs " + tool + ", but " + err.Error() + ". "
+				}
+				resp["blocker"] = msg + `Set Dolby Vision to "Drop (plain HDR10)" to transcode without it.`
+				return resp
+			}
+		}
 	}
 	resp["mode"] = describeMode(cfg, plan)
 	warnings := append([]string{}, plan.Warnings...)

@@ -816,12 +816,14 @@ async function checkTools() {
       'Download the free "ffmpeg-release-essentials.zip" build, open it, and copy ffmpeg.exe and ffprobe.exe from its bin folder into the tools folder.');
     links.push(linkButton('Get FFmpeg', FFMPEG_URL));
   }
+  const problems = t.problems || {};
+  Object.keys(problems).forEach(k => msgs.push(problems[k] + '.'));  // found, but cannot start
   if (!t.mp4box) {
-    msgs.push('Dolby Vision files need MP4Box: install GPAC (free) with its normal installer and Keep the Light will find it. HDR10, HLG and HDR10+ work without it.');
+    if (!problems.mp4box) msgs.push('Dolby Vision files need MP4Box: install GPAC (free) with its normal installer and Keep the Light will find it. HDR10, HLG and HDR10+ work without it.');
     links.push(linkButton('Get GPAC', GPAC_URL));
   }
-  if (!t.dovi_tool || !t.hdr10plus_tool) {
-    msgs.push([!t.dovi_tool && 'dovi_tool.exe', !t.hdr10plus_tool && 'hdr10plus_tool.exe'].filter(Boolean).join(' and ') +
+  if ((!t.dovi_tool && !problems.dovi_tool) || (!t.hdr10plus_tool && !problems.hdr10plus_tool)) {
+    msgs.push([!t.dovi_tool && !problems.dovi_tool && 'dovi_tool.exe', !t.hdr10plus_tool && !problems.hdr10plus_tool && 'hdr10plus_tool.exe'].filter(Boolean).join(' and ') +
       ' should be in the tools folder (they come with Keep the Light). Unzip the download again if they are missing.');
   }
   if ((t.dovi_tool || t.hdr10plus_tool) && !t.vcruntime) {

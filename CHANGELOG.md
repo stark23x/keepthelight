@@ -18,6 +18,19 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.4.1 - 2026-10-24
+
+- **Fix: Dolby Vision files failing with "MP4Box.exe failed; exit status 0xc0000135".** That code means Windows
+  could not start MP4Box because a DLL it needs is missing, typically when `mp4box.exe` was copied somewhere on
+  its own without GPAC's other files, or when the Microsoft Visual C++ Runtime is missing.
+  - Keep the Light now checks that MP4Box, dovi_tool and the other tools actually start. A copy that cannot
+    start is skipped in favour of the next one (for example GPAC's own install folder).
+  - If none works, the window says which file is broken and why, instead of failing in the middle of a batch.
+  - Dolby Vision files are checked for this when they are added, so the problem shows before a batch starts
+    (setting Dolby Vision to "Drop (plain HDR10)" still lets them be transcoded).
+  - **Check again** re-tests the tools, so installing GPAC or the runtime is picked up without restarting.
+  - The log shows which dovi_tool and MP4Box are used.
+
 ## 1.4.0 - 2026-10-23
 
 - **Low priority** (under Advanced): transcodes run at Windows' "below normal" priority, so other programs come

@@ -224,6 +224,9 @@ func run() int {
 
 func need(name, override string) (string, error) {
 	p, err := findTool(name, override)
+	if err != nil && !strings.HasSuffix(err.Error(), "not found") {
+		return "", err // found, but it cannot start: say why
+	}
 	if err != nil {
 		return "", fmt.Errorf("%s not found. Put %s next to Keep the Light.exe (or in a \"tools\" folder), add it to PATH, or pass its path with a flag", name, name)
 	}
@@ -450,6 +453,7 @@ func runDV(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 	if err != nil {
 		return err
 	}
+	fmt.Println("Using", dovi, "and", mp4box)
 	rpu := filepath.Join(tmp, "rpu.bin")
 	base := filepath.Join(tmp, "video.hevc")
 	injected := filepath.Join(tmp, "video_dv.hevc")
