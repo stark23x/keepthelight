@@ -12,7 +12,8 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
   .wrap { max-width: 940px; margin: 0 auto; padding: 20px 20px 40px; }
-  header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  header .logo { width: 40px; height: 40px; flex: none; margin: -6px 0; } /* does not make the header taller */
   header .about { margin-left: auto; background: none; border: 0; padding: 2px 4px; color: var(--muted); font-size: 13px; }
   header .about:hover { color: var(--text); text-decoration: underline; }
   h1 { font-size: 20px; margin: 0; font-weight: 600; }
@@ -133,7 +134,7 @@
 </head>
 <body>
 <div class="wrap">
-  <header><h1>Keep the Light</h1><span>HDR10 · HLG · HDR10+ · Dolby Vision &nbsp;|&nbsp; v__VERSION__</span>
+  <header><img class="logo" src="__ICON__" alt=""><h1>Keep the Light</h1><span>HDR10 · HLG · HDR10+ · Dolby Vision &nbsp;|&nbsp; v__VERSION__</span>
     <button class="about" id="aboutBtn">About</button></header>
 
   <div id="toolsNote" class="note bad tools hidden"></div>

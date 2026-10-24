@@ -160,6 +160,9 @@ func TestAboutInPage(t *testing.T) {
 			t.Errorf("placeholder %s left in the page", ph)
 		}
 	}
+	if strings.Count(p, `class="logo" src="data:image/png;base64,`) != 1 {
+		t.Error("header logo missing")
+	}
 	if len(p) > 1_500_000 { // WebView2 shows pages of up to 2 MB this way
 		t.Errorf("page is %d bytes", len(p))
 	}

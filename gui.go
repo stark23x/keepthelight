@@ -373,7 +373,7 @@ func writeJSON(w http.ResponseWriter, v any) {
 func (g *guiServer) page() []byte {
 	page := bytes.Replace(indexHTML, []byte("__ABOUT__"), aboutHTML, 1)
 	page = bytes.Replace(page, []byte("__NOTICES__"), []byte(html.EscapeString(noticesText)), 1)
-	page = bytes.Replace(page, []byte("__ICON__"), []byte("data:image/png;base64,"+base64.StdEncoding.EncodeToString(aboutIcon)), 1)
+	page = bytes.ReplaceAll(page, []byte("__ICON__"), []byte("data:image/png;base64,"+base64.StdEncoding.EncodeToString(aboutIcon))) // header and About box
 	page = bytes.ReplaceAll(page, []byte("__VERSION__"), []byte(version))
 	files := g.initial
 	if files == nil {

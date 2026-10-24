@@ -18,6 +18,10 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.4.2 - 2026-10-24
+
+- The Keep the Light logo now appears at the top of the window, to the left of the name.
+
 ## 1.4.1 - 2026-10-24
 
 - **Fix: Dolby Vision files failing with "MP4Box.exe failed; exit status 0xc0000135".** That code means Windows
