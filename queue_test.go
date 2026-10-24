@@ -39,7 +39,7 @@ func fakeTools(t *testing.T) {
 		t.Fatal(err)
 	}
 	write("ffprobe", `for a in "$@"; do [ "$a" = "v:0" ] && exec cat "`+dir+`/probe.json"; done; echo '{"streams":[]}'`+"\n")
-	write("ffmpeg", `case "$*" in *-encoders*) echo " V..... libx265 x"; exit 0;; *"-h full"*) echo "-fps_mode"; exit 0;; esac
+	write("ffmpeg", `case "$*" in -version|--version) echo "fake 1.0"; exit 0;; *-encoders*) echo " V..... libx265 x"; exit 0;; *"-h full"*) echo "-fps_mode"; exit 0;; esac
 for a in "$@"; do last="$a"; case "$a" in *bad*) echo "Error: broken file" >&2; exit 1;; *slow*) slow=1;; esac; done
 [ -n "$slow" ] && sleep 30
 echo "frame= 100 fps=50 q=28.0 size= 1kB time=00:00:30.00 bitrate=1k speed=1x" >&2
@@ -397,7 +397,7 @@ func TestLowPriorityReachesTheTools(t *testing.T) {
 	// a stand-in ffmpeg that records its own priority ("nice" value) in the output file
 	bin := filepath.Join(t.TempDir(), "ffmpeg")
 	_ = os.WriteFile(bin, []byte(`#!/bin/sh
-case "$*" in *-encoders*) echo " V..... libx265 x"; exit 0;; *"-h full"*) echo "-fps_mode"; exit 0;; esac
+case "$*" in -version|--version) echo "fake 1.0"; exit 0;; *-encoders*) echo " V..... libx265 x"; exit 0;; *"-h full"*) echo "-fps_mode"; exit 0;; esac
 for a in "$@"; do last="$a"; done
 awk '{print $19}' /proc/$$/stat > "$last"
 `), 0o755)
