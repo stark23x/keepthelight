@@ -69,6 +69,7 @@ type guiServer struct {
 
 	q       batch // the queue; guarded by mu
 	closing bool  // the window is closing
+	lowPrio bool  // run transcodes at low priority (a remembered setting)
 	jobSeq  int
 
 	prefsMu   sync.Mutex
@@ -166,6 +167,9 @@ func (cfg *Config) cliArgs() []string {
 	a := []string{"-crf", strconv.Itoa(cfg.CRF), "-preset", cfg.Preset, "-codec", cfg.Codec, "-audio", cfg.Audio, "-dv", cfg.DV}
 	if cfg.Bitrate != "" {
 		a = append(a, "-bitrate", cfg.Bitrate)
+	}
+	if cfg.LowPriority {
+		a = append(a, "-low-priority")
 	}
 	if cfg.AudioBitrate != "" {
 		a = append(a, "-audio-bitrate", cfg.AudioBitrate)
@@ -537,6 +541,19 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		if err != nil {
 			return failResult(err.Error())
 		}
+		return okResult()
+	case "priority": // low priority on/off; applies to the file being encoded now, too
+		var b struct{ Low bool }
+		_ = json.Unmarshal(body, &b)
+		g.mu.Lock()
+		g.lowPrio = b.Low
+		j := g.job
+		g.mu.Unlock()
+		if j != nil && j.running && j.cmd != nil && j.cmd.Process != nil {
+			_ = setTreePriority(j.cmd.Process.Pid, b.Low)
+		}
+		raw, _ := json.Marshal(b.Low)
+		_ = g.savePref("lowPriority", raw)
 		return okResult()
 	case "prefs":
 		res := map[string]any{"ok": true, "prefs": g.loadPrefs()}

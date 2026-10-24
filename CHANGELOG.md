@@ -18,6 +18,14 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.4.0 - 2026-10-23
+
+- **Low priority** (under Advanced): transcodes run at Windows' "below normal" priority, so other programs come
+  first and the PC stays responsive. When nothing else needs the CPU the encode still runs at full speed. The
+  setting is remembered, applies to every file in a batch, and takes effect immediately, also on a transcode
+  that is already running.
+- `keepthelight_cli.exe` has the same option: `-low-priority`.
+
 ## 1.3.1 - 2026-10-23
 
 - **Output folder for batches:** the Queue section has "Save converted files: next to each original / in this

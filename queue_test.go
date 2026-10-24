@@ -388,3 +388,42 @@ func TestBatchOutputFolder(t *testing.T) {
 		t.Fatalf("existing batch folder reported missing: %v", m)
 	}
 }
+
+func TestLowPriorityReachesTheTools(t *testing.T) {
+	fakeTools(t)
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+	// a stand-in ffmpeg that records its own priority ("nice" value) in the output file
+	bin := filepath.Join(t.TempDir(), "ffmpeg")
+	_ = os.WriteFile(bin, []byte(`#!/bin/sh
+case "$*" in *-encoders*) echo " V..... libx265 x"; exit 0;; *"-h full"*) echo "-fps_mode"; exit 0;; esac
+for a in "$@"; do last="$a"; done
+awk '{print $19}' /proc/$$/stat > "$last"
+`), 0o755)
+	t.Setenv("PATH", filepath.Dir(bin)+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	dir := t.TempDir()
+	in := filepath.Join(dir, "film.mkv")
+	_ = os.WriteFile(in, []byte("x"), 0o644)
+	g := newGUIServer()
+	g.prefsPath = filepath.Join(t.TempDir(), "settings.json")
+	callJSON(t, g, "priority", map[string]any{"low": true})
+	g.queueAdd([]json.RawMessage{itemSettings(in, filepath.Join(dir, "film_hdr.mkv"))})
+	waitFor(t, "check", func() bool { return !strings.Contains(strings.Join(statuses(g), " "), stChecking) })
+	if err := g.startQueue(); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the queue to finish", func() bool { g.mu.Lock(); defer g.mu.Unlock(); return !g.q.running })
+	got, _ := os.ReadFile(filepath.Join(dir, "film_hdr.mkv"))
+	if strings.TrimSpace(string(got)) != "10" {
+		t.Fatalf("ffmpeg ran with nice %q, want 10 (low priority); statuses %v", strings.TrimSpace(string(got)), statuses(g))
+	}
+	// remembered for the next run
+	g2 := newGUIServer()
+	g2.prefsPath = g.prefsPath
+	g2.restoreQueue()
+	if !g2.lowPrio {
+		t.Fatal("low priority not remembered")
+	}
+}

@@ -56,6 +56,8 @@ Options:
   -keep-temp           keep temporary files
   -dry-run             print the commands without running them
   -v                   verbose
+  -low-priority        run at low priority: other programs come first, so the PC stays
+                       responsive; full speed when the PC is otherwise idle
   -pause               wait for Enter before exiting
   -ffmpeg -ffprobe -dovi-tool -mp4box -hdr10plus-tool <path>   tool locations
 
@@ -88,6 +90,7 @@ func parseArgs() (*Config, bool) {
 	fs.BoolVar(&cfg.Verbose, "v", false, "")
 	showVersion := fs.Bool("version", false, "")
 	fs.BoolVar(&cfg.Pause, "pause", false, "")
+	fs.BoolVar(&cfg.LowPriority, "low-priority", false, "")
 	fs.StringVar(&cfg.Ffmpeg, "ffmpeg", "", "")
 	fs.StringVar(&cfg.Ffprobe, "ffprobe", "", "")
 	fs.StringVar(&cfg.DoviTool, "dovi-tool", "", "")
@@ -302,6 +305,11 @@ func transcode(ctx context.Context, cfg *Config) error {
 		fmt.Println("WARNING:", w)
 	}
 
+	if cfg.LowPriority {
+		if err := setOwnLowPriority(); err != nil {
+			fmt.Println("WARNING: could not lower the priority:", err)
+		}
+	}
 	r := &runner{ctx: ctx, dry: cfg.DryRun, verbose: cfg.Verbose}
 	if !cfg.DryRun {
 		defer preventSleep()() // a long encode must not be stopped by the PC going to sleep

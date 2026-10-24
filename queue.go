@@ -533,6 +533,9 @@ func (g *guiServer) launchJob(cfg *Config, duration float64) (*job, error) {
 	final := cfg.Output
 	run := *cfg
 	run.Output = partialName(final)
+	g.mu.Lock()
+	run.LowPriority = g.lowPrio
+	g.mu.Unlock()
 	_ = os.Remove(run.Output) // left over from an interrupted run
 
 	g.mu.Lock()
@@ -824,8 +827,15 @@ func (g *guiServer) saveQueue() {
 	_ = g.savePref("queue", b)
 }
 
-// restoreQueue loads the saved queue (not started: the user decides).
+// restoreQueue loads the saved queue (not started: the user decides) and the
+// low-priority setting.
 func (g *guiServer) restoreQueue() {
+	var low bool
+	if b, ok := g.loadPrefs()["lowPriority"]; ok && json.Unmarshal(b, &low) == nil {
+		g.mu.Lock()
+		g.lowPrio = low
+		g.mu.Unlock()
+	}
 	var raws []json.RawMessage
 	if b, ok := g.loadPrefs()["queue"]; ok {
 		_ = json.Unmarshal(b, &raws)

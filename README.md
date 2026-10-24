@@ -49,6 +49,8 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   result already exists are skipped. Files run one after another; one that fails
   does not stop the rest. Unfinished queues are remembered and come back when you reopen Keep the Light.
   **When finished** can put the PC to sleep or shut it down (with 60 seconds to cancel).
+- **Low priority** (under Advanced): other programs come first, so the PC stays responsive while encoding; it
+  still runs at full speed when the PC is otherwise idle. Remembered, and takes effect at once.
 - The PC is kept awake while a transcode runs. Results are written as `name_hdr.partial.mkv` and renamed when
   complete.
 - **Temp folder** (under Advanced): Dolby Vision and two-pass jobs write large temporary files, next to the
@@ -70,6 +72,7 @@ private local web server. To choose that yourself, run `keepthelight_cli -server
     keepthelight_cli -crf 18 -preset slow input.mkv output.mkv
     keepthelight_cli -audio eac3 -audio-bitrate 640k movie.mkv movie_small.mp4
     keepthelight_cli -dry-run input.mkv        (prints the commands only)
+    keepthelight_cli -low-priority in.mkv     (other programs come first)
     keepthelight_cli -gui [input]              (opens the window)
 
     keepthelight_cli -version                  (prints the name and version)

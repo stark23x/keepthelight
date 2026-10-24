@@ -67,6 +67,9 @@
     font: 12px/1.45 Consolas, monospace; white-space: pre-wrap; word-break: break-all; margin: 10px 0 0; color: #c3c8d2; }
   .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .hidden { display: none !important; }
+  label.check { display: flex; gap: 8px; align-items: flex-start; color: var(--text); font-size: 13px; cursor: pointer; }
+  label.check input { margin-top: 3px; accent-color: var(--accent); }
+  label.check span { color: var(--muted); } label.check b { color: var(--text); font-weight: 600; }
   .tools { font-size: 12.5px; margin: 0 0 14px; }
   #dropNote { margin: 0 0 14px; }
   .tools .tool-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
@@ -230,6 +233,8 @@
         <div><label for="tmp">Temp folder (Dolby Vision / HDR10+)</label>
           <div class="row"><div class="grow"><input type="text" id="tmp" spellcheck="false" placeholder="next to the output file"></div><button id="browseTmp">…</button></div></div>
       </div>
+      <label class="check" style="margin-top:14px"><input type="checkbox" id="lowPrio"> <span><b>Low priority</b> – other programs come first, so the PC
+        stays responsive while encoding. It still runs at full speed when the PC is otherwise idle. Takes effect immediately, also on a running transcode.</span></label>
   </details>
 
   <details class="card sect" id="secQueue" data-key="queue">
@@ -397,7 +402,8 @@ function updateSummaries() {
   let at = a.value === 'copy' ? 'Copy all tracks' : a.options[a.selectedIndex].text.replace(/^Convert to /, '');
   if (a.value !== 'copy' && $('abitrate').value.trim()) at += '  ·  ' + $('abitrate').value.trim();
   $('sumAudio').textContent = at;
-  const adv = [$('master').value.trim() && 'master display', $('cll').value.trim() && 'MaxCLL/FALL', $('tmp').value.trim() && 'temp folder'].filter(Boolean);
+  const adv = [$('master').value.trim() && 'master display', $('cll').value.trim() && 'MaxCLL/FALL', $('tmp').value.trim() && 'temp folder',
+    $('lowPrio').checked && 'low priority'].filter(Boolean);
   $('sumAdv').textContent = adv.length ? 'custom: ' + adv.join(', ') : 'defaults';
 }
 
@@ -425,6 +431,7 @@ async function restorePrefs() {
   } else if (typeof r.prefs.tmpDir === 'string') {
     $('tmp').value = r.prefs.tmpDir;
   }
+  $('lowPrio').checked = r.prefs.lowPriority === true;
   const bo = r.prefs.batchOut;
   if (bo && bo.mode === 'dir') {
     $('qOutDir').value = bo.dir || '';
@@ -547,6 +554,8 @@ $('codec').addEventListener('change', () => { updateVisibility(); scheduleProbe(
 $('crf').addEventListener('input', updateVisibility);
 document.querySelectorAll('input[name="mode"], input[name="quality"]').forEach(el => el.addEventListener('change', () => { updateVisibility(); scheduleProbe(100); }));
 ['input', 'change'].forEach(t => document.querySelector('.wrap').addEventListener(t, updateSummaries));
+// Low priority is a remembered setting for all transcodes (not per file).
+$('lowPrio').addEventListener('change', () => { api('priority', { low: $('lowPrio').checked }); updateSummaries(); });
 // The temp folder is remembered between runs (an empty field means "next to the output file").
 $('tmp').addEventListener('change', () => api('setPref', { name: 'tmpDir', value: $('tmp').value.trim() }));
 

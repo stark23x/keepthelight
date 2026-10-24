@@ -7,6 +7,7 @@ import (
 )
 
 type Config struct {
+	LowPriority                                  bool // run (and start the tools) at below-normal priority
 	Input, Output                                string
 	CRF                                          int
 	Preset, Codec, Bitrate                       string
