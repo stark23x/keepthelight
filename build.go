@@ -7,7 +7,9 @@ import (
 )
 
 type Config struct {
-	LowPriority                                  bool // run (and start the tools) at below-normal priority
+	LowPriority                                  bool   // run (and start the tools) at below-normal priority
+	HWDecode                                     bool   // decode the source on the GPU (falls back to the CPU)
+	Scale                                        string // "" keeps the size; "1080p" etc. shrinks to fit that frame
 	Input, Output                                string
 	CRF                                          int
 	Preset, Codec, Bitrate                       string
@@ -22,6 +24,7 @@ type Config struct {
 	Retries                                      int      // hardware encoders: extra attempts to land on the target
 	Pass                                         int      // x265 two-pass: 0 off, 1 or 2
 	vsyncArgs                                    []string // keep every source frame exactly once (set at start-up)
+	hwaccel                                      []string // input options for GPU decoding (set at start-up)
 }
 
 type Plan struct {
@@ -33,6 +36,38 @@ type Plan struct {
 	Warnings     []string
 	Subs         []subInfo
 	Size         *SizePlan
+	ScaleW       int // >0: resize the video to ScaleW x ScaleH
+	ScaleH       int
+	SrcW, SrcH   int
+}
+
+// scaleBoxes are the sizes offered for resizing: the video is shrunk to fit
+// inside the frame, keeping its shape (a 3840x1600 film becomes 1920x800 at
+// 1080p). Nothing is ever enlarged.
+var scaleBoxes = map[string][2]int{"2160p": {3840, 2160}, "1440p": {2560, 1440}, "1080p": {1920, 1080}, "720p": {1280, 720}}
+
+// normScale accepts "1080p", "1080" or "" (keep).
+func normScale(s string) (string, bool) {
+	s = strings.ToLower(strings.TrimSpace(s))
+	if s == "" || s == "original" || s == "keep" {
+		return "", true
+	}
+	if !strings.HasSuffix(s, "p") {
+		s += "p"
+	}
+	_, ok := scaleBoxes[s]
+	return s, ok
+}
+
+// fitSize shrinks w x h to fit inside bw x bh, keeping the shape, with even
+// dimensions (needed for 4:2:0 video). ok is false if it already fits.
+func fitSize(w, h, bw, bh int) (int, int, bool) {
+	f := min(float64(bw)/float64(w), float64(bh)/float64(h))
+	if f >= 1 {
+		return w, h, false
+	}
+	even := func(v float64) int { return max(2, 2*int(v/2+0.5)) }
+	return even(float64(w) * f), even(float64(h) * f), true
 }
 
 func isMP4(path string) bool {
@@ -106,6 +141,23 @@ func makePlan(cfg *Config, p *Probe) (*Plan, error) {
 		}
 	}
 
+	if cfg.Scale != "" {
+		box, ok := scaleBoxes[cfg.Scale]
+		switch {
+		case !ok:
+			return nil, fmt.Errorf("unknown resolution %q (use 2160p, 1440p, 1080p or 720p)", cfg.Scale)
+		case cfg.CopyVideo:
+			return nil, fmt.Errorf("the video cannot be resized when it is copied unchanged; choose Re-encode")
+		case p.Width <= 0 || p.Height <= 0:
+			return nil, fmt.Errorf("cannot read the size of the video, so it cannot be resized")
+		}
+		if w, h, ok := fitSize(p.Width, p.Height, box[0], box[1]); ok {
+			plan.ScaleW, plan.ScaleH, plan.SrcW, plan.SrcH = w, h, p.Width, p.Height
+		} else {
+			warn("the video is %dx%d, which already fits %s, so it is not resized (Keep the Light never enlarges)", p.Width, p.Height, cfg.Scale)
+		}
+	}
+
 	if p.Mastering == nil && cfg.MasterDisplay == "" && plan.Kind == "hdr10" && !cfg.CopyVideo {
 		warn("no mastering-display metadata found in source; output will have HDR10 colour tags only (use -master-display to supply it)")
 	}
@@ -131,6 +183,11 @@ func buildVideoArgs(cfg *Config, p *Probe, plan *Plan, hdr10plusJSON string) ([]
 		prim, space = dflt(prim, "bt2020"), dflt(space, "bt2020nc")
 	}
 	var args []string
+	if plan.ScaleW > 0 {
+		// Same pixel format and colour space in and out: only the size changes,
+		// so the HDR picture (PQ/HLG, BT.2020, 10-bit) is untouched.
+		args = append(args, "-vf", fmt.Sprintf("scale=%d:%d:flags=lanczos", plan.ScaleW, plan.ScaleH))
+	}
 	switch cfg.Codec {
 	case "nvenc":
 		args = append(args, "-c:v", "hevc_nvenc", "-preset", nvPreset(cfg.Preset), "-tune", "hq", "-profile:v", "main10", "-pix_fmt", "p010le")

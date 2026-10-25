@@ -178,6 +178,10 @@
             <option>ultrafast</option><option>superfast</option><option>veryfast</option><option>faster</option><option>fast</option>
             <option selected>medium</option><option>slow</option><option>slower</option><option>veryslow</option></select>
           <div class="hint">Slower = smaller file at the same quality</div></div>
+        <div><label for="scale">Resolution</label>
+          <select id="scale"><option value="">Keep original</option><option value="2160p">4K (2160p)</option><option value="1440p">1440p</option>
+            <option value="1080p">1080p</option><option value="720p">720p</option></select>
+          <div class="hint" id="scaleHint">Smaller = much faster encode and smaller file. HDR10, HDR10+ and Dolby Vision are kept.</div></div>
         <div id="dvWrap" class="hidden"><label for="dv">Dolby Vision</label>
           <select id="dv"><option value="auto">Keep Dolby Vision</option><option value="drop">Drop (plain HDR10)</option></select></div>
       </div>
@@ -236,6 +240,9 @@
       </div>
       <label class="check" style="margin-top:14px"><input type="checkbox" id="lowPrio"> <span><b>Low priority</b> – other programs come first, so the PC
         stays responsive while encoding. It still runs at full speed when the PC is otherwise idle. Takes effect immediately, also on a running transcode.</span></label>
+      <label class="check" style="margin-top:10px"><input type="checkbox" id="hwDec"> <span><b>Decode on the GPU</b> – the graphics chip (on a PC without
+        a graphics card, the processor's built-in graphics) reads the source video, so the CPU only encodes. Speeds up x265, most with 4K sources. If the GPU
+        cannot decode a file, it is decoded on the CPU as before; the log says which. Used from the next file that starts.</span></label>
   </details>
 
   <details class="card sect" id="secQueue" data-key="queue">
@@ -338,7 +345,8 @@ function settings() {
     codec: $('codec').value, quality: radio('quality'), crf: +$('crf').value, bitrate: $('bitrate').value.trim(),
     preset: $('preset').value, audio: $('audio').value, audioBitrate: $('abitrate').value.trim(),
     dv: $('dv').value, masterDisplay: $('master').value.trim(), maxCLL: $('cll').value.trim(), tmp: $('tmp').value.trim(),
-    targetSize: $('targetNum').value.trim().replace(',', '.') + $('targetUnit').value, retries: +$('retries').value
+    targetSize: $('targetNum').value.trim().replace(',', '.') + $('targetUnit').value, retries: +$('retries').value,
+    scale: $('scale').value
   };
 }
 
@@ -378,6 +386,9 @@ function updateVisibility() {
     : 'GB here means what Windows Explorer shows. x265 encodes twice (about double the time) and lands within a couple of percent, slightly under the target.';
   $('abrWrap').classList.toggle('hidden', $('audio').value === 'copy');
   $('crfVal').textContent = $('crf').value;
+  $('scaleHint').textContent = $('scale').value && info && info.scaledTo
+    ? 'Output: ' + info.scaledTo + ' (same shape as the source). HDR10, HDR10+ and Dolby Vision are kept.'
+    : 'Smaller = much faster encode and smaller file. HDR10, HDR10+ and Dolby Vision are kept.';
   $('gpuHint').classList.toggle('hidden', $('codec').value === 'x265');
   updateAudioNote();
   updateSummaries();
@@ -396,6 +407,7 @@ function updateSummaries() {
       : q === 'bitrate' ? $('bitrate').value.trim()
       : 'target ' + $('targetNum').value.trim() + ' ' + ($('targetUnit').value === 'G' ? 'GB' : 'MB');
     v = [{ x265: 'x265', nvenc: 'NVENC', qsv: 'QuickSync' }[$('codec').value], quality, $('preset').value].join('  ·  ');
+    if ($('scale').value) v += '  ·  ' + (info && info.scaledTo ? info.scaledTo : $('scale').value);
     if (info && info.dv && $('dv').value === 'drop') v += '  ·  drop Dolby Vision';
   }
   $('sumVideo').textContent = v;
@@ -404,7 +416,7 @@ function updateSummaries() {
   if (a.value !== 'copy' && $('abitrate').value.trim()) at += '  ·  ' + $('abitrate').value.trim();
   $('sumAudio').textContent = at;
   const adv = [$('master').value.trim() && 'master display', $('cll').value.trim() && 'MaxCLL/FALL', $('tmp').value.trim() && 'temp folder',
-    $('lowPrio').checked && 'low priority'].filter(Boolean);
+    $('lowPrio').checked && 'low priority', $('hwDec').checked && 'GPU decoding'].filter(Boolean);
   $('sumAdv').textContent = adv.length ? 'custom: ' + adv.join(', ') : 'defaults';
 }
 
@@ -433,6 +445,7 @@ async function restorePrefs() {
     $('tmp').value = r.prefs.tmpDir;
   }
   $('lowPrio').checked = r.prefs.lowPriority === true;
+  $('hwDec').checked = r.prefs.hwDecode === true;
   const bo = r.prefs.batchOut;
   if (bo && bo.mode === 'dir') {
     $('qOutDir').value = bo.dir || '';
@@ -548,7 +561,7 @@ $('container').addEventListener('change', () => {
   if (o) $('output').value = o.replace(/\.[A-Za-z0-9]+$/, '') + $('container').value; else suggestOutput();
   updateAudioNote(); scheduleProbe();
 });
-['preset', 'dv', 'bitrate', 'abitrate', 'master', 'cll', 'tmp', 'targetNum', 'targetUnit', 'retries'].forEach(id => $(id).addEventListener('change', () => scheduleProbe(200)));
+['preset', 'scale', 'dv', 'bitrate', 'abitrate', 'master', 'cll', 'tmp', 'targetNum', 'targetUnit', 'retries'].forEach(id => $(id).addEventListener('change', () => scheduleProbe(200)));
 $('targetNum').addEventListener('input', () => scheduleProbe(600));
 $('audio').addEventListener('change', () => { updateVisibility(); });
 $('codec').addEventListener('change', () => { updateVisibility(); scheduleProbe(200); });
@@ -557,6 +570,8 @@ document.querySelectorAll('input[name="mode"], input[name="quality"]').forEach(e
 ['input', 'change'].forEach(t => document.querySelector('.wrap').addEventListener(t, updateSummaries));
 // Low priority is a remembered setting for all transcodes (not per file).
 $('lowPrio').addEventListener('change', () => { api('priority', { low: $('lowPrio').checked }); updateSummaries(); });
+// GPU decoding is remembered too, and applies to every file from the next one on.
+$('hwDec').addEventListener('change', () => { api('hwdecode', { on: $('hwDec').checked }); updateSummaries(); });
 // The temp folder is remembered between runs (an empty field means "next to the output file").
 $('tmp').addEventListener('change', () => api('setPref', { name: 'tmpDir', value: $('tmp').value.trim() }));
 
@@ -667,6 +682,7 @@ function settingsText(st) {
   const q = st.quality === 'bitrate' ? st.bitrate : st.quality === 'size'
     ? 'target ' + String(st.targetSize).replace(/G$/, ' GB').replace(/M$/, ' MB') : 'CRF ' + st.crf;
   const parts = [{ x265: 'x265', nvenc: 'NVENC', qsv: 'QuickSync' }[st.codec] || st.codec, q, st.preset];
+  if (st.scale) parts.push(st.scale);
   if (st.audio && st.audio !== 'copy') parts.push('audio ' + st.audio.toUpperCase() + (st.audioBitrate ? ' ' + st.audioBitrate : ''));
   parts.push(ext);
   return parts.join(' · ');

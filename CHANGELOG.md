@@ -18,6 +18,23 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.5.0 - 2026-10-24
+
+- **Resolution** (under Video): shrink the video to fit 4K (2160p), 1440p, 1080p or 720p. The shape is kept
+  (a 3840x1600 film becomes 1920x800 at 1080p), and so is the HDR:
+  - HDR10, HLG and HDR10+ metadata carry over unchanged (they describe brightness and colour, not pixels).
+  - Dolby Vision: the black-bar sizes it records (the "active area") are scaled with the picture, scene by
+    scene, so films that change aspect ratio stay correct. All other Dolby Vision data is kept unchanged.
+  - A smaller picture encodes much faster: 1080p is about a quarter of the work of 4K.
+  - Videos are never enlarged; one that already fits is left as it is, with a note.
+  - The plan line shows the result (for example "resized 3840x1600 → 1920x800"), and the queue list shows each
+    file's choice. A target file size's quality guide is judged against the new size.
+- **Decode on the GPU** (under Advanced): the graphics chip reads the source video, so the CPU only encodes,
+  which speeds up x265, most with 4K sources. Before each file a few frames are test-decoded; if the GPU cannot
+  decode that file, it is decoded on the CPU as before. The log says which was used. The setting is remembered
+  and used from the next file that starts.
+- `keepthelight_cli.exe` has the same options: `-scale 1080p` and `-hw-decode`.
+
 ## 1.4.3 - 2026-10-24
 
 - **One window at a time.** Starting Keep the Light while it is already open brings the open window to the front

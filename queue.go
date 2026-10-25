@@ -534,7 +534,7 @@ func (g *guiServer) launchJob(cfg *Config, duration float64) (*job, error) {
 	run := *cfg
 	run.Output = partialName(final)
 	g.mu.Lock()
-	run.LowPriority = g.lowPrio
+	run.LowPriority, run.HWDecode = g.lowPrio, g.hwDec
 	g.mu.Unlock()
 	_ = os.Remove(run.Output) // left over from an interrupted run
 
@@ -834,6 +834,12 @@ func (g *guiServer) restoreQueue() {
 	if b, ok := g.loadPrefs()["lowPriority"]; ok && json.Unmarshal(b, &low) == nil {
 		g.mu.Lock()
 		g.lowPrio = low
+		g.mu.Unlock()
+	}
+	var hw bool
+	if b, ok := g.loadPrefs()["hwDecode"]; ok && json.Unmarshal(b, &hw) == nil {
+		g.mu.Lock()
+		g.hwDec = hw
 		g.mu.Unlock()
 	}
 	var raws []json.RawMessage

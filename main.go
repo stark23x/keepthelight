@@ -49,6 +49,11 @@ Options:
   -audio <codec>       audio: copy (default), aac, eac3, ac3, flac, opus ...
   -audio-bitrate <r>   e.g. 640k (when not copying)
   -dv <auto|drop>      Dolby Vision: auto keeps it (default), drop = plain HDR10
+  -scale <size>        shrink the video to fit 2160p, 1440p, 1080p or 720p, keeping its shape
+                       (3840x1600 -> 1920x800 at 1080p) and its HDR10 / HDR10+ / Dolby Vision
+                       data. Never enlarges.
+  -hw-decode           decode the source on the GPU, so the CPU only encodes (falls back to
+                       the CPU if the GPU cannot decode the file)
   -copy-video          do not re-encode video at all (keeps any HDR/DV exactly)
   -master-display <s>  override x265 master-display string
   -max-cll <a,b>       override MaxCLL,MaxFALL
@@ -91,6 +96,8 @@ func parseArgs() (*Config, bool) {
 	showVersion := fs.Bool("version", false, "")
 	fs.BoolVar(&cfg.Pause, "pause", false, "")
 	fs.BoolVar(&cfg.LowPriority, "low-priority", false, "")
+	fs.BoolVar(&cfg.HWDecode, "hw-decode", false, "")
+	fs.StringVar(&cfg.Scale, "scale", "", "")
 	fs.StringVar(&cfg.Ffmpeg, "ffmpeg", "", "")
 	fs.StringVar(&cfg.Ffprobe, "ffprobe", "", "")
 	fs.StringVar(&cfg.DoviTool, "dovi-tool", "", "")
@@ -140,6 +147,12 @@ func parseArgs() (*Config, bool) {
 	}
 	if cfg.DV != "auto" && cfg.DV != "drop" {
 		fmt.Fprintln(os.Stderr, "error: -dv must be auto or drop")
+		return cfg, false
+	}
+	if sc, ok := normScale(cfg.Scale); ok {
+		cfg.Scale = sc
+	} else {
+		fmt.Fprintln(os.Stderr, "error: -scale must be 2160p, 1440p, 1080p or 720p")
 		return cfg, false
 	}
 	if cfg.Audio == "opus" {
@@ -314,6 +327,16 @@ func transcode(ctx context.Context, cfg *Config) error {
 		}
 	}
 	r := &runner{ctx: ctx, dry: cfg.DryRun, verbose: cfg.Verbose}
+	if cfg.HWDecode && !cfg.CopyVideo {
+		switch {
+		case cfg.DryRun:
+			cfg.hwaccel = hwaccelArgs()
+		default:
+			args, msg := checkHWDecode(ctx, ffmpeg, cfg.Input)
+			cfg.hwaccel = args
+			fmt.Println(msg)
+		}
+	}
 	if !cfg.DryRun {
 		defer preventSleep()() // a long encode must not be stopped by the PC going to sleep
 	}
@@ -387,7 +410,8 @@ func runSimple(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 	mk := func(pass int, out string) []string {
 		cfg.Pass = pass
 		vargs, _ := buildVideoArgs(cfg, p, plan, hdr10plusJSON)
-		args := []string{"-hide_banner", "-y", "-i", cfg.Input, "-map", "0:v:0"}
+		args := append([]string{"-hide_banner", "-y"}, cfg.hwaccel...)
+		args = append(args, "-i", cfg.Input, "-map", "0:v:0")
 		if pass > 0 {
 			args = append(args, cfg.vsyncArgs...)
 		}
@@ -470,6 +494,14 @@ func runDV(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 		return err
 	}
 
+	if plan.ScaleW > 0 {
+		scaled, err := scaleRPU(r, dovi, rpu, tmp, plan)
+		if err != nil {
+			return err
+		}
+		rpu = scaled
+	}
+
 	_, warns := buildVideoArgs(cfg, p, plan, "")
 	for _, w := range warns {
 		fmt.Println("WARNING:", w)
@@ -478,7 +510,8 @@ func runDV(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 	mk := func(pass int, out string) []string {
 		cfg.Pass = pass
 		vargs, _ := buildVideoArgs(cfg, p, plan, "")
-		args := []string{"-hide_banner", "-y", "-i", cfg.Input, "-map", "0:v:0", "-an", "-sn", "-dn"}
+		args := append([]string{"-hide_banner", "-y"}, cfg.hwaccel...)
+		args = append(args, "-i", cfg.Input, "-map", "0:v:0", "-an", "-sn", "-dn")
 		args = append(args, cfg.vsyncArgs...)
 		args = append(args, vargs...)
 		if pass == 1 {
@@ -603,6 +636,14 @@ func verify(ctx context.Context, cfg *Config, plan *Plan) {
 }
 
 func describeMode(cfg *Config, plan *Plan) string {
+	m := describeHDR(cfg, plan)
+	if plan.ScaleW > 0 {
+		m += fmt.Sprintf(", resized %dx%d -> %dx%d", plan.SrcW, plan.SrcH, plan.ScaleW, plan.ScaleH)
+	}
+	return m
+}
+
+func describeHDR(cfg *Config, plan *Plan) string {
 	switch {
 	case cfg.CopyVideo:
 		return "video stream copy"

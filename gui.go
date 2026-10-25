@@ -70,6 +70,7 @@ type guiServer struct {
 	q       batch    // the queue; guarded by mu
 	closing bool     // the window is closing
 	lowPrio bool     // run transcodes at low priority (a remembered setting)
+	hwDec   bool     // decode on the GPU (a remembered setting, used from the next file on)
 	inbox   []string // files sent by a later start of Keep the Light, for the page
 	opened  int      // how many times that happened (tests)
 	raise   func()   // brings the window to the front (window mode)
@@ -90,6 +91,7 @@ type settings struct {
 	Audio, AudioBitrate, DV    string
 	MasterDisplay, MaxCLL, Tmp string
 	TargetSize                 string // e.g. 8G, 4500M (when Quality is "size")
+	Scale                      string // "" (keep) or 2160p / 1440p / 1080p / 720p
 	Retries                    int    // hardware encoders: extra attempts to hit the target
 	Overwrite                  bool   // replace an existing output (the user confirmed it)
 }
@@ -125,6 +127,13 @@ func (s *settings) toConfig() (*Config, error) {
 	}
 	if !presets[cfg.Preset] {
 		return nil, fmt.Errorf("unknown preset")
+	}
+	sc, ok := normScale(s.Scale)
+	if !ok {
+		return nil, fmt.Errorf("unknown resolution")
+	}
+	if s.Mode != "copy" {
+		cfg.Scale = sc
 	}
 	if cfg.CRF < 0 || cfg.CRF > 51 {
 		return nil, fmt.Errorf("quality (CRF) must be between 0 and 51")
@@ -173,6 +182,12 @@ func (cfg *Config) cliArgs() []string {
 	}
 	if cfg.LowPriority {
 		a = append(a, "-low-priority")
+	}
+	if cfg.HWDecode {
+		a = append(a, "-hw-decode")
+	}
+	if cfg.Scale != "" {
+		a = append(a, "-scale", cfg.Scale)
 	}
 	if cfg.AudioBitrate != "" {
 		a = append(a, "-audio-bitrate", cfg.AudioBitrate)
@@ -562,6 +577,15 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		raw, _ := json.Marshal(b.Low)
 		_ = g.savePref("lowPriority", raw)
 		return okResult()
+	case "hwdecode": // GPU decoding on/off; used from the next file that starts
+		var b struct{ On bool }
+		_ = json.Unmarshal(body, &b)
+		g.mu.Lock()
+		g.hwDec = b.On
+		g.mu.Unlock()
+		raw, _ := json.Marshal(b.On)
+		_ = g.savePref("hwDecode", raw)
+		return okResult()
 	case "prefs":
 		res := map[string]any{"ok": true, "prefs": g.loadPrefs()}
 		if missing := g.missingTmpDir(); missing != "" {
@@ -766,6 +790,9 @@ func (g *guiServer) probe(ctx context.Context, s settings) map[string]any {
 		}
 	}
 	resp["mode"] = describeMode(cfg, plan)
+	if plan.ScaleW > 0 {
+		resp["scaledTo"] = fmt.Sprintf("%d×%d", plan.ScaleW, plan.ScaleH)
+	}
 	warnings := append([]string{}, plan.Warnings...)
 	if cfg.TargetBytes > 0 {
 		// preview only: no slow audio measuring (DryRun), subtitles from a quick probe

@@ -266,6 +266,9 @@ func planSize(ctx context.Context, cfg *Config, p *Probe, plan *Plan, srcBytes i
 		return nil, fmt.Errorf("a target file size cannot be used when the video is copied unchanged")
 	}
 	sp := &SizePlan{Target: cfg.TargetBytes, Duration: p.Duration, Width: p.Width, Height: p.Height}
+	if plan.ScaleW > 0 { // judge the bitrate against the resized picture
+		sp.Width, sp.Height = plan.ScaleW, plan.ScaleH
+	}
 	sp.Aim = int64(float64(sp.Target) * aimFraction)
 	sp.FPS, _ = parseRational(p.AvgFPS)
 	if sp.FPS <= 0 {

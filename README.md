@@ -51,6 +51,12 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   **When finished** can put the PC to sleep or shut it down (with 60 seconds to cancel).
 - **Low priority** (under Advanced): other programs come first, so the PC stays responsive while encoding; it
   still runs at full speed when the PC is otherwise idle. Remembered, and takes effect at once.
+- **Resolution** (under Video): shrink the video to fit 4K, 1440p, 1080p or 720p, keeping its shape (a
+  3840x1600 film becomes 1920x800 at 1080p) and its HDR10, HDR10+ and Dolby Vision data. A smaller picture
+  encodes much faster (1080p is about a quarter of the work of 4K). Videos are never enlarged.
+- **Decode on the GPU** (under Advanced): the graphics chip reads the source video, so the CPU only encodes.
+  Speeds up x265, most with 4K sources. Before each file, Keep the Light test-decodes a few frames; if the GPU
+  cannot decode it, that file is decoded on the CPU as before, and the log says which was used. Remembered.
 - **One window at a time:** starting Keep the Light again, or dropping videos on the exe while it is open,
   brings the open window to the front and adds the files there.
 - The PC is kept awake while a transcode runs. Results are written as `name_hdr.partial.mkv` and renamed when
@@ -75,6 +81,8 @@ private local web server. To choose that yourself, run `keepthelight_cli -server
     keepthelight_cli -audio eac3 -audio-bitrate 640k movie.mkv movie_small.mp4
     keepthelight_cli -dry-run input.mkv        (prints the commands only)
     keepthelight_cli -low-priority in.mkv     (other programs come first)
+    keepthelight_cli -scale 1080p in.mkv      (shrink to fit 1920x1080, keeping HDR / Dolby Vision)
+    keepthelight_cli -hw-decode in.mkv        (decode on the GPU, encode on the CPU)
     keepthelight_cli -gui [input]              (opens the window)
 
     keepthelight_cli -version                  (prints the name and version)
@@ -89,6 +97,9 @@ command-line options when run from a command prompt, but its output appears afte
 - **HDR10+**: dynamic metadata extracted and re-injected (x265 only).
 - **Dolby Vision 8.x**: RPU extracted, base layer re-encoded, RPU injected, packaged with the DV config record.
 - **Dolby Vision 7**: converted to 8.1 (enhancement layer discarded).
+- **Resizing**: the picture is scaled in 10-bit with its colour space unchanged, so HDR10 / HDR10+ / HLG metadata
+  stays valid as is. Dolby Vision's only size-dependent data, the active area (black-bar sizes, level 5), is
+  scaled with the picture scene by scene using dovi_tool; everything else in the RPU is kept unchanged.
 - **Dolby Vision 5**: refused for re-encode (no HDR10 base layer; colours would be wrong). Use `-copy-video`.
 
 ## Target file size
@@ -109,7 +120,9 @@ subtitles and container from the target to get a video bitrate, then:
 - If a run fails after the long encode (Dolby Vision / HDR10+ modes), the temporary folder is kept and its path is printed, so finished work is not deleted.
 
 ## Limits
-- No scaling or cropping in Dolby Vision mode (the RPU is frame-exact and tied to the picture).
+- No cropping. Resizing keeps the frame count, so it never changes the frame rate.
+- GPU decoding uses the GPU that runs the main display (Direct3D 11). The decoded frames are copied back to the
+  CPU, which costs a little but keeps everything else exactly as without it.
 - Dolby Vision mode assumes constant frame rate.
 - QuickSync (`-codec qsv`) and NVENC (`-codec nvenc`) are fast but cannot keep HDR10+, and their quality number is not the same scale as x265 CRF.
 - Re-encoding is lossy; the Dolby Vision tone-mapping metadata is preserved, not recomputed.
