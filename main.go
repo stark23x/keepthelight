@@ -37,7 +37,9 @@ Usage:
                                      server (fallback if the built-in window does not work)
 
 Options:
-  -o <file>            output file (.mkv or .mp4). Default: <input>_hdr.mkv
+  -o <file>            output file (.mkv or .mp4). Default: <input><tag>.mkv
+  -tag <text>          what is added to the name for the default output file (default _KTL;
+                       "" for none, then the output must go elsewhere or be .mp4)
   -crf <n>             quality, lower = better (default 18)
   -preset <name>       x265 preset: ultrafast..veryslow (default medium)
   -bitrate <rate>      target bitrate instead of CRF, e.g. 20M
@@ -52,7 +54,7 @@ Options:
 
 Choosing tracks (numbers as the window shows them: audio 1, 2, ...; subtitles 1, 2, ...):
   -audio-tracks <list> keep these audio tracks, each copied or converted:
-                       1,2:eac3,3:aac:192k   (no format = the -audio setting), all, none
+                       1,2:eac3,3:aac:192k,4:eac3:5.1   (no format = the -audio setting), all, none
   -audio-default <n>   mark audio track n as the default
   -sub-tracks <list>   keep these subtitle tracks: 1,3:forced (":forced" sets the forced flag), all, none
   -sub-default <n>     mark subtitle track n as the default, or "none"
@@ -60,6 +62,8 @@ Choosing tracks (numbers as the window shows them: audio 1, 2, ...; subtitles 1,
   -audio-lang <list>   keep only audio in these languages, e.g. eng,jpn (tracks with no language
                        are kept; if nothing matches, the default track is kept)
   -drop-commentary     leave out commentary audio tracks
+  -audio-channels <5.1|stereo>  mix converted tracks down to at most 5.1, or to stereo (also per
+                       track in -audio-tracks, e.g. 1:eac3:5.1 or 2:aac:192k:stereo; "orig" keeps them)
   -sub-lang <list>     keep only subtitles in these languages
   -subs <all|forced|none>  which subtitles to keep (default all)
   -dv <auto|drop>      Dolby Vision: auto keeps it (default), drop = plain HDR10
@@ -91,6 +95,7 @@ func parseArgs() (*Config, bool) {
 	fs := flag.NewFlagSet("keepthelight", flag.ContinueOnError)
 	fs.Usage = func() { fmt.Printf(usage, version) }
 	fs.StringVar(&cfg.Output, "o", "", "")
+	tag := fs.String("tag", "_KTL", "")
 	fs.IntVar(&cfg.CRF, "crf", 18, "")
 	fs.StringVar(&cfg.Preset, "preset", "medium", "")
 	fs.StringVar(&cfg.Bitrate, "bitrate", "", "")
@@ -107,6 +112,7 @@ func parseArgs() (*Config, bool) {
 	subLang := fs.String("sub-lang", "", "")
 	fs.BoolVar(&cfg.DropCommentary, "drop-commentary", false, "")
 	fs.StringVar(&cfg.SubMode, "subs", "", "")
+	fs.StringVar(&cfg.AudioChannels, "audio-channels", "", "")
 	fs.StringVar(&cfg.DV, "dv", "auto", "")
 	fs.BoolVar(&cfg.CopyVideo, "copy-video", false, "")
 	fs.StringVar(&cfg.MasterDisplay, "master-display", "", "")
@@ -201,6 +207,10 @@ func parseArgs() (*Config, bool) {
 		cfg.SubDefault = n
 	}
 	cfg.AudioLangs, cfg.SubLangs = parseLangs(*audioLang), parseLangs(*subLang)
+	if cfg.AudioChannels = strings.ToLower(cfg.AudioChannels); !validChannels(cfg.AudioChannels, false) {
+		fmt.Fprintln(os.Stderr, "error: -audio-channels must be 5.1 or stereo")
+		return cfg, false
+	}
 	switch cfg.SubMode = strings.ToLower(cfg.SubMode); cfg.SubMode {
 	case "", "forced", "none":
 	case "all":
@@ -223,7 +233,7 @@ func parseArgs() (*Config, bool) {
 	}
 	if cfg.Output == "" {
 		ext := filepath.Ext(cfg.Input)
-		cfg.Output = strings.TrimSuffix(cfg.Input, ext) + "_hdr.mkv"
+		cfg.Output = strings.TrimSuffix(cfg.Input, ext) + cleanTag(*tag) + ".mkv"
 	}
 	return cfg, true
 }
@@ -321,6 +331,7 @@ func transcode(ctx context.Context, cfg *Config) error {
 	if !supportsFpsMode(ctx, ffmpeg) {
 		cfg.vsyncArgs = []string{"-vsync", "passthrough"}
 	}
+	cfg.cuesFront = supportsCuesToFront(ctx, ffmpeg)
 	// child processes may run in the temp folder (x265 two-pass), so paths must be absolute
 	for _, f := range []*string{&cfg.Input, &cfg.Output, &cfg.Tmp} {
 		if *f != "" {
@@ -474,6 +485,8 @@ func runSimple(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 		args = append(args, vargs...)
 		if mp4 {
 			args = append(args, "-tag:v", "hvc1", "-movflags", "+faststart")
+		} else {
+			args = append(args, mkvIndexArgs(cfg, p.Duration)...)
 		}
 		return append(args, out)
 	}
@@ -644,6 +657,8 @@ func runDV(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 	margs = append(margs, "-map_chapters", "1", "-c:v", "copy")
 	if mp4 {
 		margs = append(margs, "-tag:v", "dvh1", "-movflags", "+faststart")
+	} else {
+		margs = append(margs, mkvIndexArgs(cfg, p.Duration)...)
 	}
 	margs = append(margs, cfg.Output)
 	return r.run(cfg.Ffmpeg, margs...)
@@ -705,6 +720,37 @@ func hasEncoder(ctx context.Context, ffmpeg, name string) bool {
 		return true // cannot tell; let the real run report any problem
 	}
 	return strings.Contains(string(out), " "+name+" ")
+}
+
+// cleanTag removes characters a Windows file name cannot contain.
+func cleanTag(s string) string {
+	return strings.Map(func(r rune) rune {
+		if strings.ContainsRune(`\/:*?"<>|`, r) || r < 32 {
+			return -1
+		}
+		return r
+	}, s)
+}
+
+// supportsCuesToFront reports whether this ffmpeg can write an MKV's index
+// (cues) at the start of the file (FFmpeg 5.1 and newer).
+func supportsCuesToFront(ctx context.Context, ffmpeg string) bool {
+	out, err := toolCommand(ctx, ffmpeg, "-hide_banner", "-h", "muxer=matroska").Output()
+	return err == nil && strings.Contains(string(out), "cues_to_front")
+}
+
+// mkvIndexArgs puts the seek index at the front of an MKV, like MP4's
+// "faststart", so a player or a Plex server can seek and resume without first
+// reading the end of the file. Space for it is reserved up front (generously:
+// about 64 bytes per second of video, a few hundred KB for a film); if that is
+// ever not enough, ffmpeg moves the data to make room instead, so the index is
+// never lost.
+func mkvIndexArgs(cfg *Config, duration float64) []string {
+	if !cfg.cuesFront {
+		return nil
+	}
+	reserve := max(64<<10, int(duration*64))
+	return []string{"-reserve_index_space", strconv.Itoa(reserve), "-cues_to_front", "1"}
 }
 
 // supportsFpsMode reports whether this ffmpeg knows -fps_mode (FFmpeg 5.1 and newer).

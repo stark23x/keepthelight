@@ -96,6 +96,7 @@ type settings struct {
 	AudioDefault, SubDefault   int
 	AudioLang, SubLang         string // rules: languages to keep, e.g. "eng, jpn" (empty = all)
 	DropCommentary             bool
+	AudioChannels              string // rules: channels for converted tracks: "" (as the source), "5.1", "stereo"
 	SubMode                    string // rules: "" all matching, "forced", "none"
 	Retries                    int    // hardware encoders: extra attempts to hit the target
 	Overwrite                  bool   // replace an existing output (the user confirmed it)
@@ -167,6 +168,10 @@ func (s *settings) toConfig() (*Config, error) {
 	cfg.Audio = a
 	cfg.AudioDefault, cfg.SubDefault = max(0, s.AudioDefault), max(-1, s.SubDefault)
 	cfg.AudioLangs, cfg.SubLangs, cfg.DropCommentary = parseLangs(s.AudioLang), parseLangs(s.SubLang), s.DropCommentary
+	if !validChannels(s.AudioChannels, false) {
+		return nil, fmt.Errorf("unknown channels option")
+	}
+	cfg.AudioChannels = s.AudioChannels
 	switch s.SubMode {
 	case "", "all":
 	case "forced", "none":
@@ -181,10 +186,10 @@ func (s *settings) toConfig() (*Config, error) {
 			if t.Codec == "" {
 				c, ok = "", true
 			}
-			if !ok || t.N < 1 || (t.Bitrate != "" && !reBitrate.MatchString(t.Bitrate)) {
+			if !ok || t.N < 1 || (t.Bitrate != "" && !reBitrate.MatchString(t.Bitrate)) || !validChannels(t.Channels, true) {
 				return nil, fmt.Errorf("bad audio track choice")
 			}
-			cfg.AudioSel = append(cfg.AudioSel, trackSel{N: t.N, Codec: c, Bitrate: t.Bitrate})
+			cfg.AudioSel = append(cfg.AudioSel, trackSel{N: t.N, Codec: c, Bitrate: t.Bitrate, Channels: t.Channels})
 		}
 	}
 	if s.SubTracks != nil {
@@ -251,6 +256,9 @@ func (cfg *Config) cliArgs() []string {
 	}
 	if cfg.DropCommentary {
 		a = append(a, "-drop-commentary")
+	}
+	if cfg.AudioChannels != "" {
+		a = append(a, "-audio-channels", cfg.AudioChannels)
 	}
 	if cfg.SubMode != "" {
 		a = append(a, "-subs", cfg.SubMode)
@@ -502,7 +510,7 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		}
 		return g.probe(ctx, s)
 	case "browse":
-		var b struct{ Kind, Initial string }
+		var b struct{ Kind, Initial, Tag string }
 		_ = json.Unmarshal(body, &b)
 		switch b.Kind {
 		case "openMulti": // several files at once
@@ -519,7 +527,7 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 				}
 				return map[string]any{"ok": true, "paths": []string{}}
 			}
-			paths, err := videosIn(dir)
+			paths, err := videosIn(dir, b.Tag)
 			if err != nil {
 				return failResult(err.Error())
 			}

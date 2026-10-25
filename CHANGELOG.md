@@ -18,6 +18,25 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.8.0 - 2026-10-25
+
+- **Mix 7.1 down to 5.1, or to stereo.** Converted audio tracks have a channels choice: as the source, mix down to
+  5.1 (for 7.1 tracks) or mix down to stereo. It is set per track, or for all converted tracks under the rules
+  (remembered, used by the queue).
+  - The conventional downmix: 7.1 to 5.1 keeps the fronts, centre and LFE and combines each side and rear
+    surround at -3 dB; stereo adds the centre and surrounds at -3 dB and leaves out the LFE. Mixed in floating
+    point with a transparent limiter, so loud passages cannot clip.
+  - 7.1 converted to AC-3 or E-AC-3 (which hold at most 5.1) now uses the same downmix (before: FFmpeg's automatic one).
+  - Bitrates and track titles follow the new channel count ("AAC 5.1").
+  - `keepthelight_cli.exe`: `-audio-channels 5.1|stereo`, or per track, e.g. `-audio-tracks 1,1:eac3:5.1`.
+- **MKV files have their seek index at the front**, like MP4's "fast start", so Plex and other players can seek and
+  resume without first reading the end of the file. Space is reserved for it, so no extra time is needed; if it is
+  ever not enough, FFmpeg makes room. Needs FFmpeg 5.1 or newer (older builds work as before).
+- **The ending added to file names is your choice** (Files section, **Add to the name**, remembered). The default is
+  now **`_KTL`** (was `_hdr`), and it can be anything, or nothing. With nothing added, save in another folder or as
+  MP4, since a file cannot replace its original. `keepthelight_cli.exe`: `-tag`.
+- **Add folder** skips files that already end in the current ending, `_KTL` or `_hdr` (results of earlier runs).
+
 ## 1.7.0 - 2026-10-25
 
 - **Choose audio and subtitle tracks.** The Audio and new Subtitles sections list every track of the file

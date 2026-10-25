@@ -38,18 +38,21 @@ type Tracks struct {
 // trackSel is one chosen track: for audio, how to write it (Codec "copy" or
 // an encoder, "" = the general audio setting); for subtitles, its forced flag.
 type trackSel struct {
-	N       int    `json:"n"`
-	Codec   string `json:"codec,omitempty"`
-	Bitrate string `json:"bitrate,omitempty"`
-	Forced  bool   `json:"forced,omitempty"`
+	N        int    `json:"n"`
+	Codec    string `json:"codec,omitempty"`
+	Bitrate  string `json:"bitrate,omitempty"`
+	Channels string `json:"channels,omitempty"` // converted audio: "orig", "5.1" or "stereo"; "" = the general setting
+	Forced   bool   `json:"forced,omitempty"`
 }
 
 type outAudio struct {
-	Src     srcTrack
-	Codec   string // "copy" or an ffmpeg encoder
-	Bitrate string // for converted tracks
-	Default bool
-	Title   string // replaces the source title when it describes the old format
+	Src      srcTrack
+	Codec    string // "copy" or an ffmpeg encoder
+	Bitrate  string // for converted tracks
+	Channels int    // >0: mixed down to this many channels
+	Filter   string // the downmix, when the source layout is a known one
+	Default  bool
+	Title    string // replaces the source title when it describes the old format
 }
 
 type outSub struct {
@@ -331,22 +334,73 @@ func autoBitrate(codec string, channels int) string {
 	return "" // flac: lossless, no bitrate
 }
 
-// outLayout: what a converted track's channel layout becomes (AC-3 and E-AC-3
-// hold at most 5.1, so 7.1 is mixed down).
-func outLayout(codec string, t srcTrack) string {
-	if (codec == "ac3" || codec == "eac3") && t.Channels > 6 {
-		return "5.1"
+// outChannels is how many channels a converted track gets: the source's,
+// unless mixed down to 5.1 or stereo (only ever down). AC-3 and E-AC-3 hold at
+// most 5.1, so 7.1 is always mixed down for them.
+func outChannels(codec, want string, src int) int {
+	ch := src
+	switch want {
+	case "5.1":
+		ch = min(ch, 6)
+	case "stereo":
+		ch = min(ch, 2)
 	}
-	return layoutName(t)
+	if (codec == "ac3" || codec == "eac3") && ch > 6 {
+		ch = 6
+	}
+	return ch
+}
+
+func outLayout(a outAudio) string {
+	switch {
+	case a.Channels == 6:
+		return "5.1"
+	case a.Channels == 2:
+		return "stereo"
+	}
+	return layoutName(a.Src)
+}
+
+// downmix returns the ffmpeg filter that mixes a known layout down to 5.1 or
+// stereo the conventional way:
+//
+//	7.1 -> 5.1:    fronts, centre and LFE unchanged; each surround = side + rear at -3 dB
+//	-> stereo:     left = FL + centre at -3 dB + surround(s) at -3 dB (7.1: side and rear at -6 dB each); LFE left out
+//
+// The mix is done in floating point and a transparent limiter catches the
+// rare peak that would clip when channels add up. "" = no known recipe (ffmpeg's
+// own downmix is used).
+//
+// The 5.1 surround pair is labelled the way the target format expects:
+// "side" for AC-3, E-AC-3 and FLAC, "back" for AAC and Opus (the same
+// speakers; the encoders only accept their own label).
+func downmix(src srcTrack, out int, codec string) string {
+	l := src.Layout
+	var pan string
+	switch {
+	case out == 6 && l == "7.1" && (codec == "aac" || codec == "libopus"):
+		pan = "pan=5.1|FL=FL|FR=FR|FC=FC|LFE=LFE|BL=0.707*SL+0.707*BL|BR=0.707*SR+0.707*BR"
+	case out == 6 && l == "7.1":
+		pan = "pan=5.1(side)|FL=FL|FR=FR|FC=FC|LFE=LFE|SL=0.707*SL+0.707*BL|SR=0.707*SR+0.707*BR"
+	case out == 2 && l == "7.1":
+		pan = "pan=stereo|FL=FL+0.707*FC+0.5*SL+0.5*BL|FR=FR+0.707*FC+0.5*SR+0.5*BR"
+	case out == 2 && l == "5.1(side)":
+		pan = "pan=stereo|FL=FL+0.707*FC+0.707*SL|FR=FR+0.707*FC+0.707*SR"
+	case out == 2 && l == "5.1":
+		pan = "pan=stereo|FL=FL+0.707*FC+0.707*BL|FR=FR+0.707*FC+0.707*BR"
+	default:
+		return ""
+	}
+	return "aformat=sample_fmts=fltp," + pan + ",alimiter=limit=0.97:level=false:latency=true"
 }
 
 // retitle: a converted track whose title names the old format ("TrueHD 7.1
 // Atmos") gets a title naming the new one, so players do not mislabel it.
-func retitle(t srcTrack, codec string) string {
-	low := strings.ToLower(t.Title)
-	for _, w := range []string{"truehd", "dts", "atmos", "flac", "pcm", "lpcm", "dolby digital", "e-ac-3", "eac3", "ac-3", "ac3", "aac", "7.1", "5.1"} {
+func retitle(a outAudio) string {
+	low := strings.ToLower(a.Src.Title)
+	for _, w := range []string{"truehd", "dts", "atmos", "flac", "pcm", "lpcm", "dolby digital", "e-ac-3", "eac3", "ac-3", "ac3", "aac", "7.1", "5.1", "stereo", "2.0"} {
 		if strings.Contains(low, w) {
-			return strings.TrimSpace(codecNames[codec] + " " + outLayout(codec, t))
+			return strings.TrimSpace(codecNames[a.Codec] + " " + outLayout(a))
 		}
 	}
 	return ""
@@ -364,6 +418,7 @@ func selectTracks(cfg *Config, t *Tracks, mp4 bool) (audio []outAudio, subs []ou
 	}
 
 	// audio
+	want := map[int]string{} // channels chosen per kept track ("" = the general setting)
 	if cfg.AudioSel != nil {
 		seen := map[int]bool{}
 		for _, s := range cfg.AudioSel {
@@ -379,6 +434,7 @@ func selectTracks(cfg *Config, t *Tracks, mp4 bool) (audio []outAudio, subs []ou
 				codec = general
 			}
 			audio = append(audio, outAudio{Src: t.Audio[s.N-1], Codec: codec, Bitrate: s.Bitrate})
+			want[len(audio)-1] = s.Channels
 		}
 		if len(audio) == 0 && len(t.Audio) > 0 {
 			warn("no audio track is kept: the output will be silent")
@@ -408,16 +464,27 @@ func selectTracks(cfg *Config, t *Tracks, mp4 bool) (audio []outAudio, subs []ou
 			warn("audio track %d (%s) cannot be stored in MP4, so it is converted to E-AC-3 (choose MKV to keep it as it is)", a.Src.N, codecName(a.Src))
 		}
 		if a.Codec != "copy" {
+			w := want[i]
+			if w == "" {
+				w = cfg.AudioChannels
+			}
+			if ch := outChannels(a.Codec, w, a.Src.Channels); a.Src.Channels > 0 && ch < a.Src.Channels {
+				a.Channels, a.Filter = ch, downmix(a.Src, ch, a.Codec)
+			}
 			if a.Bitrate == "" {
 				a.Bitrate = cfg.AudioBitrate
 			}
 			if a.Bitrate == "" {
-				a.Bitrate = autoBitrate(a.Codec, a.Src.Channels)
+				ch := a.Src.Channels
+				if a.Channels > 0 {
+					ch = a.Channels
+				}
+				a.Bitrate = autoBitrate(a.Codec, ch)
 			}
 			if a.Codec == "flac" {
 				a.Bitrate = ""
 			}
-			a.Title = retitle(a.Src, a.Codec)
+			a.Title = retitle(*a)
 		}
 	}
 	if len(audio) > 0 {
@@ -554,8 +621,11 @@ func audioArgs(audio []outAudio, in int) []string {
 		if t.Codec != "copy" && t.Bitrate != "" {
 			a = append(a, fmt.Sprintf("-b:a:%d", n), t.Bitrate)
 		}
-		if t.Codec != "copy" && (t.Codec == "ac3" || t.Codec == "eac3") && t.Src.Channels > 6 {
-			a = append(a, fmt.Sprintf("-ac:a:%d", n), "6") // these formats hold at most 5.1
+		switch {
+		case t.Filter != "":
+			a = append(a, fmt.Sprintf("-filter:a:%d", n), t.Filter)
+		case t.Channels > 0:
+			a = append(a, fmt.Sprintf("-ac:a:%d", n), strconv.Itoa(t.Channels)) // unusual layout: ffmpeg's own downmix
 		}
 		if t.Title != "" {
 			a = append(a, fmt.Sprintf("-metadata:s:a:%d", n), "title="+t.Title)
@@ -602,13 +672,17 @@ func parseAudioSel(s string) ([]trackSel, error) {
 			}
 			t.Codec = c
 		}
-		if len(f) > 2 {
-			if !reBitrate.MatchString(f[2]) {
-				return nil, fmt.Errorf("bad bitrate %q for audio track %d", f[2], n)
+		for _, x := range f[min(2, len(f)):] { // a bitrate and/or channels, in either order
+			switch {
+			case x == "5.1" || x == "stereo" || x == "orig":
+				t.Channels = x
+			case reBitrate.MatchString(x) && t.Bitrate == "":
+				t.Bitrate = x
+			default:
+				return nil, fmt.Errorf("bad setting %q for audio track %d (a bitrate like 640k, or 5.1 / stereo)", x, n)
 			}
-			t.Bitrate = f[2]
 		}
-		if len(f) > 3 {
+		if len(f) > 4 || (t.Codec == "copy" && len(f) > 2) {
 			return nil, fmt.Errorf("bad audio track %q", item)
 		}
 		sel = append(sel, t)
@@ -655,6 +729,9 @@ func audioSelString(sel []trackSel) string {
 			s += ":" + c
 			if t.Bitrate != "" {
 				s += ":" + t.Bitrate
+			}
+			if t.Channels != "" {
+				s += ":" + t.Channels
 			}
 		}
 		p = append(p, s)
@@ -720,7 +797,13 @@ func audioChoice(audio []outAudio) map[string]any {
 		if c == "libopus" {
 			c = "opus"
 		}
-		sel = append(sel, map[string]any{"n": a.Src.N, "codec": c, "bitrate": a.Bitrate})
+		ch := "orig"
+		if a.Channels == 6 {
+			ch = "5.1"
+		} else if a.Channels == 2 {
+			ch = "stereo"
+		}
+		sel = append(sel, map[string]any{"n": a.Src.N, "codec": c, "bitrate": a.Bitrate, "channels": ch})
 		if a.Default {
 			def = a.Src.N
 		}
@@ -737,4 +820,9 @@ func subChoice(subs []outSub) map[string]any {
 		}
 	}
 	return map[string]any{"tracks": sel, "default": def}
+}
+
+// validChannels: "" (the general setting), "5.1", "stereo", and for one track also "orig".
+func validChannels(s string, perTrack bool) bool {
+	return s == "" || s == "5.1" || s == "stereo" || (perTrack && s == "orig")
 }

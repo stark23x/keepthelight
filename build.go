@@ -18,6 +18,7 @@ type Config struct {
 	AudioDefault, SubDefault                     int        // track number to mark as default; 0 = as in the source; SubDefault -1 = none
 	AudioLangs, SubLangs                         []string   // rules: languages to keep (empty = all)
 	DropCommentary                               bool       // rule: leave out commentary audio tracks
+	AudioChannels                                string     // converted audio: "" keeps the channels, "5.1" or "stereo" mixes down
 	SubMode                                      string     // rule: "" (all matching), "forced" (forced only) or "none"
 	DV                                           string     // auto | drop
 	CopyVideo                                    bool
@@ -30,6 +31,7 @@ type Config struct {
 	Pass                                         int      // x265 two-pass: 0 off, 1 or 2
 	vsyncArgs                                    []string // keep every source frame exactly once (set at start-up)
 	hwaccel                                      []string // input options for GPU decoding (set at start-up)
+	cuesFront                                    bool     // this ffmpeg can put an MKV's index at the front (set at start-up)
 }
 
 type Plan struct {

@@ -48,7 +48,7 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
 - **Queue (batch):** add several files with **Add files…**, **Add folder…**, by choosing several in **Browse…**,
   by dropping several videos on `Keep the Light.exe`, or with **Add to queue**. Each file keeps the settings it
   was added with (**Use current settings for waiting files** updates them). Results go next to each input as
-  `name_hdr.mkv`, or into the folder chosen under **Save converted files**; files whose
+  `name_KTL.mkv` (the ending is set under **Add to the name**), or into the folder chosen under **Save converted files**; files whose
   result already exists are skipped. Files run one after another; one that fails
   does not stop the rest. Unfinished queues are remembered and come back when you reopen Keep the Light.
   **When finished** can put the PC to sleep or shut it down (with 60 seconds to cancel).
@@ -62,7 +62,7 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   cannot decode it, that file is decoded on the CPU as before, and the log says which was used. Remembered.
 - **One window at a time:** starting Keep the Light again, or dropping videos on the exe while it is open,
   brings the open window to the front and adds the files there.
-- The PC is kept awake while a transcode runs. Results are written as `name_hdr.partial.mkv` and renamed when
+- The PC is kept awake while a transcode runs. Results are written as `name_KTL.partial.mkv` and renamed when
   complete.
 - **Temp folder** (under Advanced): Dolby Vision and two-pass jobs write large temporary files, next to the
   output file unless you choose a folder here. The choice is remembered.
@@ -88,6 +88,8 @@ private local web server. To choose that yourself, run `keepthelight_cli -server
     keepthelight_cli -hw-decode in.mkv        (decode on the GPU, encode on the CPU)
     keepthelight_cli -audio-tracks 1,3:eac3 -sub-tracks 2:forced in.mkv   (choose tracks)
     keepthelight_cli -audio-lang eng -drop-commentary -subs forced in.mkv  (rules, for scripts)
+    keepthelight_cli -audio-tracks 1,1:eac3:5.1 in.mkv   (keep the 7.1 track and add a 5.1 E-AC-3 copy)
+    keepthelight_cli -tag _4k in.mkv          (name the result in_4k.mkv; default _KTL)
     keepthelight_cli -gui [input]              (opens the window)
 
     keepthelight_cli -version                  (prints the name and version)
@@ -131,6 +133,13 @@ subtitles and container from the target to get a video bitrate, then:
 - Converted tracks get a bitrate that suits the format and channels unless one is set. AC-3 and E-AC-3 hold at
   most 5.1, so a 7.1 track is mixed down; a title naming the old format ("TrueHD 7.1") is updated.
 - MP4 cannot hold TrueHD or DTS: such a track is converted to E-AC-3 (the window offers no "Copy" for it).
+- **Channels:** a converted track can keep its channels or be mixed down to 5.1 (from 7.1) or stereo, per track or
+  for all converted tracks under the rules. The downmix is the conventional one: 7.1 to 5.1 combines each side and
+  rear surround at -3 dB; stereo adds the centre and surrounds at -3 dB (LFE is left out). It is mixed in floating
+  point with a transparent limiter, so loud passages cannot clip. Atmos height information cannot be kept when
+  converting; copy the track to keep it.
+- **MKV seek index at the front:** like MP4's "fast start", so Plex and other players can seek and resume
+  without first reading the end of the file (needs FFmpeg 5.1 or newer; older builds write it at the end as before).
 - MKV output: text subtitles are copied; MP4-style `mov_text` is converted to SubRip (MKV cannot store it); image subtitles (PGS, VobSub) are copied.
 - MP4 output: text subtitles become `mov_text` (ASS styling is lost); image subtitles cannot be stored in MP4 and are dropped with a warning.
 - If a run fails after the long encode (Dolby Vision / HDR10+ modes), the temporary folder is kept and its path is printed, so finished work is not deleted.

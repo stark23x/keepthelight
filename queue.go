@@ -867,8 +867,9 @@ var videoExts = map[string]bool{".mkv": true, ".mp4": true, ".m4v": true, ".mov"
 	".mts": true, ".webm": true, ".avi": true, ".hevc": true, ".h265": true}
 
 // videosIn lists the video files directly in a folder (not in subfolders),
-// leaving out our own results and unfinished files.
-func videosIn(dir string) ([]string, error) {
+// leaving out our own results (names ending in tag, or in "_hdr" from before 1.8)
+// and unfinished files.
+func videosIn(dir, tag string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
@@ -878,7 +879,7 @@ func videosIn(dir string) ([]string, error) {
 		n := e.Name()
 		stem := strings.TrimSuffix(n, filepath.Ext(n))
 		if e.IsDir() || !videoExts[strings.ToLower(filepath.Ext(n))] ||
-			strings.HasSuffix(stem, "_hdr") || strings.HasSuffix(stem, ".partial") {
+			strings.HasSuffix(stem, "_hdr") || strings.HasSuffix(stem, "_KTL") || (tag != "" && strings.HasSuffix(stem, tag)) || strings.HasSuffix(stem, ".partial") {
 			continue
 		}
 		out = append(out, filepath.Join(dir, n))

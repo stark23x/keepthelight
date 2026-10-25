@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -148,7 +150,7 @@ func TestSelectExplicit(t *testing.T) {
 	cfg.AudioSel = []trackSel{{N: 1, Codec: "eac3", Bitrate: "768k"}}
 	a, _, _, _ = selectTracks(cfg, tr, false)
 	args = strings.Join(audioArgs(a, 0), " ")
-	if !strings.Contains(args, "-b:a:0 768k") || !strings.Contains(args, "-ac:a:0 6") || !strings.Contains(args, "title=E-AC-3 5.1") {
+	if !strings.Contains(args, "-b:a:0 768k") || !strings.Contains(args, "SL=0.707*SL+0.707*BL") || !strings.Contains(args, "title=E-AC-3 5.1") {
 		t.Errorf("7.1 to E-AC-3: %s", args)
 	}
 
@@ -258,5 +260,113 @@ func TestAudioSizeOfChosenTracks(t *testing.T) {
 	a, _, _, _ = selectTracks(cfg, tr, false)
 	if _, exact := quickAudioBytes(a, 100, false); exact {
 		t.Error("a track without size information must make the estimate inexact")
+	}
+}
+
+func TestDownmix(t *testing.T) {
+	tr := testTracks(t) // audio 1: TrueHD 7.1, 2: AC-3 stereo, 3: FLAC 5.1(side)
+	cfg := baseCfg()
+	cfg.AudioSel = []trackSel{{N: 1, Codec: "aac", Channels: "5.1"}, {N: 2, Codec: "aac", Channels: "5.1"}, {N: 3, Codec: "libopus", Channels: "stereo"}}
+	a, _, _, err := selectTracks(cfg, tr, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a[0].Channels != 6 || !strings.HasPrefix(a[0].Filter, "aformat=sample_fmts=fltp,pan=5.1|") || !strings.Contains(a[0].Filter, "BL=0.707*SL+0.707*BL") || a[0].Bitrate != "384k" {
+		t.Errorf("7.1 -> 5.1 AAC: %+v", a[0])
+	}
+	if a[1].Channels != 0 || a[1].Filter != "" { // stereo is never mixed "up" to 5.1
+		t.Errorf("stereo source: %+v", a[1])
+	}
+	if a[2].Channels != 2 || !strings.Contains(a[2].Filter, "FL=FL+0.707*FC+0.707*SL") || a[2].Bitrate != "128k" {
+		t.Errorf("5.1 -> stereo Opus: %+v", a[2])
+	}
+	if !strings.Contains(a[0].Filter, "alimiter=limit=0.97:level=false") {
+		t.Error("the downmix must be protected against clipping without changing the level")
+	}
+
+	// AAC keeps 7.1 unless asked; the general setting applies to tracks without their own choice
+	cfg.AudioSel = []trackSel{{N: 1, Codec: "aac"}}
+	if a, _, _, _ = selectTracks(cfg, tr, false); a[0].Channels != 0 {
+		t.Errorf("AAC 7.1 kept: %+v", a[0])
+	}
+	cfg.AudioChannels = "stereo"
+	if a, _, _, _ = selectTracks(cfg, tr, false); a[0].Channels != 2 || !strings.Contains(a[0].Filter, "0.5*SL+0.5*BL") {
+		t.Errorf("general stereo: %+v", a[0])
+	}
+	cfg.AudioSel = []trackSel{{N: 1, Codec: "aac", Channels: "orig"}} // the track's own choice wins
+	if a, _, _, _ = selectTracks(cfg, tr, false); a[0].Channels != 0 {
+		t.Errorf("orig: %+v", a[0])
+	}
+	cfg.AudioSel = []trackSel{{N: 1}} // copied tracks are never changed
+	if a, _, _, _ = selectTracks(cfg, tr, false); a[0].Channels != 0 || a[0].Filter != "" {
+		t.Errorf("copy: %+v", a[0])
+	}
+
+	// an unusual layout has no recipe: ffmpeg's own downmix
+	odd := srcTrack{N: 1, Codec: "dts", Channels: 7, Layout: "6.1", Disp: map[string]bool{}}
+	out := outAudio{Src: odd, Codec: "eac3", Channels: 6}
+	if downmix(odd, 6, "eac3") != "" || !strings.Contains(strings.Join(audioArgs([]outAudio{out}, 0), " "), "-ac:a:0 6") {
+		t.Error("6.1 fallback")
+	}
+}
+
+func TestChannelsCommandLine(t *testing.T) {
+	sel, err := parseAudioSel("1:eac3:5.1,2:aac:192k:stereo,3:aac:stereo:160k,4:opus:orig")
+	if err != nil || sel[0].Channels != "5.1" || sel[1].Bitrate != "192k" || sel[1].Channels != "stereo" || sel[2].Bitrate != "160k" || sel[3].Channels != "orig" {
+		t.Fatalf("%+v %v", sel, err)
+	}
+	if s := audioSelString(sel); s != "1:eac3:5.1,2:aac:192k:stereo,3:aac:160k:stereo,4:opus:orig" {
+		t.Errorf("round trip: %s", s)
+	}
+	for _, bad := range []string{"1:copy:5.1", "1:aac:quad", "1:aac:192k:5.1:x"} {
+		if _, err := parseAudioSel(bad); err == nil {
+			t.Errorf("%q accepted", bad)
+		}
+	}
+	s := &settings{Input: "a.mkv", Output: "b.mkv", Mode: "encode", Quality: "crf", CRF: 18, AudioChannels: "5.1",
+		AudioTracks: []trackSel{{N: 1, Codec: "eac3", Channels: "stereo"}}}
+	cfg, err := s.toConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a := strings.Join(cfg.cliArgs(), " "); !strings.Contains(a, "-audio-tracks 1:eac3:stereo") || !strings.Contains(a, "-audio-channels 5.1") {
+		t.Errorf("cli args: %s", a)
+	}
+	s.AudioChannels = "quad"
+	if _, err := s.toConfig(); err == nil {
+		t.Error("bad channels accepted")
+	}
+}
+
+func TestMKVIndexArgs(t *testing.T) {
+	cfg := baseCfg()
+	if a := mkvIndexArgs(cfg, 7200); a != nil {
+		t.Errorf("ffmpeg without cues_to_front: %v", a)
+	}
+	cfg.cuesFront = true
+	if a := strings.Join(mkvIndexArgs(cfg, 7200), " "); a != "-reserve_index_space 460800 -cues_to_front 1" {
+		t.Errorf("2 h film: %s", a)
+	}
+	if a := strings.Join(mkvIndexArgs(cfg, 4), " "); a != "-reserve_index_space 65536 -cues_to_front 1" {
+		t.Errorf("short clip: %s", a)
+	}
+}
+
+func TestVideosInSkipsResults(t *testing.T) {
+	dir := t.TempDir()
+	for _, n := range []string{"film.mkv", "film_KTL.mkv", "old_hdr.mkv", "film_4k.mkv", "film_KTL.partial.mkv", "notes.txt"} {
+		if err := os.WriteFile(filepath.Join(dir, n), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, _ := videosIn(dir, "_4k")
+	if len(got) != 1 || filepath.Base(got[0]) != "film.mkv" {
+		t.Errorf("%v", got)
+	}
+	if got, _ := videosIn(dir, ""); len(got) != 2 { // film.mkv and film_4k.mkv
+		t.Errorf("no tag: %v", got)
+	}
+	if cleanTag(`_a/b:c*?"<>|d`) != "_abcd" {
+		t.Error(cleanTag(`_a/b:c*?"<>|d`))
 	}
 }
