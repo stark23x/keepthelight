@@ -93,6 +93,21 @@
   .sum .warnmark { color: var(--warn); font-weight: 600; }
   details.sect[open] .sum { display: none; }
 
+  /* audio and subtitle tracks */
+  .tracks:empty { display: none; }
+  .tracks { margin-bottom: 14px; }
+  .trow { display: grid; grid-template-columns: 185px 1fr auto auto; gap: 10px; align-items: center; padding: 7px 10px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); margin-bottom: 6px; }
+  .trow.dropped .tdesc { color: var(--muted); text-decoration: line-through; text-decoration-color: #555c69; }
+  .trow select { padding: 5px 8px; }
+  .tdesc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tnum { color: var(--muted); margin-right: 6px; }
+  .trow label.check { margin: 0; white-space: nowrap; }
+  .trow.sub { grid-template-columns: 90px 1fr auto auto; }
+  .trow.nodef { grid-template-columns: 1fr auto; background: transparent; border-style: dashed; }
+  .rules { border-top: 1px solid var(--line); padding-top: 12px; }
+  .tracks:empty + .rules { border-top: 0; padding-top: 0; }
+  .rules-title { font-weight: 600; margin-bottom: 10px; font-size: 13px; } .rules-title span { color: var(--muted); font-weight: 400; }
   /* queue: about six files show; a longer list scrolls inside the section */
   #queueList { max-height: 400px; overflow-y: auto; position: relative; }
   .qrow { display: grid; grid-template-columns: 1fr auto auto; gap: 4px 12px; align-items: center; padding: 9px 10px;
@@ -239,16 +254,35 @@
 
   <details class="card sect" id="secAudio" data-key="audio" open>
     <summary><h2 class="sect-title">Audio</h2><span class="sum" id="sumAudio"></span></summary>
-    <div class="grid">
-      <div><label for="audio">Audio</label>
-        <select id="audio">
-          <option value="copy">Copy all tracks (no re-encode)</option>
-          <option value="eac3">Convert to E-AC-3</option><option value="ac3">Convert to AC-3</option>
-          <option value="aac">Convert to AAC</option><option value="opus">Convert to Opus</option><option value="flac">Convert to FLAC</option>
-        </select></div>
-      <div id="abrWrap" class="hidden"><label for="abitrate">Audio bitrate</label><input type="text" id="abitrate" placeholder="e.g. 640k"></div>
+    <div id="audioList" class="tracks"></div>
+    <div class="rules">
+      <div class="rules-title">Rules <span>– the starting choice for each file, and what the queue uses (remembered)</span></div>
+      <div class="grid">
+        <div><label for="audioLang">Languages to keep</label><input type="text" id="audioLang" spellcheck="false" placeholder="all, or for example eng, jpn"></div>
+        <div><label for="audio">Kept tracks</label>
+          <select id="audio">
+            <option value="copy">Copy (no re-encode)</option>
+            <option value="eac3">Convert to E-AC-3</option><option value="ac3">Convert to AC-3</option>
+            <option value="aac">Convert to AAC</option><option value="opus">Convert to Opus</option><option value="flac">Convert to FLAC</option>
+          </select></div>
+        <div><label for="abitrate">Bitrate for converted tracks</label><input type="text" id="abitrate" spellcheck="false" placeholder="automatic (by format and channels)"></div>
+      </div>
+      <label class="check" style="margin-top:10px"><input type="checkbox" id="dropComm"> <span>Leave out commentary tracks</span></label>
+      <div class="hint">Tracks with no language set are kept. If no track matches, the file's default track is kept, so nothing ends up silent.</div>
     </div>
-    <div id="mp4AudioNote" class="note warn hidden">MP4 cannot hold TrueHD, DTS or DTS-HD audio. Choose MKV to copy those, or convert the audio.</div>
+  </details>
+
+  <details class="card sect" id="secSubs" data-key="subtitles" open>
+    <summary><h2 class="sect-title">Subtitles</h2><span class="sum" id="sumSubs"></span></summary>
+    <div id="subList" class="tracks"></div>
+    <div class="rules">
+      <div class="rules-title">Rules <span>– the starting choice for each file, and what the queue uses (remembered)</span></div>
+      <div class="grid">
+        <div><label for="subLang">Languages to keep</label><input type="text" id="subLang" spellcheck="false" placeholder="all, or for example eng"></div>
+        <div><label for="subMode">Keep</label>
+          <select id="subMode"><option value="">all subtitles in those languages</option><option value="forced">only forced subtitles</option><option value="none">no subtitles</option></select></div>
+      </div>
+    </div>
   </details>
 
   <details class="card sect" id="secAdv" data-key="advanced">
@@ -349,7 +383,9 @@ function settings() {
     preset: $('preset').value, audio: $('audio').value, audioBitrate: $('abitrate').value.trim(),
     dv: $('dv').value, masterDisplay: $('master').value.trim(), maxCLL: $('cll').value.trim(), tmp: $('tmp').value.trim(),
     targetSize: $('targetNum').value.trim().replace(',', '.') + $('targetUnit').value, retries: +$('retries').value,
-    scale: $('scale').value
+    scale: $('scale').value,
+    audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, subLang: $('subLang').value.trim(), subMode: $('subMode').value,
+    ...trackSettings()
   };
 }
 
@@ -370,8 +406,8 @@ function syncContainerFromOutput() {
   updateAudioNote();
 }
 
-function updateAudioNote() {
-  $('mp4AudioNote').classList.toggle('hidden', !($('container').value === '.mp4' && $('audio').value === 'copy'));
+function updateAudioNote() { // MP4 limits are shown per track (and in the plan's warnings)
+  renderTracks();
 }
 
 function updateVisibility() {
@@ -386,7 +422,6 @@ function updateVisibility() {
   $('sizeHint').textContent = hw
     ? 'GB here means what Windows Explorer shows. Hardware encoders miss their bitrate, so the video may be re-encoded with a corrected bitrate to land on the size.'
     : 'GB here means what Windows Explorer shows. x265 encodes twice (about double the time) and lands within a couple of percent, slightly under the target.';
-  $('abrWrap').classList.toggle('hidden', $('audio').value === 'copy');
   $('crfVal').textContent = $('crf').value;
   $('scaleHint').textContent = $('scale').value && info && info.scaledTo
     ? 'Output: ' + info.scaledTo + ' (same shape as the source). HDR10, HDR10+ and Dolby Vision are kept.'
@@ -394,6 +429,134 @@ function updateVisibility() {
   $('gpuHint').classList.toggle('hidden', $('codec').value === 'x265');
   updateAudioNote();
   updateSummaries();
+}
+
+// ---------- audio and subtitle tracks ----------
+// tracks holds what is chosen for the file in the form. It starts from the rules
+// (worked out by Keep the Light when the file is read) and can then be changed
+// per track. A file added to the queue some other way is decided by the rules.
+let tracks = null; // { input, audio: [{n, codec}], audioDefault, subs: [{n, forced}], subDefault }
+const ACTIONS = [['copy', 'Copy'], ['eac3', 'Convert to E-AC-3'], ['ac3', 'Convert to AC-3'], ['aac', 'Convert to AAC'],
+  ['opus', 'Convert to Opus'], ['flac', 'Convert to FLAC'], ['drop', 'Drop']];
+const ACTION_SHORT = { copy: 'copy', eac3: 'E-AC-3', ac3: 'AC-3', aac: 'AAC', opus: 'Opus', flac: 'FLAC' };
+
+function tracksForForm() { return tracks && info && info.audioTracks && tracks.input === $('input').value.trim() ? tracks : null; }
+function trackSettings() {
+  const t = tracksForForm();
+  if (!t) return { audioTracks: null, subTracks: null, audioDefault: 0, subDefault: 0 };
+  return { audioTracks: t.audio.map(a => ({ n: a.n, codec: a.codec })), audioDefault: t.audioDefault,
+    subTracks: t.subs.map(x => ({ n: x.n, forced: x.forced })), subDefault: t.subDefault };
+}
+const RULES_ONLY = { audioTracks: null, subTracks: null, audioDefault: 0, subDefault: 0 };
+
+// The choice Keep the Light worked out from the rules, for a newly read file.
+function tracksFromProbe(r, input) {
+  const ac = r.audioChoice || { tracks: [], default: 0 }, sc = r.subChoice || { tracks: [], default: -1 };
+  return { input, audio: ac.tracks.map(a => ({ n: a.n, codec: a.codec })), audioDefault: ac.default,
+    subs: sc.tracks.map(x => ({ n: x.n, forced: !!x.forced })), subDefault: sc.default };
+}
+
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+function radioLabel(name, checked, text, onchange) {
+  const l = el('label', 'check'), r = el('input'); r.type = 'radio'; r.name = name; r.checked = checked; r.onchange = onchange;
+  l.append(r, el('span', '', text)); return l;
+}
+function checkLabel(checked, text, onchange) {
+  const l = el('label', 'check'), c = el('input'); c.type = 'checkbox'; c.checked = checked; c.onchange = onchange;
+  l.append(c, el('span', '', text)); return l;
+}
+
+function renderTracks() {
+  const al = $('audioList'), sl = $('subList');
+  al.innerHTML = ''; sl.innerHTML = '';
+  const t = tracksForForm();
+  if (!t) return;
+  const mp4 = $('container').value === '.mp4';
+  // MP4 cannot hold some formats: such a track is converted (Keep the Light would do it anyway)
+  t.audio.forEach(a => { const src = info.audioTracks.find(x => x.n === a.n); if (mp4 && a.codec === 'copy' && src && !src.mp4ok) a.codec = 'eac3'; });
+  if (info.audioTracks.length) al.append(el('div', 'hint', 'Tracks in this file'));
+  info.audioTracks.forEach(src => {
+    const kept = t.audio.find(a => a.n === src.n);
+    const row = el('div', 'trow' + (kept ? '' : ' dropped'));
+    const sel = el('select');
+    ACTIONS.forEach(([v, text]) => {
+      const o = el('option', '', text); o.value = v;
+      if (v === 'copy' && mp4 && !src.mp4ok) { o.disabled = true; o.textContent = 'Copy (not possible in MP4)'; }
+      sel.append(o);
+    });
+    sel.value = kept ? kept.codec : 'drop';
+    sel.onchange = () => {
+      const i = t.audio.findIndex(a => a.n === src.n);
+      if (sel.value === 'drop') { if (i >= 0) t.audio.splice(i, 1); if (t.audioDefault === src.n) t.audioDefault = t.audio.length ? t.audio[0].n : 0; }
+      else if (i >= 0) t.audio[i].codec = sel.value;
+      else { t.audio.push({ n: src.n, codec: sel.value }); t.audio.sort((x, y) => x.n - y.n); if (!t.audioDefault) t.audioDefault = src.n; }
+      tracksChanged();
+    };
+    const d = el('div', 'tdesc'); d.append(el('span', 'tnum', String(src.n)), document.createTextNode(src.desc)); d.title = src.desc;
+    row.append(sel, d, el('span'), kept ? radioLabel('adef', t.audioDefault === src.n, 'default', () => { t.audioDefault = src.n; tracksChanged(); }) : el('span'));
+    al.append(row);
+  });
+  if (!info.audioTracks.length) al.append(el('div', 'hint', 'This file has no audio tracks.'));
+
+  if (info.subTracks.length) {
+    sl.append(el('div', 'hint', 'Tracks in this file'));
+    info.subTracks.forEach(src => {
+      const kept = t.subs.find(x => x.n === src.n);
+      const noMP4 = mp4 && !src.mp4ok;
+      const row = el('div', 'trow sub' + (kept && !noMP4 ? '' : ' dropped'));
+      const keep = checkLabel(!!kept && !noMP4, 'keep', e => {
+        const i = t.subs.findIndex(x => x.n === src.n);
+        if (e.target.checked && i < 0) { t.subs.push({ n: src.n, forced: src.forced }); t.subs.sort((x, y) => x.n - y.n); }
+        if (!e.target.checked && i >= 0) { t.subs.splice(i, 1); if (t.subDefault === src.n) t.subDefault = -1; }
+        tracksChanged();
+      });
+      if (noMP4) { keep.querySelector('input').disabled = true; keep.title = 'Picture subtitles (PGS, VobSub) cannot be stored in MP4. Choose MKV to keep them.'; }
+      const d = el('div', 'tdesc'); d.append(el('span', 'tnum', String(src.n)), document.createTextNode(src.desc + (noMP4 ? ' · not possible in MP4' : ''))); d.title = src.desc;
+      row.append(keep, d,
+        kept && !noMP4 ? checkLabel(kept.forced, 'forced', e => { kept.forced = e.target.checked; tracksChanged(); }) : el('span'),
+        kept && !noMP4 ? radioLabel('sdef', t.subDefault === src.n, 'default', () => { t.subDefault = src.n; tracksChanged(); }) : el('span'));
+      sl.append(row);
+    });
+    const none = el('div', 'trow nodef');
+    none.append(el('span', 'hint', 'Players show the default subtitle automatically; forced subtitles appear even when subtitles are off.'),
+      radioLabel('sdef', t.subDefault <= 0, 'no default subtitle', () => { t.subDefault = -1; tracksChanged(); }));
+    sl.append(none);
+  } else sl.append(el('div', 'hint', 'This file has no subtitle tracks.'));
+}
+
+function tracksChanged() { renderTracks(); updateSummaries(); scheduleProbe(250); }
+// The rules changed: start again from them for the file in the form.
+function rulesChanged() {
+  tracks = null;
+  api('setPref', { name: 'trackRules', value: { audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked,
+    subLang: $('subLang').value.trim(), subMode: $('subMode').value } });
+  updateSummaries(); scheduleProbe(150);
+}
+
+function audioRulesText() {
+  const a = $('audio'), parts = [a.value === 'copy' ? 'copy' : a.options[a.selectedIndex].text.replace(/^Convert to /, '')];
+  if ($('audioLang').value.trim()) parts.unshift($('audioLang').value.trim());
+  if ($('dropComm').checked) parts.push('no commentary');
+  return parts.join('  ·  ');
+}
+function audioSummary() {
+  const t = tracksForForm();
+  if (!t) return 'rules: ' + audioRulesText();
+  const conv = {};
+  t.audio.forEach(a => { const k = ACTION_SHORT[a.codec] || a.codec; conv[k] = (conv[k] || 0) + 1; });
+  const how = Object.entries(conv).map(([k, n]) => (k === 'copy' ? n + ' copied' : n + ' → ' + k)).join(', ');
+  return 'keeping ' + t.audio.length + ' of ' + info.audioTracks.length + (how ? '  ·  ' + how : '');
+}
+function subSummary() {
+  const t = tracksForForm();
+  if (!t) {
+    const m = $('subMode').value;
+    return 'rules: ' + (m === 'none' ? 'none' : ($('subLang').value.trim() || 'all') + (m === 'forced' ? ', forced only' : ''));
+  }
+  if (!info.subTracks.length) return 'none in this file';
+  const mp4 = $('container').value === '.mp4';
+  const n = t.subs.filter(x => !(mp4 && !(info.subTracks.find(s => s.n === x.n) || {}).mp4ok)).length;
+  return 'keeping ' + n + ' of ' + info.subTracks.length;
 }
 
 // ---------- collapsible sections ----------
@@ -413,10 +576,8 @@ function updateSummaries() {
     if (info && info.dv && $('dv').value === 'drop') v += '  ·  drop Dolby Vision';
   }
   $('sumVideo').textContent = v;
-  const a = $('audio');
-  let at = a.value === 'copy' ? 'Copy all tracks' : a.options[a.selectedIndex].text.replace(/^Convert to /, '');
-  if (a.value !== 'copy' && $('abitrate').value.trim()) at += '  ·  ' + $('abitrate').value.trim();
-  $('sumAudio').textContent = at;
+  $('sumAudio').textContent = audioSummary();
+  $('sumSubs').textContent = subSummary();
   const adv = [$('master').value.trim() && 'master display', $('cll').value.trim() && 'MaxCLL/FALL', $('tmp').value.trim() && 'temp folder',
     $('lowPrio').checked && 'low priority', $('hwDec').checked && 'GPU decoding'].filter(Boolean);
   $('sumAdv').textContent = adv.length ? 'custom: ' + adv.join(', ') : 'defaults';
@@ -449,6 +610,11 @@ async function restorePrefs() {
   }
   $('lowPrio').checked = r.prefs.lowPriority === true;
   $('hwDec').checked = r.prefs.hwDecode === true;
+  const tr = r.prefs.trackRules;
+  if (tr) {
+    $('audioLang').value = tr.audioLang || ''; $('dropComm').checked = !!tr.dropCommentary;
+    $('subLang').value = tr.subLang || ''; $('subMode').value = ['', 'forced', 'none'].includes(tr.subMode) ? tr.subMode : '';
+  }
   const bo = r.prefs.batchOut;
   if (bo && bo.dir) $('qOutDir').value = bo.dir; // the last folder, ready if "in this folder" is chosen again
   if (bo && bo.mode === 'dir') {
@@ -522,7 +688,10 @@ async function probe() {
   const r = await api('probe', s);
   if (seq !== probeSeq) return;
   info = r.ok ? r : null;
+  // a newly read file (or changed rules): start from the rules' choice
+  if (info && r.audioChoice && (!tracks || tracks.input !== s.input)) tracks = tracksFromProbe(r, s.input);
   showInfo(r);
+  renderTracks();
   updateVisibility();
   $('planLine').textContent = '';
   updateStart();
@@ -566,7 +735,9 @@ $('container').addEventListener('change', () => {
 });
 ['preset', 'scale', 'dv', 'bitrate', 'abitrate', 'master', 'cll', 'tmp', 'targetNum', 'targetUnit', 'retries'].forEach(id => $(id).addEventListener('change', () => scheduleProbe(200)));
 $('targetNum').addEventListener('input', () => scheduleProbe(600));
-$('audio').addEventListener('change', () => { updateVisibility(); });
+$('audio').addEventListener('change', () => { updateVisibility(); rulesChanged(); });
+['audioLang', 'subLang'].forEach(id => $(id).addEventListener('change', rulesChanged));
+['dropComm', 'subMode'].forEach(id => $(id).addEventListener('change', rulesChanged));
 $('codec').addEventListener('change', () => { updateVisibility(); scheduleProbe(200); });
 $('crf').addEventListener('input', updateVisibility);
 document.querySelectorAll('input[name="mode"], input[name="quality"]').forEach(el => el.addEventListener('change', () => { updateVisibility(); scheduleProbe(100); }));
@@ -608,7 +779,7 @@ function outFolderFor(path) {
   return dir + (dir.includes('/') && !dir.includes('\\') ? '/' : '\\');
 }
 function settingsFor(path) { // the current settings, for another input file
-  const st = settings();
+  const st = Object.assign(settings(), RULES_ONLY); // other files: the rules choose their tracks
   st.input = path; st.overwrite = false;
   st.output = outFolderFor(path) + stem(path) + '_hdr' + $('container').value;
   return st;
@@ -690,7 +861,7 @@ $('qAddFolder').onclick = async () => {
 };
 $('qApply').onclick = async () => {
   if (!batchOutReady()) return;
-  const r = await api('queueApply', { settings: Object.assign(settings(), { outDir: batchOutDir() }) });
+  const r = await api('queueApply', { settings: Object.assign(settings(), RULES_ONLY, { outDir: batchOutDir() }) });
   if (r.errors && r.errors.length) showError(r.errors.join('\n'));
   poll();
 };
@@ -711,7 +882,14 @@ function settingsText(st) {
     ? 'target ' + String(st.targetSize).replace(/G$/, ' GB').replace(/M$/, ' MB') : 'CRF ' + st.crf;
   const parts = [{ x265: 'x265', nvenc: 'NVENC', qsv: 'QuickSync' }[st.codec] || st.codec, q, st.preset];
   if (st.scale) parts.push(st.scale);
-  if (st.audio && st.audio !== 'copy') parts.push('audio ' + st.audio.toUpperCase() + (st.audioBitrate ? ' ' + st.audioBitrate : ''));
+  if (st.audioTracks) parts.push(st.audioTracks.length + ' audio' + (st.subTracks ? ', ' + st.subTracks.length + ' subtitle' + (st.subTracks.length === 1 ? '' : 's') : ''));
+  else {
+    if (st.audioLang) parts.push('audio ' + st.audioLang);
+    if (st.audio && st.audio !== 'copy') parts.push('audio → ' + st.audio.toUpperCase() + (st.audioBitrate ? ' ' + st.audioBitrate : ''));
+    if (st.dropCommentary) parts.push('no commentary');
+    if (st.subMode === 'none') parts.push('no subtitles');
+    else if (st.subLang || st.subMode === 'forced') parts.push('subtitles ' + (st.subLang || 'all') + (st.subMode === 'forced' ? ' forced' : ''));
+  }
   parts.push(ext);
   return parts.join(' · ');
 }

@@ -90,8 +90,13 @@ type settings struct {
 	Bitrate, Preset            string
 	Audio, AudioBitrate, DV    string
 	MasterDisplay, MaxCLL, Tmp string
-	TargetSize                 string // e.g. 8G, 4500M (when Quality is "size")
-	Scale                      string // "" (keep) or 2160p / 1440p / 1080p / 720p
+	TargetSize                 string     // e.g. 8G, 4500M (when Quality is "size")
+	Scale                      string     // "" (keep) or 2160p / 1440p / 1080p / 720p
+	AudioTracks, SubTracks     []trackSel // chosen for this file; null = by the rules
+	AudioDefault, SubDefault   int
+	AudioLang, SubLang         string // rules: languages to keep, e.g. "eng, jpn" (empty = all)
+	DropCommentary             bool
+	SubMode                    string // rules: "" all matching, "forced", "none"
 	Retries                    int    // hardware encoders: extra attempts to hit the target
 	Overwrite                  bool   // replace an existing output (the user confirmed it)
 }
@@ -160,6 +165,37 @@ func (s *settings) toConfig() (*Config, error) {
 		return nil, fmt.Errorf("unknown audio option")
 	}
 	cfg.Audio = a
+	cfg.AudioDefault, cfg.SubDefault = max(0, s.AudioDefault), max(-1, s.SubDefault)
+	cfg.AudioLangs, cfg.SubLangs, cfg.DropCommentary = parseLangs(s.AudioLang), parseLangs(s.SubLang), s.DropCommentary
+	switch s.SubMode {
+	case "", "all":
+	case "forced", "none":
+		cfg.SubMode = s.SubMode
+	default:
+		return nil, fmt.Errorf("unknown subtitle option")
+	}
+	if s.AudioTracks != nil {
+		cfg.AudioSel = []trackSel{}
+		for _, t := range s.AudioTracks {
+			c, ok := audios[t.Codec]
+			if t.Codec == "" {
+				c, ok = "", true
+			}
+			if !ok || t.N < 1 || (t.Bitrate != "" && !reBitrate.MatchString(t.Bitrate)) {
+				return nil, fmt.Errorf("bad audio track choice")
+			}
+			cfg.AudioSel = append(cfg.AudioSel, trackSel{N: t.N, Codec: c, Bitrate: t.Bitrate})
+		}
+	}
+	if s.SubTracks != nil {
+		cfg.SubSel = []trackSel{}
+		for _, t := range s.SubTracks {
+			if t.N < 1 {
+				return nil, fmt.Errorf("bad subtitle track choice")
+			}
+			cfg.SubSel = append(cfg.SubSel, trackSel{N: t.N, Forced: t.Forced})
+		}
+	}
 	if a != "copy" && s.AudioBitrate != "" {
 		if !reBitrate.MatchString(s.AudioBitrate) {
 			return nil, fmt.Errorf("audio bitrate must look like 640k")
@@ -191,6 +227,33 @@ func (cfg *Config) cliArgs() []string {
 	}
 	if cfg.AudioBitrate != "" {
 		a = append(a, "-audio-bitrate", cfg.AudioBitrate)
+	}
+	if cfg.AudioSel != nil {
+		a = append(a, "-audio-tracks", audioSelString(cfg.AudioSel))
+	}
+	if cfg.SubSel != nil {
+		a = append(a, "-sub-tracks", subSelString(cfg.SubSel))
+	}
+	if cfg.AudioDefault > 0 {
+		a = append(a, "-audio-default", strconv.Itoa(cfg.AudioDefault))
+	}
+	switch {
+	case cfg.SubDefault > 0:
+		a = append(a, "-sub-default", strconv.Itoa(cfg.SubDefault))
+	case cfg.SubDefault < 0:
+		a = append(a, "-sub-default", "none")
+	}
+	if len(cfg.AudioLangs) > 0 {
+		a = append(a, "-audio-lang", strings.Join(cfg.AudioLangs, ","))
+	}
+	if len(cfg.SubLangs) > 0 {
+		a = append(a, "-sub-lang", strings.Join(cfg.SubLangs, ","))
+	}
+	if cfg.DropCommentary {
+		a = append(a, "-drop-commentary")
+	}
+	if cfg.SubMode != "" {
+		a = append(a, "-subs", cfg.SubMode)
 	}
 	if cfg.CopyVideo {
 		a = append(a, "-copy-video")
@@ -777,6 +840,20 @@ func (g *guiServer) probe(ctx context.Context, s settings) map[string]any {
 		resp["blocker"] = err.Error()
 		return resp
 	}
+	if t, err := probeTracks(ctx, ffprobe, s.Input); err != nil {
+		resp["blocker"] = "Could not read the audio and subtitle tracks: " + err.Error()
+		return resp
+	} else {
+		audio, subs, warns, err := selectTracks(cfg, t, isMP4(cfg.Output))
+		if err != nil {
+			resp["blocker"] = capitalize(err.Error())
+			return resp
+		}
+		plan.Audio, plan.Subs = audio, subs
+		plan.Warnings = append(plan.Warnings, warns...)
+		resp["audioTracks"], resp["subTracks"] = trackList(t.Audio, true), trackList(t.Subs, false)
+		resp["audioChoice"], resp["subChoice"] = audioChoice(audio), subChoice(subs)
+	}
 	if plan.UseDV { // a Dolby Vision job needs both tools to actually start; find out now, not halfway through
 		for _, tool := range []string{"dovi_tool", "MP4Box"} {
 			if _, err := findTool(tool, ""); err != nil {
@@ -798,7 +875,6 @@ func (g *guiServer) probe(ctx context.Context, s settings) map[string]any {
 		// preview only: no slow audio measuring (DryRun), subtitles from a quick probe
 		pcfg := *cfg
 		pcfg.DryRun, pcfg.Ffprobe, pcfg.Input = true, ffprobe, s.Input
-		plan.Subs, _ = probeSubs(ctx, ffprobe, s.Input)
 		var srcBytes int64
 		if st, err := os.Stat(s.Input); err == nil {
 			srcBytes = st.Size()

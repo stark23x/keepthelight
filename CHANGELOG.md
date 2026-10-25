@@ -18,6 +18,27 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.7.0 - 2026-10-25
+
+- **Choose audio and subtitle tracks.** The Audio and new Subtitles sections list every track of the file
+  (language, format, channels, title, SDH/commentary).
+  - Each audio track: **Copy**, **Convert** (E-AC-3, AC-3, AAC, Opus or FLAC) or **Drop**. For example, keep the
+    TrueHD track as it is and add an E-AC-3 copy for devices that cannot play TrueHD.
+  - Each subtitle track: keep or drop, and set or clear its **forced** flag.
+  - Choose the **default** audio track and the default subtitle (or none).
+  - MP4 limits are shown per track: TrueHD/DTS cannot be copied into MP4 (they are converted to E-AC-3), and
+    picture subtitles (PGS, VobSub) cannot be kept.
+  - A target file size counts only the kept tracks.
+- **Rules for the queue** (remembered): languages to keep for audio and subtitles, leave out commentary tracks,
+  and all / forced only / no subtitles. They give the starting choice for each file in the form and decide the
+  tracks for files added to the queue with Add files, Add folder or by dropping several. Tracks with no
+  language set are kept, and if no audio track matches, the file's default track is kept, so nothing ends up
+  silent. A file added with **Add to queue** keeps exactly the tracks ticked for it.
+- Converted tracks get a bitrate that suits the format and channels unless one is set. 7.1 converted to AC-3 or
+  E-AC-3 (which hold at most 5.1) is mixed down, and a track title naming the old format is updated.
+- `keepthelight_cli.exe`: `-audio-tracks`, `-audio-default`, `-sub-tracks`, `-sub-default`, and the rules
+  `-audio-lang`, `-drop-commentary`, `-sub-lang`, `-subs`. Without them every track is kept, as before.
+
 ## 1.6.1 - 2026-10-25
 
 - The **Queue** section now sits right under **Files**, so both ways of choosing videos are together, followed

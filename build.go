@@ -13,8 +13,13 @@ type Config struct {
 	Input, Output                                string
 	CRF                                          int
 	Preset, Codec, Bitrate                       string
-	Audio, AudioBitrate                          string
-	DV                                           string // auto | drop
+	Audio, AudioBitrate                          string     // how kept audio tracks are written, unless chosen per track
+	AudioSel, SubSel                             []trackSel // tracks chosen for this file; nil = decided by the rules below
+	AudioDefault, SubDefault                     int        // track number to mark as default; 0 = as in the source; SubDefault -1 = none
+	AudioLangs, SubLangs                         []string   // rules: languages to keep (empty = all)
+	DropCommentary                               bool       // rule: leave out commentary audio tracks
+	SubMode                                      string     // rule: "" (all matching), "forced" (forced only) or "none"
+	DV                                           string     // auto | drop
 	CopyVideo                                    bool
 	MasterDisplay, MaxCLL                        string
 	Ffmpeg, Ffprobe, DoviTool, MP4Box, HDR10Plus string
@@ -34,7 +39,8 @@ type Plan struct {
 	RPUMode      int    // dovi_tool -m value (0 = leave RPU as is)
 	UseHDR10Plus bool
 	Warnings     []string
-	Subs         []subInfo
+	Audio        []outAudio
+	Subs         []outSub
 	Size         *SizePlan
 	ScaleW       int // >0: resize the video to ScaleW x ScaleH
 	ScaleH       int
@@ -307,12 +313,4 @@ func nvPreset(x265 string) string {
 	default:
 		return "p7"
 	}
-}
-
-func audioArgs(cfg *Config) []string {
-	a := []string{"-c:a", cfg.Audio}
-	if cfg.Audio != "copy" && cfg.AudioBitrate != "" {
-		a = append(a, "-b:a", cfg.AudioBitrate)
-	}
-	return a
 }

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -47,7 +48,20 @@ Options:
   -codec <x265|nvenc|qsv>  encoder (default x265; nvenc = NVIDIA GPU, qsv = Intel QuickSync;
                        GPU encoders cannot keep HDR10+ and use a different quality scale)
   -audio <codec>       audio: copy (default), aac, eac3, ac3, flac, opus ...
-  -audio-bitrate <r>   e.g. 640k (when not copying)
+  -audio-bitrate <r>   e.g. 640k (when not copying; default depends on the format and channels)
+
+Choosing tracks (numbers as the window shows them: audio 1, 2, ...; subtitles 1, 2, ...):
+  -audio-tracks <list> keep these audio tracks, each copied or converted:
+                       1,2:eac3,3:aac:192k   (no format = the -audio setting), all, none
+  -audio-default <n>   mark audio track n as the default
+  -sub-tracks <list>   keep these subtitle tracks: 1,3:forced (":forced" sets the forced flag), all, none
+  -sub-default <n>     mark subtitle track n as the default, or "none"
+ Rules, used when tracks are not listed (for example in scripts over many files):
+  -audio-lang <list>   keep only audio in these languages, e.g. eng,jpn (tracks with no language
+                       are kept; if nothing matches, the default track is kept)
+  -drop-commentary     leave out commentary audio tracks
+  -sub-lang <list>     keep only subtitles in these languages
+  -subs <all|forced|none>  which subtitles to keep (default all)
   -dv <auto|drop>      Dolby Vision: auto keeps it (default), drop = plain HDR10
   -scale <size>        shrink the video to fit 2160p, 1440p, 1080p or 720p, keeping its shape
                        (3840x1600 -> 1920x800 at 1080p) and its HDR10 / HDR10+ / Dolby Vision
@@ -85,6 +99,14 @@ func parseArgs() (*Config, bool) {
 	fs.StringVar(&cfg.Codec, "codec", "x265", "")
 	fs.StringVar(&cfg.Audio, "audio", "copy", "")
 	fs.StringVar(&cfg.AudioBitrate, "audio-bitrate", "", "")
+	audioTracks := fs.String("audio-tracks", "", "")
+	subTracks := fs.String("sub-tracks", "", "")
+	fs.IntVar(&cfg.AudioDefault, "audio-default", 0, "")
+	subDefault := fs.String("sub-default", "", "")
+	audioLang := fs.String("audio-lang", "", "")
+	subLang := fs.String("sub-lang", "", "")
+	fs.BoolVar(&cfg.DropCommentary, "drop-commentary", false, "")
+	fs.StringVar(&cfg.SubMode, "subs", "", "")
 	fs.StringVar(&cfg.DV, "dv", "auto", "")
 	fs.BoolVar(&cfg.CopyVideo, "copy-video", false, "")
 	fs.StringVar(&cfg.MasterDisplay, "master-display", "", "")
@@ -157,6 +179,35 @@ func parseArgs() (*Config, bool) {
 	}
 	if cfg.Audio == "opus" {
 		cfg.Audio = "libopus"
+	}
+	var err error
+	if cfg.AudioSel, err = parseAudioSel(*audioTracks); err == nil {
+		cfg.SubSel, err = parseSubSel(*subTracks)
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		return cfg, false
+	}
+	switch d := strings.ToLower(*subDefault); d {
+	case "":
+	case "none":
+		cfg.SubDefault = -1
+	default:
+		n, err := strconv.Atoi(d)
+		if err != nil || n < 1 {
+			fmt.Fprintln(os.Stderr, "error: -sub-default must be a track number or none")
+			return cfg, false
+		}
+		cfg.SubDefault = n
+	}
+	cfg.AudioLangs, cfg.SubLangs = parseLangs(*audioLang), parseLangs(*subLang)
+	switch cfg.SubMode = strings.ToLower(cfg.SubMode); cfg.SubMode {
+	case "", "forced", "none":
+	case "all":
+		cfg.SubMode = ""
+	default:
+		fmt.Fprintln(os.Stderr, "error: -subs must be all, forced or none")
+		return cfg, false
 	}
 	if *targetSize != "" {
 		n, err := parseTargetSize(*targetSize)
@@ -293,12 +344,8 @@ func transcode(ctx context.Context, cfg *Config) error {
 	if err != nil {
 		return err
 	}
-	if subs, err := probeSubs(ctx, ffprobe, cfg.Input); err != nil {
-		plan.Warnings = append(plan.Warnings, "could not read the subtitle tracks, so none will be kept: "+err.Error())
-	} else {
-		plan.Subs = subs
-		_, sw := subtitleArgs(subs, 0, isMP4(cfg.Output))
-		plan.Warnings = append(plan.Warnings, sw...)
+	if err := chooseTracks(ctx, ffprobe, cfg, plan); err != nil {
+		return err
 	}
 	if cfg.TargetBytes > 0 {
 		var srcBytes int64
@@ -420,13 +467,11 @@ func runSimple(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 			args = append(args, vargs...)
 			return append(args, "-f", "null", "-")
 		}
-		args = append(args, "-map", "0:a?")
-		sargs, _ := subtitleArgs(plan.Subs, 0, mp4)
-		args = append(args, sargs...)
+		args = append(args, audioArgs(plan.Audio, 0)...)
+		args = append(args, subtitleArgs(plan.Subs, 0)...)
 		args = append(args, attachmentArgs(0, mp4)...)
 		args = append(args, "-map_chapters", "0")
 		args = append(args, vargs...)
-		args = append(args, audioArgs(cfg)...)
 		if mp4 {
 			args = append(args, "-tag:v", "hvc1", "-movflags", "+faststart")
 		}
@@ -592,12 +637,11 @@ func runDV(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 
 	fmt.Println("\n[5/5] Muxing with original audio/subtitles/chapters")
 	mp4 := isMP4(cfg.Output)
-	margs := []string{"-hide_banner", "-y", "-i", dvmp4, "-i", cfg.Input, "-map", "0:v:0", "-map", "1:a?"}
-	sargs, _ := subtitleArgs(plan.Subs, 1, mp4)
-	margs = append(margs, sargs...)
+	margs := []string{"-hide_banner", "-y", "-i", dvmp4, "-i", cfg.Input, "-map", "0:v:0"}
+	margs = append(margs, audioArgs(plan.Audio, 1)...)
+	margs = append(margs, subtitleArgs(plan.Subs, 1)...)
 	margs = append(margs, attachmentArgs(1, mp4)...)
 	margs = append(margs, "-map_chapters", "1", "-c:v", "copy")
-	margs = append(margs, audioArgs(cfg)...)
 	if mp4 {
 		margs = append(margs, "-tag:v", "dvh1", "-movflags", "+faststart")
 	}

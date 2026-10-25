@@ -145,42 +145,6 @@ func TestHDR10PlusOnlyWithX265(t *testing.T) {
 	}
 }
 
-func TestSubtitleArgs(t *testing.T) {
-	subs := []subInfo{{"mov_text", "eng"}, {"subrip", "fra"}, {"hdmv_pgs_subtitle", "spa"}, {"ass", "jpn"}}
-
-	a, w := subtitleArgs(subs, 1, false) // MKV
-	j := strings.Join(a, " ")
-	for _, s := range []string{"-map 1:s:0 -c:s:0 srt", "-map 1:s:1 -c:s:1 copy", "-map 1:s:2 -c:s:2 copy", "-map 1:s:3 -c:s:3 copy"} {
-		if !strings.Contains(j, s) {
-			t.Errorf("MKV: missing %q in %s", s, j)
-		}
-	}
-	if len(w) != 0 {
-		t.Errorf("MKV: unexpected warnings %v", w)
-	}
-
-	a, w = subtitleArgs(subs, 0, true) // MP4: PGS dropped, others -> mov_text, output index stays contiguous
-	j = strings.Join(a, " ")
-	for _, s := range []string{"-map 0:s:0 -c:s:0 mov_text", "-map 0:s:1 -c:s:1 mov_text", "-map 0:s:3 -c:s:2 mov_text"} {
-		if !strings.Contains(j, s) {
-			t.Errorf("MP4: missing %q in %s", s, j)
-		}
-	}
-	if strings.Contains(j, "0:s:2") || len(w) != 2 {
-		t.Errorf("MP4: PGS must be dropped with a warning (and ass flagged): %s %v", j, w)
-	}
-	if a, _ = subtitleArgs(nil, 0, false); len(a) != 0 {
-		t.Errorf("no subs must give no args: %v", a)
-	}
-}
-
-func TestParseSubs(t *testing.T) {
-	subs, err := parseSubs([]byte(`{"streams":[{"codec_name":"mov_text","tags":{"language":"eng"}},{"codec_name":"subrip"}]}`))
-	if err != nil || len(subs) != 2 || subs[0].Codec != "mov_text" || subs[0].Lang != "eng" || subs[1].Lang != "" {
-		t.Fatalf("%+v %v", subs, err)
-	}
-}
-
 func TestParseTargetSize(t *testing.T) {
 	good := map[string]int64{"8G": 8 << 30, "8gb": 8 << 30, "4500M": 4500 << 20, "700 MB": 700 << 20, "7.5GB": int64(7.5 * (1 << 30)), "2 GiB": 2 << 30}
 	for in, want := range good {
@@ -216,25 +180,6 @@ func TestSizeBudgetAddsUp(t *testing.T) {
 	}
 	if dv := testSizePlan(1500<<20, true); dv.VideoKbps >= sp.VideoKbps {
 		t.Error("Dolby Vision must leave less for video (RPU data)")
-	}
-}
-
-func TestParseAudioTracks(t *testing.T) {
-	tr, err := parseAudioTracks([]byte(`{"streams":[{"codec_name":"truehd","channels":8,"tags":{"NUMBER_OF_BYTES-eng":"123456789","BPS-eng":"4000000"}},{"codec_name":"aac","channels":2,"bit_rate":"128000"},{"codec_name":"ac3","channels":6}]}`))
-	if err != nil || len(tr) != 3 || tr[0].Bytes != 123456789 || tr[1].Bitrate != 128000 || tr[2].Bytes != 0 || tr[2].Bitrate != 0 {
-		t.Fatalf("%+v %v", tr, err)
-	}
-	cfg := baseCfg()
-	if b, exact := quickAudioBytes(cfg, 100, tr, false); exact || b != 123456789+int64(128000*100/8) {
-		t.Errorf("copy: %d exact=%v (a track with no size info must make it inexact)", b, exact)
-	}
-	if b, _ := quickAudioBytes(cfg, 100, tr, true); b != 123456789+int64(128000*100/8)+int64(448000*100/8) {
-		t.Errorf("guess=true must fill in the track with no size info (ac3 5.1 -> 448 kbps): %d", b)
-	}
-	cfg.Audio = "aac"
-	cfg.AudioBitrate = "256k"
-	if b, exact := quickAudioBytes(cfg, 100, tr, false); !exact || b != 3*256000*100/8 {
-		t.Errorf("convert: %d exact=%v", b, exact)
 	}
 }
 

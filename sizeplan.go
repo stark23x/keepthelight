@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -77,70 +76,9 @@ func parseBitrateBps(s string) (float64, bool) {
 
 // ---------- audio ----------
 
-type audioTrack struct {
-	Codec    string
-	Channels int
-	Bytes    int64   // from container statistics tags, 0 if unknown
-	Bitrate  float64 // bits per second, 0 if unknown
-}
-
-func probeAudioTracks(ctx context.Context, ffprobe, path string) ([]audioTrack, error) {
-	out, err := toolCommand(ctx, ffprobe, "-v", "error", "-select_streams", "a",
-		"-show_entries", "stream=codec_name,channels,bit_rate:stream_tags", "-of", "json", path).Output()
-	if err != nil {
-		return nil, fmt.Errorf("ffprobe (audio) failed: %w", err)
-	}
-	return parseAudioTracks(out)
-}
-
-func parseAudioTracks(data []byte) ([]audioTrack, error) {
-	var j struct {
-		Streams []struct {
-			Codec    string            `json:"codec_name"`
-			Channels int               `json:"channels"`
-			BitRate  string            `json:"bit_rate"`
-			Tags     map[string]string `json:"tags"`
-		} `json:"streams"`
-	}
-	if err := json.Unmarshal(data, &j); err != nil {
-		return nil, err
-	}
-	var res []audioTrack
-	for _, s := range j.Streams {
-		a := audioTrack{Codec: s.Codec, Channels: s.Channels}
-		a.Bitrate, _ = strconv.ParseFloat(s.BitRate, 64)
-		for k, v := range s.Tags {
-			uk := strings.ToUpper(k)
-			if strings.HasPrefix(uk, "NUMBER_OF_BYTES") {
-				if n, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64); err == nil {
-					a.Bytes = n
-				}
-			} else if strings.HasPrefix(uk, "BPS") && a.Bitrate == 0 {
-				a.Bitrate, _ = strconv.ParseFloat(strings.TrimSpace(v), 64)
-			}
-		}
-		res = append(res, a)
-	}
-	return res, nil
-}
-
-// defaultAudioKbps is used when audio is converted and no bitrate was chosen,
-// so the size of the converted audio is predictable. 0 = cannot be predicted.
-func defaultAudioKbps(codec string) int {
-	switch codec {
-	case "aac":
-		return 256
-	case "eac3", "ac3":
-		return 640
-	case "libopus":
-		return 192
-	}
-	return 0
-}
-
 // guessTrackBitrate is a typical bitrate (bits/s) for a track the container
 // gives no size for. Only used for previews and when measuring fails.
-func guessTrackBitrate(t audioTrack) float64 {
+func guessTrackBitrate(t srcTrack) float64 {
 	ch := float64(max(t.Channels, 2))
 	switch t.Codec {
 	case "truehd":
@@ -157,45 +95,57 @@ func guessTrackBitrate(t audioTrack) float64 {
 	return 128_000 * ch / 2
 }
 
-// quickAudioBytes estimates the size of the audio in the output from container
-// metadata alone. exact=false means some track had no size information; with
-// guess=true such tracks are filled in with a typical bitrate for their codec.
-func quickAudioBytes(cfg *Config, dur float64, tracks []audioTrack, guess bool) (bytes int64, exact bool) {
+// srcAudioBytes is a track's size in the source, from container metadata.
+// ok=false: no size information (with guess=true, a typical size is used).
+func srcAudioBytes(t srcTrack, dur float64, guess bool) (float64, bool) {
+	switch {
+	case t.Bytes > 0:
+		return float64(t.Bytes), true
+	case t.BitRate > 0:
+		return t.BitRate * dur / 8, true
+	case guess:
+		return guessTrackBitrate(t) * dur / 8, false
+	}
+	return 0, false
+}
+
+// quickAudioBytes estimates the size of the kept audio in the output from
+// container metadata alone. exact=false means some track had no size
+// information; with guess=true such tracks are filled in with a typical size.
+func quickAudioBytes(audio []outAudio, dur float64, guess bool) (bytes int64, exact bool) {
 	exact = true
-	var src float64
-	for _, t := range tracks {
-		switch {
-		case t.Bytes > 0:
-			src += float64(t.Bytes)
-		case t.Bitrate > 0:
-			src += t.Bitrate * dur / 8
-		default:
-			exact = false
-			if guess {
-				src += guessTrackBitrate(t) * dur / 8
+	var total float64
+	for _, a := range audio {
+		if a.Codec != "copy" && a.Bitrate != "" {
+			if v, ok := parseBitrateBps(a.Bitrate); ok && v > 0 {
+				total += v * dur / 8
+				continue
 			}
 		}
+		src, ok := srcAudioBytes(a.Src, dur, guess)
+		if !ok {
+			exact = false
+		}
+		if a.Codec != "copy" { // FLAC: roughly 60% of the source's size
+			src *= 0.6
+			exact = false
+		}
+		total += src
 	}
-	if cfg.Audio == "copy" || cfg.Audio == "" {
-		return int64(src), exact
-	}
-	kbps := defaultAudioKbps(cfg.Audio)
-	if v, ok := parseBitrateBps(cfg.AudioBitrate); ok && v > 0 {
-		kbps = int(v / 1000)
-	}
-	if kbps == 0 { // FLAC etc.: roughly 60% of the source's audio size
-		return int64(src * 0.6), false
-	}
-	return int64(float64(kbps) * 1000 * dur / 8 * float64(len(tracks))), true
+	return int64(total), exact
 }
 
 var reMeasure = regexp.MustCompile(`audio:\s*(\d+)\s*(?:kB|KiB)`)
 
 // measureAudioBytes reads the whole file once, copying audio to a null output,
 // and reports how much audio there is. Used only when metadata is incomplete.
-func measureAudioBytes(ctx context.Context, ffmpeg, path string) (int64, error) {
-	cmd := toolCommand(ctx, ffmpeg, "-hide_banner", "-v", "info", "-nostats", "-i", path,
-		"-map", "0:a?", "-vn", "-sn", "-dn", "-c", "copy", "-f", "null", "-")
+func measureAudioBytes(ctx context.Context, ffmpeg, path string, tracks []srcTrack) (int64, error) {
+	args := []string{"-hide_banner", "-v", "info", "-nostats", "-i", path}
+	for _, t := range tracks {
+		args = append(args, "-map", fmt.Sprintf("0:a:%d", t.N-1))
+	}
+	args = append(args, "-vn", "-sn", "-dn", "-c", "copy", "-f", "null", "-")
+	cmd := toolCommand(ctx, ffmpeg, args...)
 	out, _ := cmd.CombinedOutput()
 	m := reMeasure.FindAllStringSubmatch(string(out), -1)
 	if len(m) == 0 {
@@ -225,10 +175,10 @@ type SizePlan struct {
 // Dolby Vision RPU travels inside the video file, so it is not part of this.)
 func (s *SizePlan) NonVideo() int64 { return s.AudioBytes + s.Overhead }
 
-func subtitleOverhead(subs []subInfo, mp4 bool) int64 {
+func subtitleOverhead(subs []outSub, mp4 bool) int64 {
 	var o int64
 	for _, sub := range subs {
-		c := strings.ToLower(sub.Codec)
+		c := strings.ToLower(sub.Src.Codec)
 		switch {
 		case textSubs[c]:
 			o += 1 << 20
@@ -275,27 +225,30 @@ func planSize(ctx context.Context, cfg *Config, p *Probe, plan *Plan, srcBytes i
 		sp.FPS, _ = parseRational(p.RFPS)
 	}
 
-	tracks, err := probeAudioTracks(ctx, cfg.Ffprobe, cfg.Input)
-	if err != nil {
-		tracks = nil
-		sp.Warnings = append(sp.Warnings, "could not read the audio tracks; audio size is not accounted for, so the result may come out larger than the target")
-	}
-	if cfg.Audio != "copy" && cfg.AudioBitrate == "" && len(tracks) > 0 {
-		if k := defaultAudioKbps(cfg.Audio); k > 0 {
-			cfg.AudioBitrate = fmt.Sprintf("%dk", k) // make the encoder use the bitrate the plan assumed
+	sp.AudioBytes, sp.AudioExact = quickAudioBytes(plan.Audio, p.Duration, false)
+	if !sp.AudioExact {
+		// copied tracks without size information: measure them (converted ones are predictable)
+		var copied, converted []outAudio
+		var copiedSrc []srcTrack
+		for _, a := range plan.Audio {
+			if a.Codec == "copy" {
+				copied = append(copied, a)
+				copiedSrc = append(copiedSrc, a.Src)
+			} else {
+				converted = append(converted, a)
+			}
 		}
-	}
-	sp.AudioBytes, sp.AudioExact = quickAudioBytes(cfg, p.Duration, tracks, false)
-	if !sp.AudioExact && cfg.Audio == "copy" && len(tracks) > 0 {
+		_, copyExact := quickAudioBytes(copied, p.Duration, false)
 		measured := false
-		if !cfg.DryRun { // the preview must stay instant, so it only guesses
+		if !copyExact && !cfg.DryRun { // the preview must stay instant, so it only guesses
 			fmt.Println("Measuring audio size (reads the whole file once)...")
-			if n, err := measureAudioBytes(ctx, cfg.Ffmpeg, cfg.Input); err == nil {
-				sp.AudioBytes, sp.AudioExact, measured = n, true, true
+			if n, err := measureAudioBytes(ctx, cfg.Ffmpeg, cfg.Input, copiedSrc); err == nil {
+				conv, convExact := quickAudioBytes(converted, p.Duration, true)
+				sp.AudioBytes, sp.AudioExact, measured = n+conv, convExact, true
 			}
 		}
 		if !measured {
-			sp.AudioBytes, _ = quickAudioBytes(cfg, p.Duration, tracks, true)
+			sp.AudioBytes, _ = quickAudioBytes(plan.Audio, p.Duration, true)
 		}
 	}
 	if !sp.AudioExact {

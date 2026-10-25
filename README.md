@@ -86,6 +86,8 @@ private local web server. To choose that yourself, run `keepthelight_cli -server
     keepthelight_cli -low-priority in.mkv     (other programs come first)
     keepthelight_cli -scale 1080p in.mkv      (shrink to fit 1920x1080, keeping HDR / Dolby Vision)
     keepthelight_cli -hw-decode in.mkv        (decode on the GPU, encode on the CPU)
+    keepthelight_cli -audio-tracks 1,3:eac3 -sub-tracks 2:forced in.mkv   (choose tracks)
+    keepthelight_cli -audio-lang eng -drop-commentary -subs forced in.mkv  (rules, for scripts)
     keepthelight_cli -gui [input]              (opens the window)
 
     keepthelight_cli -version                  (prints the name and version)
@@ -118,6 +120,17 @@ subtitles and container from the target to get a video bitrate, then:
 - Needs FFmpeg 5.1 or newer for frame-exact passes (older builds fall back to `-vsync`).
 
 ## Subtitles and audio
+- **Choosing tracks:** the Audio and Subtitles sections list every track of the file. Each audio track can be
+  copied, converted (E-AC-3, AC-3, AAC, Opus, FLAC) or dropped; each subtitle track kept or dropped, with its
+  forced flag. One audio track and (optionally) one subtitle track are marked as the default.
+- **Rules** (remembered) give the starting choice for each file and decide the tracks for the queue, where every
+  file is different: languages to keep (for example `eng, jpn`), leave out commentary tracks, and all / forced
+  only / no subtitles. Tracks with no language set are kept; if no audio track matches, the file's default
+  track is kept, so nothing ends up silent. A file added from the form with **Add to queue** keeps exactly the
+  tracks ticked for it; **Use current settings for waiting files** applies the rules.
+- Converted tracks get a bitrate that suits the format and channels unless one is set. AC-3 and E-AC-3 hold at
+  most 5.1, so a 7.1 track is mixed down; a title naming the old format ("TrueHD 7.1") is updated.
+- MP4 cannot hold TrueHD or DTS: such a track is converted to E-AC-3 (the window offers no "Copy" for it).
 - MKV output: text subtitles are copied; MP4-style `mov_text` is converted to SubRip (MKV cannot store it); image subtitles (PGS, VobSub) are copied.
 - MP4 output: text subtitles become `mov_text` (ASS styling is lost); image subtitles cannot be stored in MP4 and are dropped with a warning.
 - If a run fails after the long encode (Dolby Vision / HDR10+ modes), the temporary folder is kept and its path is printed, so finished work is not deleted.
