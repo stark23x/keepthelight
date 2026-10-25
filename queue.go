@@ -42,6 +42,7 @@ type queueItem struct {
 	Info     string          `json:"info"` // what the source is, e.g. "HDR10 · 3840×2160 · 2h 1m"
 	Percent  float64         `json:"percent"`
 	Duration float64         `json:"duration"`
+	Editing  bool            `json:"editing"` // open in the window for changes: held back until saved or cancelled
 
 	s       settings
 	cfg     *Config
@@ -260,18 +261,33 @@ func (g *guiServer) queueApply(raw json.RawMessage) (n int, errs []string) {
 		return 0, []string{"bad request"}
 	}
 	ext := strings.ToLower(filepath.Ext(fmt.Sprint(tmpl["output"])))
+	keepOwn, _ := tmpl["keepOwn"].(bool)
+	tag, setTag := tmpl["nameTag"].(string)
 	g.mu.Lock()
 	for _, it := range g.q.items {
-		if !it.pending() && it.Status != stProblem {
+		if (!it.pending() && it.Status != stProblem) || it.Editing {
 			continue
 		}
 		m := map[string]any{}
 		for k, v := range tmpl {
 			m[k] = v
 		}
+		if keepOwn { // the file's own track choices and metadata stay
+			var old map[string]any
+			_ = json.Unmarshal(it.Raw, &old)
+			for _, k := range ownKeys {
+				if v, ok := old[k]; ok {
+					m[k] = v
+				}
+			}
+		}
 		out := it.Output
 		if ext == ".mkv" || ext == ".mp4" {
 			out = strings.TrimSuffix(out, filepath.Ext(out)) + ext
+		}
+		if setTag { // a fresh name with this ending (a profile's name, for example)
+			base := filepath.Base(it.Input)
+			out = filepath.Join(filepath.Dir(out), strings.TrimSuffix(base, filepath.Ext(base))+cleanTag(tag)+filepath.Ext(out))
 		}
 		// where converted files go: "outDir" is a folder, or "" for next to each original
 		if dir, ok := tmpl["outDir"].(string); ok {
@@ -280,7 +296,12 @@ func (g *guiServer) queueApply(raw json.RawMessage) (n int, errs []string) {
 			}
 			out = filepath.Join(dir, filepath.Base(out))
 		}
-		delete(m, "outDir")
+		if r, _ := m["replaceOriginal"].(bool); r {
+			out = replacedName(it.Input, filepath.Ext(out))
+		}
+		for _, k := range []string{"outDir", "keepOwn", "nameTag"} {
+			delete(m, k)
+		}
 		m["input"], m["output"], m["overwrite"] = it.Input, out, false
 		b, _ := json.Marshal(m)
 		var s settings
@@ -298,6 +319,71 @@ func (g *guiServer) queueApply(raw json.RawMessage) (n int, errs []string) {
 	g.kickChecker()
 	g.saveQueue()
 	return n, errs
+}
+
+// ownKeys are a file's own choices: its tracks and its metadata.
+var ownKeys = []string{"audioTracks", "subTracks", "audioDefault", "subDefault", "meta"}
+
+// ---- editing one queued file in the window ----
+
+func (g *guiServer) findItemLocked(id int) *queueItem {
+	for _, it := range g.q.items {
+		if it.ID == id {
+			return it
+		}
+	}
+	return nil
+}
+
+// queueEditStart opens a waiting file for changes and returns its settings.
+func (g *guiServer) queueEditStart(id int) map[string]any {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	it := g.findItemLocked(id)
+	switch {
+	case it == nil:
+		return failResult("That file is no longer in the queue.")
+	case !it.pending() && it.Status != stProblem:
+		return failResult("Only files that have not started can be changed.")
+	}
+	for _, x := range g.q.items {
+		x.Editing = false // one at a time
+	}
+	it.Editing = true
+	return map[string]any{"ok": true, "settings": it.Raw}
+}
+
+// queueEditSave puts the changed settings back and lets the file run again.
+func (g *guiServer) queueEditSave(id int, raw json.RawMessage) map[string]any {
+	var s settings
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return failResult("bad request")
+	}
+	cfg, err := validateSettings(s)
+	if err != nil {
+		return failResult(capitalize(err.Error()))
+	}
+	g.mu.Lock()
+	it := g.findItemLocked(id)
+	if it == nil || (!it.pending() && it.Status != stProblem) {
+		g.mu.Unlock()
+		return failResult("That file has started or is no longer in the queue, so the changes could not be saved.")
+	}
+	it.Raw, it.s, it.cfg, it.Output, it.Input = raw, s, cfg, cfg.Output, cfg.Input
+	it.Status, it.Note, it.checked, it.Editing = stChecking, "", false, false
+	g.mu.Unlock()
+	g.kickChecker()
+	g.saveQueue()
+	return okResult()
+}
+
+func (g *guiServer) queueEditCancel(id int) map[string]any {
+	g.mu.Lock()
+	if it := g.findItemLocked(id); it != nil {
+		it.Editing = false
+	}
+	g.mu.Unlock()
+	return okResult()
 }
 
 // ---- checking (probing) items ----
@@ -431,8 +517,12 @@ func (g *guiServer) runQueue() {
 			break
 		}
 		var it *queueItem
-		waitingForCheck := false
+		waitingForCheck, waitingForEdit := false, false
 		for _, x := range g.q.items {
+			if x.Editing && (x.Status == stWaiting || x.Status == stChecking) {
+				waitingForEdit = true // held back; the queue goes on with the next file
+				continue
+			}
 			if x.Status == stChecking {
 				waitingForCheck = true // keep the order: wait for it to be checked
 				break
@@ -442,7 +532,7 @@ func (g *guiServer) runQueue() {
 				break
 			}
 		}
-		if it == nil && waitingForCheck {
+		if it == nil && (waitingForCheck || waitingForEdit) {
 			g.mu.Unlock()
 			time.Sleep(200 * time.Millisecond)
 			continue

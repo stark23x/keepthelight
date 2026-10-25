@@ -121,6 +121,7 @@
   #queueList { max-height: 400px; overflow-y: auto; position: relative; }
   .qrow { display: grid; grid-template-columns: 1fr auto auto; gap: 4px 12px; align-items: center; padding: 9px 10px;
     border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); margin-bottom: 6px; }
+  .qrow > div:first-child { min-width: 0; } /* long names shrink (with "…"), the buttons stay in view */
   .qname { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .qsub { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .qnote { font-size: 12px; margin-top: 2px; }
@@ -144,6 +145,12 @@
   dialog#about { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 0;
     width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 48px); box-shadow: 0 18px 50px rgba(0,0,0,.55); }
   dialog#about::backdrop { background: rgba(0,0,0,.55); }
+  dialog.kdlg { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; width: min(460px, 92vw); }
+  dialog.kdlg::backdrop { background: rgba(0,0,0,.55); }
+  dialog.kdlg h3 { margin: 0 0 12px; font-size: 15px; }
+  .prof { padding-top: 12px; padding-bottom: 12px; }
+  .profstate { color: var(--warn); font-size: 12.5px; margin-left: 8px; white-space: nowrap; }
+  .editbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 14px; position: sticky; top: 0; z-index: 5; }
   .about-in { padding: 22px 24px 20px; }
   .about-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
   .about-head img { width: 64px; height: 64px; flex: none; }
@@ -162,6 +169,8 @@
   <header><img class="logo" src="__ICON__" alt=""><h1>Keep the Light</h1><span>HDR10 · HLG · HDR10+ · Dolby Vision &nbsp;|&nbsp; v__VERSION__</span>
     <button class="about" id="aboutBtn">About</button></header>
 
+  <div id="editBanner" class="note info editbar hidden"><span>Changing queued file <b id="editName"></b>. The changes apply to this file only;
+    it waits in the queue until they are saved.</span><span class="grow"></span><button id="editSave" class="primary" style="padding:7px 16px">Save changes to the queue</button><button id="editCancel">Cancel</button></div>
   <div id="toolsNote" class="note bad tools hidden"></div>
   <div id="tmpNote" class="note warn hidden" style="margin:0 0 14px"></div>
   <div id="dropNote" class="note info hidden">Dropping a file on the window can't tell Keep the Light where the file is. Use Browse, paste the path, or drop the video onto Keep the Light.exe itself.</div>
@@ -201,6 +210,7 @@
       <button id="qAddFiles">Add files…</button>
       <button id="qAddFolder">Add folder…</button>
       <button id="qApply" class="hidden" title="Give every file that has not started the settings shown below">Use current settings for waiting files</button>
+      <select id="qProfile" class="hidden" style="width:auto" title="Give every file that has not started the settings of a profile"><option value="">Apply a profile to waiting files…</option></select>
       <button id="qClear" class="hidden">Clear finished</button>
     </div>
   </details>
@@ -211,6 +221,17 @@
     <div class="meta" id="meta"></div>
     <div id="notes"></div>
   </details>
+
+  <div class="card prof" id="profCard">
+    <div class="row" style="align-items:flex-end; flex-wrap:wrap; gap:8px">
+      <div style="min-width:220px" class="grow"><label for="profile">Profile</label>
+        <div class="row" style="align-items:center"><select id="profile"><option value="">— none —</option></select><span id="profState" class="profstate"></span></div></div>
+      <button id="profSave">Save as new…</button><button id="profUpdate" disabled>Update</button><button id="profRename" disabled>Rename…</button>
+      <button id="profDelete" disabled>Delete</button><button id="profExport">Export…</button><button id="profImport">Import…</button>
+    </div>
+    <div class="hint" style="margin-top:6px">A profile keeps the Video settings, the Audio and Subtitles rules and the Advanced overrides, and can name the
+      converted files after itself. Not included: the files and folders, one file's own track choices and metadata, PC settings, and "Replace the original".</div>
+  </div>
 
   <details class="card sect" id="secVideo" data-key="video" open>
     <summary><h2 class="sect-title">Video</h2><span class="sum" id="sumVideo"></span></summary>
@@ -375,6 +396,15 @@
   </div>
 </div>
 
+<dialog id="profDlg" class="kdlg" aria-labelledby="profDlgTitle">
+  <h3 id="profDlgTitle">Save profile</h3>
+  <label for="profName">Name</label><input type="text" id="profName" spellcheck="false" maxlength="60">
+  <label class="check" style="margin-top:10px"><input type="checkbox" id="profUseTag" checked> <span>Name converted files after the profile:
+    <b id="profTagEx"></b> (instead of the "Add to the name" ending)</span></label>
+  <div id="profDlgErr" class="note warn hidden" style="margin-top:10px"></div>
+  <div class="actions" style="margin-top:14px"><button id="profOk" class="primary">Save</button><button id="profCancel">Cancel</button></div>
+</dialog>
+
 <dialog id="about" aria-labelledby="aboutTitle">
   <div class="about-in">
     <div class="about-head">
@@ -438,7 +468,7 @@ function settings() {
     scale: $('scale').value,
     audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, audioChannels: $('audioCh').value, subLang: $('subLang').value.trim(), subMode: $('subMode').value,
     ...trackSettings(),
-    meta: metaEdits(), replaceOriginal: replacing()
+    meta: metaEdits(), replaceOriginal: replacing(), profile: $('profile').value
   };
 }
 
@@ -791,6 +821,235 @@ async function confirmNewFiles(form) {
   return await askUser(msg + '\n\nCreate the new file' + (r.metaJobs > 1 ? 's' : '') + '?');
 }
 
+// ---------- profiles ----------
+// A profile is a named set of the settings below the Files section. It can
+// name converted files after itself ("Film_Plex 4K.mkv").
+const PROFILE_KEYS = ['mode', 'codec', 'preset', 'scale', 'dv', 'quality', 'crf', 'bitrate', 'targetSize', 'retries',
+  'audio', 'audioBitrate', 'audioChannels', 'audioLang', 'dropCommentary', 'subLang', 'subMode', 'masterDisplay', 'maxCLL'];
+let profiles = []; // [{ name, useNameTag, settings }]
+function activeProfile() { const n = $('profile').value; return n ? profiles.find(p => p.name === n) || null : null; }
+function profileTag(p) { return '_' + cleanTagText(p.name.trim().replace(/\s+/g, ' ')); }
+function profileSettings() { const st = settings(), o = {}; PROFILE_KEYS.forEach(k => { o[k] = st[k]; }); return o; }
+function saveProfiles() { api('setPref', { name: 'profiles', value: profiles }); }
+function fillProfiles(selected) {
+  const sel = $('profile'), qs = $('qProfile');
+  sel.innerHTML = ''; qs.innerHTML = '';
+  const none = el('option', '', '— none —'); none.value = ''; sel.append(none);
+  const head = el('option', '', 'Apply a profile to waiting files…'); head.value = ''; qs.append(head);
+  profiles.slice().sort((a, b) => a.name.localeCompare(b.name)).forEach(p => {
+    const o = el('option', '', p.name); o.value = p.name; sel.append(o);
+    const q = el('option', '', p.name); q.value = p.name; qs.append(q);
+  });
+  sel.value = profiles.some(p => p.name === selected) ? selected : '';
+  profileUI();
+}
+// the controls that depend on the chosen profile, and whether the form still matches it
+function profileUI() {
+  const p = activeProfile();
+  ['profUpdate', 'profRename', 'profDelete'].forEach(id => { $(id).disabled = !p; });
+  $('profExport').disabled = !profiles.length;
+  const tagFromProfile = !!(p && p.useNameTag);
+  $('nameTag').disabled = tagFromProfile;
+  $('nameTag').title = tagFromProfile ? 'Set by the profile "' + p.name + '"' : '';
+  if (tagFromProfile) $('nameTag').value = profileTag(p); else if ($('nameTag').dataset.own !== undefined) $('nameTag').value = $('nameTag').dataset.own;
+  $('profState').textContent = p && JSON.stringify(profileSettings()) !== JSON.stringify(p.settings) ? 'changed' : '';
+}
+function setRadio(name, v) { const r = document.querySelector('input[name="' + name + '"][value="' + v + '"]'); if (r) r.checked = true; }
+// applyFields puts settings into the form (keys: only these; default all known ones).
+function applyFields(st, keys) {
+  const has = k => (!keys || keys.includes(k)) && st[k] !== undefined && st[k] !== null;
+  if (has('mode')) setRadio('mode', st.mode);
+  if (has('codec')) $('codec').value = st.codec;
+  if (has('preset')) $('preset').value = st.preset;
+  if (has('scale')) $('scale').value = st.scale;
+  if (has('dv')) $('dv').value = st.dv;
+  if (has('quality')) setRadio('quality', st.quality);
+  if (has('crf')) $('crf').value = st.crf;
+  if (has('bitrate')) $('bitrate').value = st.bitrate;
+  if (has('targetSize')) { const m = /^([\d.]+)\s*([GM])$/i.exec(String(st.targetSize)); if (m) { $('targetNum').value = m[1]; $('targetUnit').value = m[2].toUpperCase(); } }
+  if (has('retries')) $('retries').value = String(st.retries);
+  if (has('audio')) $('audio').value = st.audio === 'libopus' ? 'opus' : st.audio;
+  if (has('audioBitrate')) $('abitrate').value = st.audioBitrate;
+  if (has('audioChannels')) $('audioCh').value = st.audioChannels;
+  if (has('audioLang')) $('audioLang').value = st.audioLang;
+  if (has('dropCommentary')) $('dropComm').checked = !!st.dropCommentary;
+  if (has('subLang')) $('subLang').value = st.subLang;
+  if (has('subMode')) $('subMode').value = st.subMode;
+  if (has('masterDisplay')) $('master').value = st.masterDisplay;
+  if (has('maxCLL')) $('cll').value = st.maxCLL;
+}
+function applyProfile(p) {
+  if (p) applyFields(p.settings, PROFILE_KEYS);
+  profileUI();
+  updateVisibility();
+  const inp = $('input').value.trim();
+  if (inp && !replacing() && !editing) suggestOutput();
+  rulesChanged(); // the tracks start again from the (profile's) rules
+}
+$('profile').addEventListener('change', () => applyProfile(activeProfile()));
+
+// the name dialog for Save as new / Rename
+function askProfileName(title, name, useTag, except) {
+  return new Promise(resolve => {
+    const d = $('profDlg');
+    $('profDlgTitle').textContent = title; $('profName').value = name; $('profUseTag').checked = useTag; $('profDlgErr').classList.add('hidden');
+    const ex = () => { $('profTagEx').textContent = 'Film' + profileTag({ name: $('profName').value || 'Name' }) + $('container').value; };
+    ex(); $('profName').oninput = ex;
+    $('profOk').onclick = () => {
+      const n = $('profName').value.trim().replace(/\s+/g, ' ');
+      let err = '';
+      if (!n) err = 'Type a name.';
+      else if (!cleanTagText(n).trim()) err = 'Use some letters or numbers in the name.';
+      else if (profiles.some(p => p.name.toLowerCase() === n.toLowerCase() && p.name !== except)) err = 'There is already a profile called "' + n + '".';
+      if (err) { $('profDlgErr').textContent = err; $('profDlgErr').classList.remove('hidden'); return; }
+      d.close(); resolve({ name: n, useNameTag: $('profUseTag').checked });
+    };
+    $('profCancel').onclick = () => { d.close(); resolve(null); };
+    d.onclose = () => resolve(null);
+    d.showModal(); $('profName').focus(); $('profName').select();
+  });
+}
+$('profName').addEventListener('keydown', e => { if (e.key === 'Enter') $('profOk').click(); });
+$('profSave').onclick = async () => {
+  const r = await askProfileName('Save the current settings as a profile', '', true);
+  if (!r) return;
+  profiles.push({ name: r.name, useNameTag: r.useNameTag, settings: profileSettings() });
+  saveProfiles(); fillProfiles(r.name);
+  if (r.useNameTag && $('input').value.trim() && !replacing() && !editing) { suggestOutput(); scheduleProbe(); }
+};
+$('profUpdate').onclick = async () => {
+  const p = activeProfile(); if (!p) return;
+  if (!await askUser('Save the current settings into the profile "' + p.name + '"?')) return;
+  p.settings = profileSettings(); saveProfiles(); profileUI();
+};
+$('profRename').onclick = async () => {
+  const p = activeProfile(); if (!p) return;
+  const r = await askProfileName('Rename the profile', p.name, p.useNameTag, p.name);
+  if (!r) return;
+  p.name = r.name; p.useNameTag = r.useNameTag;
+  saveProfiles(); fillProfiles(p.name);
+  if ($('input').value.trim() && !replacing() && !editing) { suggestOutput(); scheduleProbe(); }
+};
+$('profDelete').onclick = async () => {
+  const p = activeProfile(); if (!p) return;
+  if (!await askUser('Delete the profile "' + p.name + '"?\n\nThe current settings stay as they are; files already in the queue are not changed.')) return;
+  profiles = profiles.filter(x => x !== p); saveProfiles(); fillProfiles('');
+  if ($('input').value.trim() && !replacing() && !editing) suggestOutput();
+};
+$('profExport').onclick = async () => {
+  const r = await api('profilesExport', { profiles });
+  if (!r.ok) showError(r.error || 'Could not export the profiles.');
+  else if (r.path) showError('Exported ' + profiles.length + ' profile' + (profiles.length === 1 ? '' : 's') + ' to ' + r.path);
+};
+$('profImport').onclick = async () => {
+  const r = await api('profilesImport', {});
+  if (!r.ok) { showError(r.error || 'Could not import the profiles.'); return; }
+  if (!r.profiles) return;
+  const incoming = r.profiles.filter(p => p && typeof p.name === 'string' && p.name.trim() && p.settings && typeof p.settings === 'object')
+    .map(p => ({ name: p.name.trim(), useNameTag: p.useNameTag !== false, settings: p.settings }));
+  if (!incoming.length) { showError('No profiles were found in ' + r.path + '.'); return; }
+  const clash = incoming.filter(p => profiles.some(x => x.name.toLowerCase() === p.name.toLowerCase()));
+  let replace = false;
+  if (clash.length) replace = await askUser(clash.length + ' of the imported profiles have the same name as ones you already have (' +
+    clash.map(p => p.name).join(', ') + ').\n\nReplace yours with the imported ones? (No keeps both, adding a number to the imported name.)');
+  incoming.forEach(p => {
+    const i = profiles.findIndex(x => x.name.toLowerCase() === p.name.toLowerCase());
+    if (i >= 0 && replace) profiles[i] = p;
+    else {
+      if (i >= 0) { let n = 2; while (profiles.some(x => x.name.toLowerCase() === (p.name + ' (' + n + ')').toLowerCase())) n++; p.name += ' (' + n + ')'; }
+      profiles.push(p);
+    }
+  });
+  saveProfiles(); fillProfiles($('profile').value);
+  showError('Imported ' + incoming.length + ' profile' + (incoming.length === 1 ? '' : 's') + '.');
+};
+
+// Applying settings to the waiting files: files with their own changes (tracks
+// or metadata) can keep them.
+async function applyToWaiting(tmpl) {
+  if (!batchOutReady()) return;
+  const own = queue.items.filter(it => ['waiting', 'checking', 'problem'].includes(it.status) && !it.editing && it.settings &&
+    (it.settings.audioTracks || it.settings.subTracks || it.settings.meta)).length;
+  let keepOwn = false;
+  if (own) keepOwn = await askUser(own + ' waiting file' + (own === 1 ? ' has its' : 's have their') + ' own changes (tracks or metadata).\n\n' +
+    'Keep those changes? Yes keeps them and changes only the general settings; No replaces them too.');
+  const r = await api('queueApply', { settings: Object.assign(tmpl, RULES_ONLY, { meta: null, outDir: batchOutDir(), keepOwn }) });
+  if (r.errors && r.errors.length) showError(r.errors.join('\n'));
+  poll();
+}
+$('qProfile').addEventListener('change', async () => {
+  const p = profiles.find(x => x.name === $('qProfile').value);
+  $('qProfile').value = '';
+  if (!p) return;
+  const own = $('nameTag').dataset.own !== undefined ? $('nameTag').dataset.own : $('nameTag').value;
+  await applyToWaiting(Object.assign(settings(), p.settings, { profile: p.name, nameTag: p.useNameTag ? profileTag(p) : cleanTagText(own) }));
+});
+
+// ---------- changing one queued file ----------
+// Edit opens a waiting file in the form; Save puts it back with its changes.
+let editing = null;   // { id, name, snapshot }
+let pendingLoad = null; // settings to load into the form once its file has been read
+function captureForm() {
+  return { st: settings(), tracks: tracks && JSON.parse(JSON.stringify(tracks)), meta: metaState && JSON.parse(JSON.stringify(metaState)),
+    profile: $('profile').value, container: $('container').value };
+}
+function loadForm(st, opts) {
+  $('input').value = st.input || ''; $('output').value = st.output || '';
+  const e = extOf(st.output || ''); if (e === '.mkv' || e === '.mp4') $('container').value = e;
+  applyFields(st);
+  $('replaceOrig').checked = !!st.replaceOriginal;
+  if (opts && opts.profile !== undefined) $('profile').value = opts.profile; else $('profile').value = profiles.some(p => p.name === st.profile) ? st.profile : '';
+  profileUI();
+}
+async function startEdit(it) {
+  if (editing) { showError('Finish changing "' + editing.name + '" first.'); return; }
+  const r = await api('queueEditStart', { id: it.id });
+  if (!r.ok) { showError(r.error); return; }
+  editing = { id: it.id, name: it.name, snapshot: captureForm() };
+  const st = typeof r.settings === 'string' ? JSON.parse(r.settings) : r.settings;
+  loadForm(st);
+  tracks = null; metaState = null; pendingLoad = st;
+  $('editName').textContent = it.name; $('editBanner').classList.remove('hidden');
+  $('input').readOnly = true; $('browseIn').disabled = true;
+  $('secFiles').open = true; window.scrollTo(0, 0);
+  updateVisibility(); updateStart(); probe();
+}
+async function endEdit(save) {
+  if (!editing) return;
+  if (save) {
+    const r = await api('queueEditSave', { id: editing.id, settings: settings() });
+    if (!r.ok) { showError(r.error); return; }
+  } else await api('queueEditCancel', { id: editing.id });
+  const snap = editing.snapshot;
+  editing = null; pendingLoad = null;
+  $('editBanner').classList.add('hidden'); $('input').readOnly = false; $('browseIn').disabled = false;
+  loadForm(snap.st, { profile: snap.profile });
+  $('container').value = snap.container;
+  tracks = snap.tracks; metaState = snap.meta;
+  updateVisibility(); renderMeta(); updateStart(); probe(); poll();
+}
+$('editSave').onclick = () => endEdit(true);
+$('editCancel').onclick = () => endEdit(false);
+// The tracks and metadata a queued file was given, put back into the form's state.
+function tracksFromSettings(st, input) {
+  return { input, audio: st.audioTracks.map(a => ({ n: a.n, codec: a.codec || 'copy', channels: a.channels || 'orig' })), audioDefault: st.audioDefault || 0,
+    subs: (st.subTracks || []).map(x => ({ n: x.n, forced: !!x.forced })), subDefault: st.subDefault === undefined ? -1 : st.subDefault };
+}
+function applyMetaEdits(m, e) {
+  if (!e) return;
+  Object.entries(e.tags || {}).forEach(([k, v]) => { m.tags[k] = v; });
+  (e.tracks || []).forEach(t => {
+    const v = m.tracks[t.kind + t.n]; if (!v) return;
+    if (t.title !== undefined) v.title = t.title;
+    if (t.lang !== undefined) v.lang = t.lang;
+    if (t.sdh !== undefined) v.sdh = t.sdh;
+    if (t.commentary !== undefined) v.commentary = t.commentary;
+  });
+  if (e.chapters && e.chapters.remove) m.noChapters = true;
+  if (e.chapters && e.chapters.names) Object.entries(e.chapters.names).forEach(([n, v]) => { m.chapNames[n] = v; });
+  if (e.cover) m.cover = e.cover; else if (e.removeCover) m.removeCover = true;
+}
+
 // ---------- sound when finished ----------
 const SOUND_DEFAULTS = { done: 'media:notify.wav', fail: 'alias:SystemHand', flash: true };
 let soundPrefs = Object.assign({}, SOUND_DEFAULTS), soundCatalog = null;
@@ -855,6 +1114,7 @@ function updateSummaries() {
   }
   $('sumVideo').textContent = v;
   $('sumAudio').textContent = audioSummary();
+  if (typeof profileUI === 'function' && profiles) profileUI();
   const nm = metaChangeCount();
   $('sumMeta').textContent = !metaFor() ? '' : nm ? nm + (nm === 1 ? ' change' : ' changes') : 'no changes';
   $('sumSubs').textContent = subSummary();
@@ -892,6 +1152,9 @@ async function restorePrefs() {
   $('lowPrio').checked = r.prefs.lowPriority === true;
   $('hwDec').checked = r.prefs.hwDecode === true;
   if (typeof r.prefs.nameTag === 'string') $('nameTag').value = r.prefs.nameTag;
+  $('nameTag').dataset.own = $('nameTag').value;
+  profiles = Array.isArray(r.prefs.profiles) ? r.prefs.profiles.filter(p => p && p.name && p.settings) : [];
+  fillProfiles('');
   initSounds(r.prefs.sounds);
   const tr = r.prefs.trackRules;
   if (tr) {
@@ -973,9 +1236,12 @@ async function probe() {
   if (seq !== probeSeq) return;
   info = r.ok ? r : null;
   // a newly read file (or changed rules): start from the rules' choice
-  if (info && r.audioChoice && (!tracks || tracks.input !== s.input)) tracks = tracksFromProbe(r, s.input);
+  const load = pendingLoad && pendingLoad.input === s.input ? pendingLoad : null;
+  if (info && r.audioChoice && (!tracks || tracks.input !== s.input))
+    tracks = load && load.audioTracks ? tracksFromSettings(load, s.input) : tracksFromProbe(r, s.input);
   const freshMeta = info && r.meta && (!metaState || metaState.input !== s.input);
-  if (freshMeta) metaState = newMetaState(r, s.input);
+  if (freshMeta) { metaState = newMetaState(r, s.input); if (load) applyMetaEdits(metaState, load.meta); }
+  if (load && info && r.audioChoice) { pendingLoad = null; scheduleProbe(50); } // read again with the file's own choices
   showInfo(r);
   renderTracks();
   if (freshMeta || !info) renderMeta();
@@ -988,8 +1254,8 @@ function updateStart() {
   const waiting = (queue.counts.waiting || 0) + (queue.counts.checking || 0);
   const formOk = info && !info.blocker && $('output').value.trim();
   $('start').textContent = waiting && !queue.running ? 'Start queue (' + waiting + (waiting === 1 ? ' file)' : ' files)') : 'Start transcode';
-  $('start').disabled = jobActive || !(waiting || formOk);
-  $('addQueue').disabled = !formOk;
+  $('start').disabled = jobActive || !(waiting || formOk) || !!editing;
+  $('addQueue').disabled = !formOk || !!editing;
   return;
   $('start').disabled = !ok;
 }
@@ -1059,9 +1325,11 @@ function setJobUI(running) {
 // Where batch files are saved: next to each original, or in one chosen folder (remembered).
 // What is added to a converted file's name (remembered; empty = nothing). Characters
 // Windows does not allow in file names are left out.
-function nameTag() { return $('nameTag').value.replace(/[\\\/:*?"<>|\x00-\x1f]/g, ''); }
+function nameTag() { const p = activeProfile(); return p && p.useNameTag ? profileTag(p) : cleanTagText($('nameTag').value); }
+function cleanTagText(t) { return t.replace(/[\\\/:*?"<>|\x00-\x1f]/g, ''); }
 $('nameTag').addEventListener('change', () => {
-  $('nameTag').value = nameTag();
+  $('nameTag').value = cleanTagText($('nameTag').value);
+  $('nameTag').dataset.own = $('nameTag').value;
   api('setPref', { name: 'nameTag', value: $('nameTag').value });
   const inp = $('input').value.trim();
   if (inp) { suggestOutput(); scheduleProbe(); updateStart(); updateSummaries(); }
@@ -1157,12 +1425,7 @@ $('qAddFolder').onclick = async () => {
   if (r.folder && !r.paths.length) { showError('No video files were found in ' + r.folder + '.'); return; }
   if (r.paths.length && batchOutReady()) addToQueue(r.paths.map(settingsFor));
 };
-$('qApply').onclick = async () => {
-  if (!batchOutReady()) return;
-  const r = await api('queueApply', { settings: Object.assign(settings(), RULES_ONLY, { meta: null, outDir: batchOutDir() }) });
-  if (r.errors && r.errors.length) showError(r.errors.join('\n'));
-  poll();
-};
+$('qApply').onclick = () => applyToWaiting(Object.assign(settings(), { nameTag: nameTag() }));
 $('qClear').onclick = async () => { await api('queueClear', {}); poll(); };
 
 async function askUser(text) {
@@ -1176,12 +1439,14 @@ const STATUS_TEXT = { checking: 'Checking…', waiting: 'Waiting', problem: "Can
 function settingsText(st) {
   const ext = (extOf(st.output || '') || '.mkv').slice(1).toUpperCase();
   if (st.mode === 'copy') return 'copy video · ' + ext;
-  if (st.mode === 'meta') return 'metadata only' + (st.meta ? ' (edited)' : '') + (st.replaceOriginal ? ' · replaces the original' : '') + ' · ' + ext;
+  if (st.mode === 'meta') return (st.profile ? st.profile + ' · ' : '') + 'metadata only' + (st.meta ? ' (edited)' : '') + (st.replaceOriginal ? ' · replaces the original' : '') + ' · ' + ext;
   const q = st.quality === 'bitrate' ? st.bitrate : st.quality === 'size'
     ? 'target ' + String(st.targetSize).replace(/G$/, ' GB').replace(/M$/, ' MB') : 'CRF ' + st.crf;
   const parts = [{ x265: 'x265', nvenc: 'NVENC', qsv: 'QuickSync' }[st.codec] || st.codec, q, st.preset];
+  if (st.profile) parts.unshift(st.profile);
   if (st.scale) parts.push(st.scale);
-  if (st.audioTracks) parts.push(st.audioTracks.length + ' audio' + (st.subTracks ? ', ' + st.subTracks.length + ' subtitle' + (st.subTracks.length === 1 ? '' : 's') : ''));
+  if (st.audioTracks) parts.push(st.audioTracks.length + ' audio' + (st.subTracks ? ', ' + st.subTracks.length + ' subtitle' + (st.subTracks.length === 1 ? '' : 's') : '') + ' (own choice)');
+  if (st.meta) parts.push('own metadata');
   else {
     if (st.audioLang) parts.push('audio ' + st.audioLang);
     if (st.audio && st.audio !== 'copy') parts.push('audio → ' + st.audio.toUpperCase() + (st.audioChannels ? ' ' + (st.audioChannels === '5.1' ? 'max 5.1' : 'stereo') : '') + (st.audioBitrate ? ' ' + st.audioBitrate : ''));
@@ -1216,10 +1481,13 @@ function renderQueue(q) {
     row.querySelector('.qstat').textContent = it.status === 'running' ? Math.floor(it.percent) + '%' : STATUS_TEXT[it.status];
     row.querySelector('.qmini').classList.toggle('hidden', it.status !== 'running');
     row.querySelector('.qmini > div').style.width = it.percent + '%';
-    const key = it.status + (q.running ? 'r' : '');
+    if (it.editing) row.querySelector('.qstat').textContent = 'Being changed';
+    const key = it.status + (q.running ? 'r' : '') + (it.editing ? 'e' : '');
     const btns = row.querySelector('.qbtns');
     if (btns.dataset.key !== key) { // rebuild the buttons only when they change
       btns.dataset.key = key; btns.innerHTML = '';
+      if ((it.status === 'waiting' || it.status === 'checking' || it.status === 'problem') && !it.editing)
+        btns.append(rowButton('Edit', 'Change the settings, tracks and metadata of this file only', () => startEdit(it)));
       if (it.status === 'waiting' || it.status === 'checking' || it.status === 'problem') {
         btns.append(rowButton('↑', 'Move up', () => api('queueMove', { id: it.id, dir: -1 }).then(poll)),
           rowButton('↓', 'Move down', () => api('queueMove', { id: it.id, dir: 1 }).then(poll)));
@@ -1238,6 +1506,9 @@ function renderQueue(q) {
     }
   });
   list.querySelectorAll('.qrow').forEach(r => { if (!seen.has(r.dataset.id)) r.remove(); });
+  if (editing && !seen.has(String(editing.id))) { // removed while being changed
+    const n = editing.name; editing.id = -1; endEdit(false); showError(n + ' was removed from the queue, so its changes were not saved.');
+  }
   // When the next file starts, scroll the list to it (only then, so it does not fight the user's scrolling).
   const run = q.items.find(it => it.status === 'running');
   if (run && run.id !== lastRunId) {
@@ -1257,6 +1528,7 @@ function renderQueue(q) {
   if (q.running) restoredNotice = false;
   $('queueHint').classList.toggle('hidden', q.items.length > 0 && !restoredNotice);
   $('qApply').classList.toggle('hidden', !(waiting || c.problem));
+  $('qProfile').classList.toggle('hidden', !((waiting || c.problem) && profiles.length));
   $('qClear').classList.toggle('hidden', !finished);
   $('afterWrap').classList.toggle('hidden', !(q.running || waiting > 0 || q.after));
   if (document.activeElement !== $('after')) $('after').value = q.after || '';

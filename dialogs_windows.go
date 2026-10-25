@@ -176,6 +176,10 @@ func fileDialogEx(save, multi bool, initial string) (string, error) {
 				ofn.DefExt = u16("mp4")
 			}
 			ofn.Title = u16("Save transcoded video as")
+			if dialogKind == "json" {
+				filter = multiString("Keep the Light profiles (*.json)", "*.json")
+				ofn.FilterIndex, ofn.DefExt, ofn.Title = 1, u16("json"), u16("Export profiles")
+			}
 			ofn.Flags = ofnExplorer | ofnOverwritePrompt | ofnPathMustExist | ofnHideReadOnly | ofnNoChangeDir | ofnEnableSizing
 			proc = procGetSaveFileName
 		} else {
@@ -191,6 +195,9 @@ func fileDialogEx(save, multi bool, initial string) (string, error) {
 			case "wav":
 				filter = multiString("Sounds (*.wav)", "*.wav")
 				ofn.Title = u16("Choose a sound")
+			case "json":
+				filter = multiString("Keep the Light profiles (*.json)", "*.json")
+				ofn.Title = u16("Import profiles")
 			}
 			ofn.Flags = ofnExplorer | ofnFileMustExist | ofnPathMustExist | ofnHideReadOnly | ofnNoChangeDir | ofnEnableSizing
 			if multi {
@@ -274,6 +281,12 @@ func browseDialog(kind, initial string) (string, error) {
 		p, err = imageDialog(initial)
 	case "wav":
 		p, err = wavDialog(initial)
+	case "openJson":
+		p, err = specialDialog("json", initial)
+	case "saveJson":
+		dialogKind = "json"
+		p, err = fileDialog(true, initial)
+		dialogKind = ""
 	default:
 		return "", errors.New("unknown dialog")
 	}

@@ -60,6 +60,17 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
 - **Decode on the GPU** (under Advanced): the graphics chip reads the source video, so the CPU only encodes.
   Speeds up x265, most with 4K sources. Before each file, Keep the Light test-decodes a few frames; if the GPU
   cannot decode it, that file is decoded on the CPU as before, and the log says which was used. Remembered.
+- **Profiles** (above Video): save the settings below the Files section under a name of your own, and pick them again
+  later from the dropdown. A profile holds the Video settings, the Audio and Subtitles rules and the Advanced
+  overrides, and can name converted files after itself (`Film_Plex 4K.mkv` instead of `Film_KTL.mkv`). "changed"
+  next to the dropdown means the form no longer matches the profile; **Update** saves it. **Export…** / **Import…**
+  save profiles to a .json file and read them back (a backup, or another PC). Not included: files and folders,
+  one file's own tracks and metadata, PC settings (temp folder, priority, GPU decoding, sounds), and "Replace the
+  original".
+- **Changing one queued file:** **Edit** on a waiting file opens it in the window with its real tracks, chapters and
+  metadata; **Save changes to the queue** puts it back with those changes (for this file only), **Cancel** leaves it
+  as it was. While it is being changed it waits; the queue goes on with the other files. **Apply a profile to waiting
+  files** (Queue) and **Use current settings for waiting files** ask whether files with their own changes keep them.
 - **Sound when finished** (under Advanced, remembered): when a transcode or the whole queue is done, Keep the Light
   plays a sound (Notify by default) and flashes its taskbar button; a different sound (Critical stop) means a file
   failed. Choose any Windows sound, a sound from Windows' Media folder (Alarm 1-10 and so on), your own .wav, or none.

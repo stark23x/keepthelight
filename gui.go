@@ -565,6 +565,59 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		return map[string]any{"ok": true, "path": p}
 	case "start":
 		return g.start(ctx, body)
+	case "queueEditStart", "queueEditCancel":
+		var b struct{ ID int }
+		_ = json.Unmarshal(body, &b)
+		if name == "queueEditStart" {
+			return g.queueEditStart(b.ID)
+		}
+		return g.queueEditCancel(b.ID)
+	case "queueEditSave":
+		var b struct {
+			ID       int
+			Settings json.RawMessage
+		}
+		if err := json.Unmarshal(body, &b); err != nil {
+			return failResult("bad request")
+		}
+		return g.queueEditSave(b.ID, b.Settings)
+	case "profilesExport": // write profiles to a file the user chooses
+		var b struct{ Profiles json.RawMessage }
+		_ = json.Unmarshal(body, &b)
+		p, err := browseDialog("saveJson", "Keep the Light profiles.json")
+		if err != nil || p == "" {
+			if err != nil {
+				return failResult(err.Error())
+			}
+			return map[string]any{"ok": true}
+		}
+		if !strings.EqualFold(filepath.Ext(p), ".json") {
+			p += ".json"
+		}
+		out, _ := json.MarshalIndent(map[string]any{"keepTheLightProfiles": 1, "profiles": b.Profiles}, "", "  ")
+		if err := os.WriteFile(p, out, 0o644); err != nil {
+			return failResult(err.Error())
+		}
+		return map[string]any{"ok": true, "path": p}
+	case "profilesImport":
+		p, err := browseDialog("openJson", "")
+		if err != nil || p == "" {
+			if err != nil {
+				return failResult(err.Error())
+			}
+			return map[string]any{"ok": true}
+		}
+		data, err := os.ReadFile(p)
+		if err != nil {
+			return failResult(err.Error())
+		}
+		var f struct {
+			Profiles []json.RawMessage `json:"profiles"`
+		}
+		if json.Unmarshal(data, &f) != nil || f.Profiles == nil {
+			return failResult(filepath.Base(p) + " is not a Keep the Light profiles file.")
+		}
+		return map[string]any{"ok": true, "profiles": f.Profiles, "path": p}
 	case "sounds": // the sounds that can be chosen
 		return soundList()
 	case "playSound": // the Test button

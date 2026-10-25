@@ -119,6 +119,19 @@ func browseDialogPS(kind, initial string) (string, error) {
 			"$d.Filter = 'Video files|*.mkv;*.mp4;*.m4v;*.mov;*.ts;*.m2ts;*.mts;*.webm;*.avi;*.hevc;*.h265|All files|*.*'",
 			"if ($init) { $dir = Split-Path $init -ErrorAction SilentlyContinue; if ($dir -and (Test-Path $dir)) { $d.InitialDirectory = $dir } }",
 			"if ($d.ShowDialog($owner) -eq 'OK') { Write-Output $d.FileName }")
+	case "openJson":
+		lines = append(psPrelude(),
+			"$d = New-Object System.Windows.Forms.OpenFileDialog",
+			"$d.Title = 'Import profiles'",
+			"$d.Filter = 'Keep the Light profiles (*.json)|*.json'",
+			"if ($d.ShowDialog($owner) -eq 'OK') { Write-Output $d.FileName }")
+	case "saveJson":
+		lines = append(psPrelude(),
+			"$d = New-Object System.Windows.Forms.SaveFileDialog",
+			"$d.Title = 'Export profiles'",
+			"$d.Filter = 'Keep the Light profiles (*.json)|*.json'",
+			"$d.FileName = 'Keep the Light profiles.json'",
+			"if ($d.ShowDialog($owner) -eq 'OK') { Write-Output $d.FileName }")
 	case "wav":
 		lines = append(psPrelude(),
 			"$d = New-Object System.Windows.Forms.OpenFileDialog",

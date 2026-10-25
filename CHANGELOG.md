@@ -18,6 +18,28 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.11.0 - 2026-10-25
+
+- **Profiles.** Save the settings below the Files section under a name of your own and pick them again later from
+  the **Profile** dropdown (above Video), with **Save as new…**, **Update**, **Rename…** and **Delete**.
+  - A profile holds the Video settings (mode, encoder, preset, resolution, Dolby Vision, quality), the Audio and
+    Subtitles rules (languages, convert/copy, channels, bitrate, commentary, which subtitles) and the Advanced
+    overrides. Not included: files and folders, one file's own tracks and metadata, PC settings (temp folder,
+    priority, GPU decoding, sounds) and "Replace the original".
+  - **Converted files can be named after the profile**: `Film_Plex 4K.mkv` instead of `Film_KTL.mkv` (a choice when
+    saving; renaming the profile renames the ending too).
+  - "changed" next to the dropdown shows when the form no longer matches the profile.
+  - **Export…** / **Import…** save profiles to a .json file and read them back. Imported profiles with a name you
+    already use can replace yours or be added with a number.
+  - **Apply a profile to waiting files** in the Queue section.
+- **Change one queued file.** **Edit** on a waiting file opens it in the window with its real tracks, chapters,
+  cover and metadata. Change anything (tracks, track names, title, resolution...) and **Save changes to the
+  queue**, or **Cancel**. The changes apply to that file only and are kept with the queue when Keep the Light is
+  closed. While it is being changed the file waits; the queue goes on with the others.
+  - Files with their own changes are marked in the list ("own choice", "own metadata").
+  - **Use current settings for waiting files** and **Apply a profile** ask whether those files keep their own
+    changes or have them replaced too.
+
 ## 1.10.0 - 2026-10-25
 
 - **A sound when the work is done.** When a transcode, or the whole queue, has finished, Keep the Light plays a
