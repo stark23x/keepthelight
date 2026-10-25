@@ -4,3 +4,4 @@
 *.partial.mkv
 *.partial.mp4
 .keepthelight-*/
+/keepthelight
