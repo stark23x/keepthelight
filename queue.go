@@ -107,7 +107,7 @@ func validateSettings(s settings) (*Config, error) {
 	}
 	a1, _ := filepath.Abs(cfg.Input)
 	a2, _ := filepath.Abs(cfg.Output)
-	if strings.EqualFold(a1, a2) {
+	if strings.EqualFold(a1, a2) && !cfg.ReplaceOriginal {
 		return nil, errors.New("the output must be a different file from the input")
 	}
 	if cfg.Tmp != "" {
@@ -116,6 +116,15 @@ func validateSettings(s settings) (*Config, error) {
 		}
 	}
 	return cfg, nil
+}
+
+// outputTaken: another file already has the output's name (the original
+// itself does not count when the result is to replace it).
+func outputTaken(cfg *Config) bool {
+	if cfg == nil {
+		return false
+	}
+	return fileExists(cfg.Output) && !(cfg.ReplaceOriginal && samePath(cfg.Output, cfg.Input))
 }
 
 func fileExists(p string) bool {
@@ -364,7 +373,7 @@ func applyProbe(it *queueItem, r map[string]any) {
 		return
 	}
 	it.Status = stWaiting
-	it.exists = fileExists(it.Output)
+	it.exists = outputTaken(it.cfg)
 	it.Note = ""
 	if it.exists && !it.s.Overwrite {
 		it.Note = "The output file already exists, so this file will be skipped."
@@ -442,7 +451,7 @@ func (g *guiServer) runQueue() {
 			break
 		}
 		g.q.index++
-		if fileExists(it.Output) && !it.s.Overwrite {
+		if outputTaken(it.cfg) && !it.s.Overwrite {
 			it.Status, it.Note = stSkipped, "The output file already exists."
 			g.mu.Unlock()
 			g.saveQueue()
@@ -563,28 +572,52 @@ func (g *guiServer) launchJob(cfg *Config, duration float64) (*job, error) {
 	go func() {
 		err := cmd.Wait()
 		_ = pw.Close()
+		code := 0
+		if err != nil {
+			code = 1
+			if ee, ok := err.(*exec.ExitError); ok {
+				code = ee.ExitCode()
+			}
+		}
+		g.mu.Lock()
+		canceled := j.canceled
+		if code == 0 && !canceled && cfg.ReplaceOriginal {
+			j.stage = "Replacing the original"
+		}
+		g.mu.Unlock()
+
+		// put the finished file in place (outside the lock: replacing checks the file first)
+		var lines []string
+		var finishErr error
+		if code == 0 && !canceled {
+			if cfg.ReplaceOriginal {
+				ffprobe, err := findTool("ffprobe", "")
+				if err != nil {
+					finishErr = err
+				} else {
+					lines, finishErr = replaceOriginal(context.Background(), ffprobe, cfg.Input, j.partial, j.output)
+				}
+			} else if err := os.Rename(j.partial, j.output); err != nil {
+				finishErr = fmt.Errorf("could not rename the finished file to %s: %v", j.output, err)
+			} else {
+				lines = []string{"Saved as " + j.output}
+			}
+		}
+
 		g.mu.Lock()
 		defer close(j.done)
 		defer g.mu.Unlock()
-		j.running = false
-		if err != nil {
-			j.exitCode = 1
-			if ee, ok := err.(*exec.ExitError); ok {
-				j.exitCode = ee.ExitCode()
-			}
-		}
+		j.running, j.exitCode = false, code
 		switch {
-		case j.canceled:
+		case canceled:
 			j.stage = "Canceled"
 			_ = os.Remove(j.partial)
-		case j.exitCode == 0:
-			if err := os.Rename(j.partial, j.output); err != nil {
-				j.exitCode, j.stage = 1, "Failed"
-				j.lines = append(j.lines, "ERROR: could not rename the finished file to "+j.output+": "+err.Error())
-				return
-			}
+		case code == 0 && finishErr != nil:
+			j.exitCode, j.stage = 1, "Failed"
+			j.lines = append(j.lines, "ERROR: "+finishErr.Error())
+		case code == 0:
 			j.stage = "Done"
-			j.lines = append(j.lines, "Saved as "+j.output)
+			j.lines = append(j.lines, lines...)
 			j.prog.finish()
 		default:
 			j.stage = "Failed"
@@ -607,7 +640,7 @@ func (g *guiServer) start(ctx context.Context, raw json.RawMessage) map[string]a
 	if g.running() {
 		return failResult("A job is already running")
 	}
-	if fileExists(cfg.Output) && !s.Overwrite {
+	if outputTaken(cfg) && !s.Overwrite {
 		return map[string]any{"ok": false, "exists": true, "error": cfg.Output + " already exists."}
 	}
 	if _, errs := g.queueAdd([]json.RawMessage{raw}); len(errs) > 0 {
@@ -885,4 +918,91 @@ func videosIn(dir, tag string) ([]string, error) {
 		out = append(out, filepath.Join(dir, n))
 	}
 	return out, nil
+}
+
+// spaceCheck reports, before metadata-only jobs start, how much they will
+// write and whether the drives have room. form is the file in the form when it
+// is started on its own; without it, the waiting queue is checked.
+func (g *guiServer) spaceCheck(form json.RawMessage) map[string]any {
+	type job struct {
+		cfg  *Config
+		size int64
+	}
+	var jobs []job
+	add := func(cfg *Config) {
+		if cfg == nil || !cfg.MetaOnly {
+			return
+		}
+		var n int64
+		if st, err := os.Stat(cfg.Input); err == nil {
+			n = st.Size()
+		}
+		jobs = append(jobs, job{cfg, n})
+	}
+	if len(form) > 0 && string(form) != "null" {
+		var s settings
+		if json.Unmarshal(form, &s) == nil {
+			if cfg, err := s.toConfig(); err == nil {
+				add(cfg)
+			}
+		}
+	} else {
+		g.mu.Lock()
+		for _, it := range g.q.items {
+			if it.Status == stWaiting || it.Status == stChecking {
+				add(it.cfg)
+			}
+		}
+		g.mu.Unlock()
+	}
+	res := map[string]any{"ok": true, "metaJobs": len(jobs)}
+	if len(jobs) == 0 {
+		return res
+	}
+	type drive struct {
+		Name       string `json:"name"`
+		Need, Free int64  `json:"-"`
+		NeedText   string `json:"need"`
+		FreeText   string `json:"free"`
+		Enough     bool   `json:"enough"`
+	}
+	drives := map[string]*drive{}
+	var order []string
+	var total int64
+	replace := 0
+	var files []string
+	for _, j := range jobs {
+		total += j.size
+		if j.cfg.ReplaceOriginal {
+			replace++
+		}
+		if len(files) < 3 {
+			files = append(files, j.cfg.Output)
+		}
+		dir := filepath.Dir(j.cfg.Output)
+		k := volumeKey(dir)
+		d := drives[k]
+		if d == nil {
+			d = &drive{Name: k, Free: -1}
+			if f, err := diskFree(dir); err == nil {
+				d.Free = int64(f)
+			}
+			drives[k] = d
+			order = append(order, k)
+		}
+		d.Need += j.size
+	}
+	ok := true
+	var list []*drive
+	for _, k := range order {
+		d := drives[k]
+		d.NeedText, d.Enough = formatBytes(d.Need), d.Free < 0 || d.Free > d.Need+(64<<20)
+		if d.Free >= 0 {
+			d.FreeText = formatBytes(d.Free)
+		}
+		ok = ok && d.Enough
+		list = append(list, d)
+	}
+	res["total"], res["drives"], res["enough"], res["replace"], res["files"] = formatBytes(total), list, ok, replace, files
+	return res
 }

@@ -73,6 +73,19 @@ Choosing tracks (numbers as the window shows them: audio 1, 2, ...; subtitles 1,
   -hw-decode           decode the source on the GPU, so the CPU only encodes (falls back to
                        the CPU if the GPU cannot decode the file)
   -copy-video          do not re-encode video at all (keeps any HDR/DV exactly)
+  -metadata-only       copy every kept stream unchanged and change only the metadata (a new
+                       file is written: FFmpeg cannot change a file in place)
+  -replace-original    with -metadata-only: the result takes the original's place; the original
+                       goes to the Recycle Bin (renamed "... (original)" on drives without one)
+
+Metadata (with any job):
+  -title <text>        the file's title ("" removes it)
+  -no-chapters         leave the chapters out
+  -cover <image>       use this .jpg/.png as the cover (MKV); -no-cover leaves the cover out
+  -meta-json <json>    all metadata changes at once, as the window sends them (or @file.json):
+                       {"tags":{"title":"..","date":"2019","description":".."},
+                        "tracks":[{"kind":"a","n":1,"title":"Main","lang":"eng","commentary":false}],
+                        "chapters":{"names":{"1":"Opening"}}}
   -master-display <s>  override x265 master-display string
   -max-cll <a,b>       override MaxCLL,MaxFALL
   -tmp <dir>           folder for temporary files (Dolby Vision needs space)
@@ -113,6 +126,14 @@ func parseArgs() (*Config, bool) {
 	fs.BoolVar(&cfg.DropCommentary, "drop-commentary", false, "")
 	fs.StringVar(&cfg.SubMode, "subs", "", "")
 	fs.StringVar(&cfg.AudioChannels, "audio-channels", "", "")
+	fs.BoolVar(&cfg.MetaOnly, "metadata-only", false, "")
+	fs.BoolVar(&cfg.ReplaceOriginal, "replace-original", false, "")
+	metaJSON := fs.String("meta-json", "", "")
+	var title *string
+	fs.Func("title", "", func(v string) error { title = &v; return nil })
+	noChapters := fs.Bool("no-chapters", false, "")
+	coverImg := fs.String("cover", "", "")
+	noCover := fs.Bool("no-cover", false, "")
 	fs.StringVar(&cfg.DV, "dv", "auto", "")
 	fs.BoolVar(&cfg.CopyVideo, "copy-video", false, "")
 	fs.StringVar(&cfg.MasterDisplay, "master-display", "", "")
@@ -207,6 +228,36 @@ func parseArgs() (*Config, bool) {
 		cfg.SubDefault = n
 	}
 	cfg.AudioLangs, cfg.SubLangs = parseLangs(*audioLang), parseLangs(*subLang)
+	if cfg.Meta, err = parseMetaJSON(*metaJSON); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		return cfg, false
+	}
+	if title != nil || *noChapters || *coverImg != "" || *noCover {
+		if cfg.Meta == nil {
+			cfg.Meta = &MetaEdit{}
+		}
+		if title != nil {
+			if cfg.Meta.Tags == nil {
+				cfg.Meta.Tags = map[string]string{}
+			}
+			cfg.Meta.Tags["title"] = *title
+		}
+		if *noChapters {
+			cfg.Meta.Chapters = &ChapterEdit{Remove: true}
+		}
+		cfg.Meta.Cover, cfg.Meta.RemoveCover = *coverImg, *noCover
+		if err := cfg.Meta.validate(); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			return cfg, false
+		}
+	}
+	if cfg.MetaOnly {
+		cfg.CopyVideo, cfg.Audio = true, "copy"
+	}
+	if cfg.ReplaceOriginal && !cfg.MetaOnly {
+		fmt.Fprintln(os.Stderr, "error: -replace-original works only with -metadata-only")
+		return cfg, false
+	}
 	if cfg.AudioChannels = strings.ToLower(cfg.AudioChannels); !validChannels(cfg.AudioChannels, false) {
 		fmt.Fprintln(os.Stderr, "error: -audio-channels must be 5.1 or stereo")
 		return cfg, false
@@ -230,6 +281,16 @@ func parseArgs() (*Config, bool) {
 	if cfg.Retries < 0 || cfg.Retries > 5 {
 		fmt.Fprintln(os.Stderr, "error: -size-retries must be between 0 and 5")
 		return cfg, false
+	}
+	if cfg.ReplaceOriginal { // written next to the original first, then put in its place
+		ext := strings.ToLower(filepath.Ext(cfg.Output))
+		if cfg.Output == "" {
+			if ext = strings.ToLower(filepath.Ext(cfg.Input)); ext != ".mkv" && ext != ".mp4" {
+				ext = ".mkv"
+			}
+		}
+		cfg.replaceFinal = replacedName(cfg.Input, ext)
+		cfg.Output = partialName(cfg.replaceFinal)
 	}
 	if cfg.Output == "" {
 		ext := filepath.Ext(cfg.Input)
@@ -333,7 +394,7 @@ func transcode(ctx context.Context, cfg *Config) error {
 	}
 	cfg.cuesFront = supportsCuesToFront(ctx, ffmpeg)
 	// child processes may run in the temp folder (x265 two-pass), so paths must be absolute
-	for _, f := range []*string{&cfg.Input, &cfg.Output, &cfg.Tmp} {
+	for _, f := range []*string{&cfg.Input, &cfg.Output, &cfg.Tmp, &cfg.replaceFinal} {
 		if *f != "" {
 			if a, err := filepath.Abs(*f); err == nil {
 				*f = a
@@ -405,7 +466,7 @@ func transcode(ctx context.Context, cfg *Config) error {
 	if tmpBase == "" {
 		tmpBase = filepath.Dir(cfg.Output)
 	}
-	needTmp := plan.UseDV || plan.UseHDR10Plus || plan.Size != nil
+	needTmp := plan.UseDV || plan.UseHDR10Plus || plan.Size != nil || metaNeedsFiles(cfg, plan)
 	tmp := filepath.Join(tmpBase, ".keepthelight-tmp")
 	if needTmp && !cfg.DryRun {
 		d, err := os.MkdirTemp(tmpBase, ".keepthelight-")
@@ -439,6 +500,16 @@ func transcode(ctx context.Context, cfg *Config) error {
 	}
 	verify(ctx, cfg, plan)
 	reportTarget(cfg)
+	if cfg.replaceFinal != "" {
+		lines, err := replaceOriginal(ctx, ffprobe, cfg.Input, cfg.Output, cfg.replaceFinal)
+		if err != nil {
+			return err
+		}
+		for _, l := range lines {
+			fmt.Println(l)
+		}
+		cfg.Output = cfg.replaceFinal
+	}
 	fmt.Println("\nDone:", cfg.Output)
 	return nil
 }
@@ -464,12 +535,20 @@ func runSimple(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 		fmt.Println("WARNING:", w)
 	}
 	mp4 := isMP4(cfg.Output)
+	meta, err := prepareMeta(r, cfg, plan, 0, 1, mp4, tmp)
+	if err != nil {
+		return err
+	}
 	// mk builds the ffmpeg command for one pass (0 = ordinary single pass).
 	mk := func(pass int, out string) []string {
 		cfg.Pass = pass
 		vargs, _ := buildVideoArgs(cfg, p, plan, hdr10plusJSON)
 		args := append([]string{"-hide_banner", "-y"}, cfg.hwaccel...)
-		args = append(args, "-i", cfg.Input, "-map", "0:v:0")
+		args = append(args, "-i", cfg.Input)
+		if pass != 1 {
+			args = append(args, meta.Inputs...)
+		}
+		args = append(args, "-map", "0:v:0")
 		if pass > 0 {
 			args = append(args, cfg.vsyncArgs...)
 		}
@@ -480,8 +559,7 @@ func runSimple(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 		}
 		args = append(args, audioArgs(plan.Audio, 0)...)
 		args = append(args, subtitleArgs(plan.Subs, 0)...)
-		args = append(args, attachmentArgs(0, mp4)...)
-		args = append(args, "-map_chapters", "0")
+		args = append(args, meta.Args...)
 		args = append(args, vargs...)
 		if mp4 {
 			args = append(args, "-tag:v", "hvc1", "-movflags", "+faststart")
@@ -650,11 +728,17 @@ func runDV(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 
 	fmt.Println("\n[5/5] Muxing with original audio/subtitles/chapters")
 	mp4 := isMP4(cfg.Output)
-	margs := []string{"-hide_banner", "-y", "-i", dvmp4, "-i", cfg.Input, "-map", "0:v:0"}
+	meta, err := prepareMeta(r, cfg, plan, 1, 2, mp4, tmp)
+	if err != nil {
+		return err
+	}
+	margs := []string{"-hide_banner", "-y", "-i", dvmp4, "-i", cfg.Input}
+	margs = append(margs, meta.Inputs...)
+	margs = append(margs, "-map", "0:v:0")
 	margs = append(margs, audioArgs(plan.Audio, 1)...)
 	margs = append(margs, subtitleArgs(plan.Subs, 1)...)
-	margs = append(margs, attachmentArgs(1, mp4)...)
-	margs = append(margs, "-map_chapters", "1", "-c:v", "copy")
+	margs = append(margs, meta.Args...)
+	margs = append(margs, "-c:v", "copy")
 	if mp4 {
 		margs = append(margs, "-tag:v", "dvh1", "-movflags", "+faststart")
 	} else {
@@ -704,6 +788,8 @@ func describeMode(cfg *Config, plan *Plan) string {
 
 func describeHDR(cfg *Config, plan *Plan) string {
 	switch {
+	case cfg.MetaOnly:
+		return "metadata only (every kept stream copied unchanged)"
 	case cfg.CopyVideo:
 		return "video stream copy"
 	case plan.UseDV:

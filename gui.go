@@ -96,10 +96,12 @@ type settings struct {
 	AudioDefault, SubDefault   int
 	AudioLang, SubLang         string // rules: languages to keep, e.g. "eng, jpn" (empty = all)
 	DropCommentary             bool
-	AudioChannels              string // rules: channels for converted tracks: "" (as the source), "5.1", "stereo"
-	SubMode                    string // rules: "" all matching, "forced", "none"
-	Retries                    int    // hardware encoders: extra attempts to hit the target
-	Overwrite                  bool   // replace an existing output (the user confirmed it)
+	AudioChannels              string    // rules: channels for converted tracks: "" (as the source), "5.1", "stereo"
+	SubMode                    string    // rules: "" all matching, "forced", "none"
+	Meta                       *MetaEdit // metadata changes for this file (null = none)
+	ReplaceOriginal            bool      // metadata only: the result takes the original's place
+	Retries                    int       // hardware encoders: extra attempts to hit the target
+	Overwrite                  bool      // replace an existing output (the user confirmed it)
 }
 
 var (
@@ -115,7 +117,7 @@ var (
 // toConfig validates the form and produces a Config.
 func (s *settings) toConfig() (*Config, error) {
 	cfg := &Config{Input: s.Input, Output: s.Output, CRF: s.CRF, Preset: s.Preset, Codec: s.Codec,
-		DV: s.DV, CopyVideo: s.Mode == "copy", MasterDisplay: s.MasterDisplay, MaxCLL: s.MaxCLL, Tmp: s.Tmp}
+		DV: s.DV, CopyVideo: s.Mode == "copy" || s.Mode == "meta", MetaOnly: s.Mode == "meta", MasterDisplay: s.MasterDisplay, MaxCLL: s.MaxCLL, Tmp: s.Tmp}
 	if cfg.Codec == "" {
 		cfg.Codec = "x265"
 	}
@@ -138,13 +140,13 @@ func (s *settings) toConfig() (*Config, error) {
 	if !ok {
 		return nil, fmt.Errorf("unknown resolution")
 	}
-	if s.Mode != "copy" {
+	if !cfg.CopyVideo {
 		cfg.Scale = sc
 	}
 	if cfg.CRF < 0 || cfg.CRF > 51 {
 		return nil, fmt.Errorf("quality (CRF) must be between 0 and 51")
 	}
-	if s.Quality == "size" && s.Mode != "copy" {
+	if s.Quality == "size" && !cfg.CopyVideo {
 		n, err := parseTargetSize(s.TargetSize)
 		if err != nil {
 			return nil, err
@@ -167,6 +169,22 @@ func (s *settings) toConfig() (*Config, error) {
 	}
 	cfg.Audio = a
 	cfg.AudioDefault, cfg.SubDefault = max(0, s.AudioDefault), max(-1, s.SubDefault)
+	if err := s.Meta.validate(); err != nil {
+		return nil, err
+	}
+	if !s.Meta.empty() {
+		cfg.Meta = s.Meta
+	}
+	if cfg.MetaOnly {
+		cfg.Audio, cfg.AudioBitrate, cfg.Bitrate = "copy", "", ""
+	}
+	if s.ReplaceOriginal {
+		if !cfg.MetaOnly {
+			return nil, fmt.Errorf("replacing the original is only possible with \"Metadata only\"")
+		}
+		cfg.ReplaceOriginal = true
+		cfg.Output = replacedName(cfg.Input, strings.ToLower(filepath.Ext(s.Output)))
+	}
 	cfg.AudioLangs, cfg.SubLangs, cfg.DropCommentary = parseLangs(s.AudioLang), parseLangs(s.SubLang), s.DropCommentary
 	if !validChannels(s.AudioChannels, false) {
 		return nil, fmt.Errorf("unknown channels option")
@@ -223,6 +241,13 @@ func (cfg *Config) cliArgs() []string {
 	}
 	if cfg.LowPriority {
 		a = append(a, "-low-priority")
+	}
+	if cfg.MetaOnly {
+		a = append(a, "-metadata-only") // replacing the original is done by the window, after the job
+	}
+	if !cfg.Meta.empty() {
+		b, _ := json.Marshal(cfg.Meta)
+		a = append(a, "-meta-json", string(b))
 	}
 	if cfg.HWDecode {
 		a = append(a, "-hw-decode")
@@ -540,6 +565,10 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		return map[string]any{"ok": true, "path": p}
 	case "start":
 		return g.start(ctx, body)
+	case "spaceCheck": // before metadata-only jobs: a new file is written, is there room?
+		var b struct{ Settings json.RawMessage }
+		_ = json.Unmarshal(body, &b)
+		return g.spaceCheck(b.Settings)
 	case "queueAdd":
 		var b struct{ Items []json.RawMessage }
 		if err := json.Unmarshal(body, &b); err != nil {
@@ -861,6 +890,10 @@ func (g *guiServer) probe(ctx context.Context, s settings) map[string]any {
 		plan.Warnings = append(plan.Warnings, warns...)
 		resp["audioTracks"], resp["subTracks"] = trackList(t.Audio, true), trackList(t.Subs, false)
 		resp["audioChoice"], resp["subChoice"] = audioChoice(audio), subChoice(subs)
+		resp["meta"] = metaInfo(t)
+		if st, err := os.Stat(s.Input); err == nil {
+			resp["fileSize"] = st.Size()
+		}
 	}
 	if plan.UseDV { // a Dolby Vision job needs both tools to actually start; find out now, not halfway through
 		for _, tool := range []string{"dovi_tool", "MP4Box"} {

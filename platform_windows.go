@@ -119,6 +119,13 @@ func browseDialogPS(kind, initial string) (string, error) {
 			"$d.Filter = 'Video files|*.mkv;*.mp4;*.m4v;*.mov;*.ts;*.m2ts;*.mts;*.webm;*.avi;*.hevc;*.h265|All files|*.*'",
 			"if ($init) { $dir = Split-Path $init -ErrorAction SilentlyContinue; if ($dir -and (Test-Path $dir)) { $d.InitialDirectory = $dir } }",
 			"if ($d.ShowDialog($owner) -eq 'OK') { Write-Output $d.FileName }")
+	case "image":
+		lines = append(psPrelude(),
+			"$d = New-Object System.Windows.Forms.OpenFileDialog",
+			"$d.Title = 'Choose a cover image'",
+			"$d.Filter = 'Images (*.jpg, *.png)|*.jpg;*.jpeg;*.png'",
+			"if ($init) { $dir = Split-Path $init -ErrorAction SilentlyContinue; if ($dir -and (Test-Path $dir)) { $d.InitialDirectory = $dir } }",
+			"if ($d.ShowDialog($owner) -eq 'OK') { Write-Output $d.FileName }")
 	case "openMulti":
 		lines = append(psPrelude(),
 			"$d = New-Object System.Windows.Forms.OpenFileDialog",

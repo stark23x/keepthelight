@@ -107,6 +107,14 @@
   .trow.sub { grid-template-columns: 90px 1fr auto auto; }
   .trow.nodef { grid-template-columns: 1fr auto; background: transparent; border-style: dashed; }
   .rules { border-top: 1px solid var(--line); padding-top: 12px; }
+  textarea { width: 100%; box-sizing: border-box; resize: vertical; font: inherit; background: var(--panel2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; }
+  .mrow { display: grid; grid-template-columns: 1fr 1.2fr 90px 110px; gap: 8px; align-items: center; margin-bottom: 6px; }
+  .mrow .mlabel { color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mrow label.check { margin: 0; white-space: nowrap; }
+  .mchaps { max-height: 260px; overflow-y: auto; margin-top: 8px; }
+  .mchap { display: grid; grid-template-columns: 70px 1fr; gap: 8px; align-items: center; margin-bottom: 5px; }
+  .mchap span { color: var(--muted); font-size: 12.5px; }
   .tracks:empty + .rules { border-top: 0; padding-top: 0; }
   .rules-title { font-weight: 600; margin-bottom: 10px; font-size: 13px; } .rules-title span { color: var(--muted); font-weight: 400; }
   /* queue: about six files show; a longer list scrolls inside the section */
@@ -180,6 +188,9 @@
     <div class="hint" style="margin-top:6px">Used for this file and for the queue, and remembered. Choosing another place with Save as… changes the folder too.
       With nothing added to the name, save in another folder or as MP4: a file cannot replace its original.</div>
     <div id="qOutNote" class="note warn hidden" style="margin:10px 0 0"></div>
+    <label class="check hidden" id="replaceWrap" style="margin-top:12px"><input type="checkbox" id="replaceOrig"> <span><b>Replace the original when finished</b> –
+      the new file takes the original's name and place, and the original goes to the Recycle Bin (on drives without one, such as network drives,
+      it is renamed "… (original)" instead of being deleted). The new file is checked before anything happens to the original.</span></label>
   </details>
 
   <details class="card sect" id="secQueue" data-key="queue">
@@ -206,6 +217,7 @@
     <div class="seg" style="margin-bottom:12px" id="modeSeg">
       <label><input type="radio" name="mode" value="encode" checked><span>Re-encode (keep HDR)</span></label>
       <label><input type="radio" name="mode" value="copy"><span>Copy video untouched</span></label>
+      <label><input type="radio" name="mode" value="meta"><span>Metadata only (copies the file, no re-encode)</span></label>
     </div>
     <div id="encodeOpts">
       <div class="grid">
@@ -287,6 +299,31 @@
         <div><label for="subMode">Keep</label>
           <select id="subMode"><option value="">all subtitles in those languages</option><option value="forced">only forced subtitles</option><option value="none">no subtitles</option></select></div>
       </div>
+    </div>
+  </details>
+
+  <details class="card sect" id="secMeta" data-key="metadata">
+    <summary><h2 class="sect-title">Metadata</h2><span class="sum" id="sumMeta"></span></summary>
+    <div id="metaNoFile" class="hint">Choose a file to see and change its metadata.</div>
+    <div id="metaBody" class="hidden">
+      <div class="grid">
+        <div><label for="mTitle">Title</label><input type="text" id="mTitle" spellcheck="false" placeholder="none"></div>
+        <div><label for="mDate">Year or date</label><input type="text" id="mDate" spellcheck="false" placeholder="none"></div>
+      </div>
+      <label for="mDesc" style="margin-top:10px">Description</label><textarea id="mDesc" rows="2" placeholder="none"></textarea>
+      <div class="rules-title" style="margin-top:14px">Track names and languages <span>– for the kept tracks</span></div>
+      <div id="mTracks"></div>
+      <div id="mChapWrap">
+        <div class="rules-title" style="margin-top:14px">Chapters</div>
+        <label class="check"><input type="checkbox" id="mNoChap"> <span>Leave out all chapters</span></label>
+        <div id="mChapters" class="mchaps"></div>
+      </div>
+      <div class="rules-title" style="margin-top:14px">Cover image <span>– MKV only</span></div>
+      <div class="row" style="align-items:center; flex-wrap:wrap"><span id="mCoverText" class="grow"></span>
+        <button id="mCoverPick">Choose image…</button><button id="mCoverRemove">Leave out</button><button id="mCoverKeep" class="hidden">Undo</button></div>
+      <div class="actions" style="margin-top:12px"><button id="mReset">Undo all metadata changes</button></div>
+      <div class="hint" style="margin-top:8px">Plex uses the track languages, names and default/forced flags; it takes titles, years, descriptions and posters
+        from its own sources, so those mainly matter for other players.</div>
     </div>
   </details>
 
@@ -390,7 +427,8 @@ function settings() {
     targetSize: $('targetNum').value.trim().replace(',', '.') + $('targetUnit').value, retries: +$('retries').value,
     scale: $('scale').value,
     audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, audioChannels: $('audioCh').value, subLang: $('subLang').value.trim(), subMode: $('subMode').value,
-    ...trackSettings()
+    ...trackSettings(),
+    meta: metaEdits(), replaceOriginal: replacing()
   };
 }
 
@@ -419,6 +457,8 @@ function updateVisibility() {
   const enc = radio('mode') === 'encode';
   $('encodeOpts').classList.toggle('hidden', !enc);
   $('dvWrap').classList.toggle('hidden', !(info && info.dv));
+  syncReplace();
+  $('audio').disabled = metaMode(); $('audioCh').disabled = metaMode(); $('abitrate').disabled = metaMode();
   const q = radio('quality'), hw = $('codec').value !== 'x265';
   $('brBox').classList.toggle('hidden', q !== 'bitrate');
   $('crfBox').classList.toggle('hidden', q !== 'crf');
@@ -478,7 +518,8 @@ function renderTracks() {
   if (!t) return;
   const mp4 = $('container').value === '.mp4';
   // MP4 cannot hold some formats: such a track is converted (Keep the Light would do it anyway)
-  t.audio.forEach(a => { const src = info.audioTracks.find(x => x.n === a.n); if (mp4 && a.codec === 'copy' && src && !src.mp4ok) a.codec = 'eac3'; });
+  t.audio.forEach(a => { const src = info.audioTracks.find(x => x.n === a.n); if (mp4 && a.codec === 'copy' && src && !src.mp4ok && !metaMode()) a.codec = 'eac3'; });
+  if (metaMode()) t.audio.forEach(a => { a.codec = 'copy'; });
   if (info.audioTracks.length) al.append(el('div', 'hint', 'Tracks in this file'));
   info.audioTracks.forEach(src => {
     const kept = t.audio.find(a => a.n === src.n);
@@ -487,6 +528,7 @@ function renderTracks() {
     ACTIONS.forEach(([v, text]) => {
       const o = el('option', '', text); o.value = v;
       if (v === 'copy' && mp4 && !src.mp4ok) { o.disabled = true; o.textContent = 'Copy (not possible in MP4)'; }
+      if (metaMode() && v !== 'copy' && v !== 'drop') o.disabled = true; // metadata only: nothing is converted
       sel.append(o);
     });
     sel.value = kept ? kept.codec : 'drop';
@@ -545,7 +587,7 @@ function renderTracks() {
   } else sl.append(el('div', 'hint', 'This file has no subtitle tracks.'));
 }
 
-function tracksChanged() { renderTracks(); updateSummaries(); scheduleProbe(250); }
+function tracksChanged() { renderTracks(); renderMeta(); updateSummaries(); scheduleProbe(250); }
 // The rules changed: start again from them for the file in the form.
 function rulesChanged() {
   tracks = null;
@@ -589,6 +631,156 @@ function subSummary() {
   return 'keeping ' + n + ' of ' + info.subTracks.length;
 }
 
+// ---------- metadata ----------
+// metaState holds the file's metadata as read (src) and as edited, for the file in the form.
+let metaState = null;
+function metaMode() { return radio('mode') === 'meta'; }
+function replacing() { return metaMode() && $('replaceOrig').checked; }
+
+function newMetaState(r, input) {
+  const m = r.meta || { tags: {}, chapters: [], cover: '' };
+  const tracks = {};
+  (r.audioTracks || []).forEach(t => { tracks['a' + t.n] = { title: t.title || '', lang: t.lang || '', commentary: !!t.commentFlag }; });
+  (r.subTracks || []).forEach(t => { tracks['s' + t.n] = { title: t.title || '', lang: t.lang || '', sdh: !!t.sdhFlag }; });
+  const st = { input, src: { tags: Object.assign({ title: '', date: '', description: '' }, m.tags), tracks, chapters: m.chapters, cover: m.cover } };
+  st.tags = Object.assign({}, st.src.tags);
+  st.tracks = JSON.parse(JSON.stringify(tracks));
+  st.chapNames = {}; m.chapters.forEach(c => { st.chapNames[c.n] = c.title || ''; });
+  st.noChapters = false; st.cover = ''; st.removeCover = false;
+  return st;
+}
+function metaFor() { return metaState && info && metaState.input === $('input').value.trim() ? metaState : null; }
+
+// Only what was changed is sent; everything else is kept as it is.
+function metaEdits() {
+  const m = metaFor();
+  if (!m) return null;
+  const e = {}, tags = {};
+  ['title', 'date', 'description'].forEach(k => { if (m.tags[k] !== m.src.tags[k]) tags[k] = m.tags[k]; });
+  if (Object.keys(tags).length) e.tags = tags;
+  const tr = [];
+  Object.entries(m.tracks).forEach(([key, v]) => {
+    const o = m.src.tracks[key], d = { kind: key[0], n: +key.slice(1) };
+    let changed = false;
+    if (v.title !== o.title) { d.title = v.title; changed = true; }
+    if (v.lang.trim() !== o.lang) { d.lang = v.lang.trim(); changed = true; }
+    if (key[0] === 'a' && v.commentary !== o.commentary) { d.commentary = v.commentary; changed = true; }
+    if (key[0] === 's' && v.sdh !== o.sdh) { d.sdh = v.sdh; changed = true; }
+    if (changed) tr.push(d);
+  });
+  if (tr.length) e.tracks = tr;
+  if (m.noChapters) e.chapters = { remove: true };
+  else {
+    const names = {};
+    m.src.chapters.forEach(c => { if (m.chapNames[c.n] !== (c.title || '')) names[c.n] = m.chapNames[c.n]; });
+    if (Object.keys(names).length) e.chapters = { names };
+  }
+  if (m.cover) e.cover = m.cover;
+  else if (m.removeCover) e.removeCover = true;
+  return Object.keys(e).length ? e : null;
+}
+function metaChangeCount() {
+  const e = metaEdits();
+  if (!e) return 0;
+  return Object.keys(e.tags || {}).length + (e.tracks || []).length + (e.chapters ? 1 : 0) + (e.cover || e.removeCover ? 1 : 0);
+}
+
+function renderMeta() {
+  const m = metaFor();
+  $('metaNoFile').classList.toggle('hidden', !!m); $('metaBody').classList.toggle('hidden', !m);
+  if (!m) return;
+  $('mTitle').value = m.tags.title; $('mDate').value = m.tags.date; $('mDesc').value = m.tags.description;
+  // tracks that are kept
+  const box = $('mTracks'); box.innerHTML = '';
+  const t = tracksForForm();
+  const rows = [];
+  if (t) {
+    t.audio.forEach(a => rows.push(['a', a.n, info.audioTracks.find(x => x.n === a.n)]));
+    const mp4 = $('container').value === '.mp4';
+    t.subs.forEach(x => { const src = info.subTracks.find(y => y.n === x.n); if (!(mp4 && !src.mp4ok)) rows.push(['s', x.n, src]); });
+  }
+  if (!rows.length) box.append(el('div', 'hint', 'No audio or subtitle tracks are kept.'));
+  rows.forEach(([kind, n, src]) => {
+    const v = m.tracks[kind + n], row = el('div', 'mrow');
+    const lab = el('div', 'mlabel', (kind === 'a' ? 'Audio ' : 'Subtitle ') + n + ' · ' + src.desc); lab.title = src.desc;
+    const ti = el('input'); ti.type = 'text'; ti.value = v.title; ti.placeholder = 'no name'; ti.spellcheck = false;
+    ti.oninput = () => { v.title = ti.value; updateSummaries(); };
+    const la = el('input'); la.type = 'text'; la.value = v.lang; la.placeholder = 'language'; la.spellcheck = false; la.title = 'Language, for example eng, jpn, fre';
+    la.oninput = () => { v.lang = la.value; updateSummaries(); };
+    const flag = kind === 'a'
+      ? checkLabel(v.commentary, 'commentary', e => { v.commentary = e.target.checked; updateSummaries(); })
+      : checkLabel(v.sdh, 'SDH', e => { v.sdh = e.target.checked; updateSummaries(); });
+    flag.title = kind === 'a' ? 'Marks the track as a commentary' : 'Subtitles for the deaf and hard of hearing';
+    row.append(lab, ti, la, flag);
+    box.append(row);
+  });
+  // chapters
+  $('mChapWrap').classList.toggle('hidden', !m.src.chapters.length);
+  $('mNoChap').checked = m.noChapters;
+  const cb = $('mChapters'); cb.innerHTML = '';
+  m.src.chapters.forEach(c => {
+    const row = el('div', 'mchap'), mins = Math.floor(c.start / 60), secs = Math.floor(c.start % 60);
+    const inp = el('input'); inp.type = 'text'; inp.value = m.chapNames[c.n]; inp.spellcheck = false; inp.disabled = m.noChapters;
+    inp.oninput = () => { m.chapNames[c.n] = inp.value; updateSummaries(); };
+    row.append(el('span', '', Math.floor(mins / 60) + ':' + String(mins % 60).padStart(2, '0') + ':' + String(secs).padStart(2, '0')), inp);
+    cb.append(row);
+  });
+  // cover
+  const mp4 = $('container').value === '.mp4';
+  let ct = m.cover ? 'New cover: ' + baseName(m.cover) : m.removeCover ? 'The cover will be left out' : m.src.cover ? 'Current cover: ' + m.src.cover : 'No cover image';
+  if (mp4) ct += ' (MP4 output: not stored)';
+  $('mCoverText').textContent = ct;
+  $('mCoverRemove').classList.toggle('hidden', !(m.src.cover || m.cover) || m.removeCover);
+  $('mCoverKeep').classList.toggle('hidden', !(m.cover || m.removeCover));
+}
+function metaChanged() { updateSummaries(); scheduleProbe(300); }
+[['mTitle', 'title'], ['mDate', 'date'], ['mDesc', 'description']].forEach(([id, k]) => {
+  $(id).addEventListener('input', () => { const m = metaFor(); if (m) { m.tags[k] = $(id).value; updateSummaries(); } });
+});
+$('mNoChap').onchange = () => { const m = metaFor(); if (m) { m.noChapters = $('mNoChap').checked; renderMeta(); metaChanged(); } };
+$('mCoverPick').onclick = async () => {
+  const m = metaFor(); if (!m) return;
+  const r = await api('browse', { kind: 'image', initial: m.cover || $('input').value });
+  if (!r.ok) { if (r.error) showError(r.error); return; }
+  if (r.path) { m.cover = r.path; m.removeCover = false; renderMeta(); metaChanged(); }
+};
+$('mCoverRemove').onclick = () => { const m = metaFor(); if (m) { m.cover = ''; m.removeCover = true; renderMeta(); metaChanged(); } };
+$('mCoverKeep').onclick = () => { const m = metaFor(); if (m) { m.cover = ''; m.removeCover = false; renderMeta(); metaChanged(); } };
+$('mReset').onclick = () => { if (info && metaState) { metaState = newMetaState(info, metaState.input); renderMeta(); metaChanged(); } };
+document.getElementById('secMeta').addEventListener('change', e => { if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') scheduleProbe(300); });
+
+// Replacing the original: the output name is the original's.
+function syncReplace() {
+  $('replaceWrap').classList.toggle('hidden', !metaMode());
+  const on = replacing(), inp = $('input').value.trim();
+  $('output').readOnly = on; $('browseOut').disabled = on;
+  if (on && inp) $('output').value = inp.replace(/\.[A-Za-z0-9]+$/, '') + $('container').value;
+  else if (!on && inp && $('output').dataset.replaced === '1') suggestOutput();
+  $('output').dataset.replaced = on ? '1' : '';
+}
+$('replaceOrig').addEventListener('change', () => { syncReplace(); scheduleProbe(100); updateStart(); updateSummaries(); });
+
+// Before metadata-only jobs: a new file is written. Say so, and check the space for it.
+async function confirmNewFiles(form) {
+  const r = await api('spaceCheck', { settings: form || null });
+  if (!r || !r.ok || !r.metaJobs) return true;
+  const short = (r.drives || []).filter(d => !d.enough);
+  if (short.length) {
+    showError('There is not enough free space for the new file' + (r.metaJobs > 1 ? 's' : '') + ':\n\n' +
+      short.map(d => d.name + ' needs about ' + d.need + ', but has ' + d.free + ' free').join('\n') +
+      '\n\nFree up space, or save the converted files in another folder.');
+    return false;
+  }
+  let msg = 'A new file has to be created.\n\nChanging the metadata without re-encoding means writing a complete copy of the video ' +
+    'with the new information. FFmpeg cannot change a file in place.\n\n';
+  msg += r.replace ? (r.replace === r.metaJobs ? 'When the copy is complete and checked, the original goes to the Recycle Bin and the new file takes its place.'
+      : 'Files set to replace their original: ' + r.replace + ' of ' + r.metaJobs + '. Their originals go to the Recycle Bin once each copy is complete and checked.')
+    : 'Your original file is not changed.';
+  msg += '\n\n' + (r.metaJobs === 1 ? 'New file: ' + r.files[0] + ' (about ' + r.total + ')' : r.metaJobs + ' new files, about ' + r.total + ' in total');
+  (r.drives || []).forEach(d => { if (d.free) msg += '\nFree space on ' + d.name + ': ' + d.free; });
+  return await askUser(msg + '\n\nCreate the new file' + (r.metaJobs > 1 ? 's' : '') + '?');
+}
+
 // ---------- collapsible sections ----------
 // A closed section shows a one-line summary of its settings in its header.
 function updateSummaries() {
@@ -596,6 +788,7 @@ function updateSummaries() {
   $('sumFiles').textContent = inp ? baseName(inp) + (out ? '  →  ' + baseName(out) : '') : 'no file chosen';
   let v;
   if (radio('mode') === 'copy') v = 'Copy video untouched';
+  else if (radio('mode') === 'meta') v = 'Metadata only (everything copied unchanged)' + (replacing() ? '  ·  replaces the original' : '');
   else {
     const q = radio('quality');
     const quality = q === 'crf' ? 'CRF ' + $('crf').value
@@ -607,6 +800,8 @@ function updateSummaries() {
   }
   $('sumVideo').textContent = v;
   $('sumAudio').textContent = audioSummary();
+  const nm = metaChangeCount();
+  $('sumMeta').textContent = !metaFor() ? '' : nm ? nm + (nm === 1 ? ' change' : ' changes') : 'no changes';
   $('sumSubs').textContent = subSummary();
   const adv = [$('master').value.trim() && 'master display', $('cll').value.trim() && 'MaxCLL/FALL', $('tmp').value.trim() && 'temp folder',
     $('lowPrio').checked && 'low priority', $('hwDec').checked && 'GPU decoding'].filter(Boolean);
@@ -722,8 +917,11 @@ async function probe() {
   info = r.ok ? r : null;
   // a newly read file (or changed rules): start from the rules' choice
   if (info && r.audioChoice && (!tracks || tracks.input !== s.input)) tracks = tracksFromProbe(r, s.input);
+  const freshMeta = info && r.meta && (!metaState || metaState.input !== s.input);
+  if (freshMeta) metaState = newMetaState(r, s.input);
   showInfo(r);
   renderTracks();
+  if (freshMeta || !info) renderMeta();
   updateVisibility();
   $('planLine').textContent = '';
   updateStart();
@@ -763,7 +961,7 @@ $('output').addEventListener('change', () => { syncContainerFromOutput(); rememb
 $('container').addEventListener('change', () => {
   const o = $('output').value.trim();
   if (o) $('output').value = o.replace(/\.[A-Za-z0-9]+$/, '') + $('container').value; else suggestOutput();
-  updateAudioNote(); scheduleProbe();
+  updateAudioNote(); renderMeta(); scheduleProbe();
 });
 ['preset', 'scale', 'dv', 'bitrate', 'abitrate', 'master', 'cll', 'tmp', 'targetNum', 'targetUnit', 'retries'].forEach(id => $(id).addEventListener('change', () => scheduleProbe(200)));
 $('targetNum').addEventListener('input', () => scheduleProbe(600));
@@ -772,7 +970,7 @@ $('audio').addEventListener('change', () => { updateVisibility(); rulesChanged()
 ['dropComm', 'subMode', 'audioCh'].forEach(id => $(id).addEventListener('change', rulesChanged));
 $('codec').addEventListener('change', () => { updateVisibility(); scheduleProbe(200); });
 $('crf').addEventListener('input', updateVisibility);
-document.querySelectorAll('input[name="mode"], input[name="quality"]').forEach(el => el.addEventListener('change', () => { updateVisibility(); scheduleProbe(100); }));
+document.querySelectorAll('input[name="mode"], input[name="quality"]').forEach(el => el.addEventListener('change', () => { updateVisibility(); renderMeta(); scheduleProbe(100); }));
 ['input', 'change'].forEach(t => document.querySelector('.wrap').addEventListener(t, updateSummaries));
 // Low priority is a remembered setting for all transcodes (not per file).
 $('lowPrio').addEventListener('change', () => { api('priority', { low: $('lowPrio').checked }); updateSummaries(); });
@@ -820,9 +1018,10 @@ function outFolderFor(path) {
   return dir + (dir.includes('/') && !dir.includes('\\') ? '/' : '\\');
 }
 function settingsFor(path) { // the current settings, for another input file
-  const st = Object.assign(settings(), RULES_ONLY); // other files: the rules choose their tracks
+  const st = Object.assign(settings(), RULES_ONLY, { meta: null }); // other files: the rules choose their tracks; no per-file metadata
   st.input = path; st.overwrite = false;
-  st.output = outFolderFor(path) + stem(path) + nameTag() + $('container').value;
+  st.output = st.replaceOriginal ? path.replace(/\.[A-Za-z0-9]+$/, '') + $('container').value
+    : outFolderFor(path) + stem(path) + nameTag() + $('container').value;
   return st;
 }
 function sameFolder(a, b) { return a.replace(/[\\\/]+$/, '').toLowerCase() === b.replace(/[\\\/]+$/, '').toLowerCase(); }
@@ -873,6 +1072,7 @@ $('start').onclick = async () => {
   jobBoxDismissed = false;
   const waiting = (queue.counts.waiting || 0) + (queue.counts.checking || 0);
   let r;
+  if (!await confirmNewFiles(waiting ? null : settings())) return;
   if (waiting) r = await api('queueStart', {});
   else {
     r = await api('start', settings());
@@ -902,7 +1102,7 @@ $('qAddFolder').onclick = async () => {
 };
 $('qApply').onclick = async () => {
   if (!batchOutReady()) return;
-  const r = await api('queueApply', { settings: Object.assign(settings(), RULES_ONLY, { outDir: batchOutDir() }) });
+  const r = await api('queueApply', { settings: Object.assign(settings(), RULES_ONLY, { meta: null, outDir: batchOutDir() }) });
   if (r.errors && r.errors.length) showError(r.errors.join('\n'));
   poll();
 };
@@ -919,6 +1119,7 @@ const STATUS_TEXT = { checking: 'Checking…', waiting: 'Waiting', problem: "Can
 function settingsText(st) {
   const ext = (extOf(st.output || '') || '.mkv').slice(1).toUpperCase();
   if (st.mode === 'copy') return 'copy video · ' + ext;
+  if (st.mode === 'meta') return 'metadata only' + (st.meta ? ' (edited)' : '') + (st.replaceOriginal ? ' · replaces the original' : '') + ' · ' + ext;
   const q = st.quality === 'bitrate' ? st.bitrate : st.quality === 'size'
     ? 'target ' + String(st.targetSize).replace(/G$/, ' GB').replace(/M$/, ' MB') : 'CRF ' + st.crf;
   const parts = [{ x265: 'x265', nvenc: 'NVENC', qsv: 'QuickSync' }[st.codec] || st.codec, q, st.preset];

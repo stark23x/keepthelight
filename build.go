@@ -19,6 +19,9 @@ type Config struct {
 	AudioLangs, SubLangs                         []string   // rules: languages to keep (empty = all)
 	DropCommentary                               bool       // rule: leave out commentary audio tracks
 	AudioChannels                                string     // converted audio: "" keeps the channels, "5.1" or "stereo" mixes down
+	Meta                                         *MetaEdit  // metadata changes (nil = none)
+	MetaOnly                                     bool       // copy every stream unchanged, only the metadata changes
+	ReplaceOriginal                              bool       // metadata only: the result takes the original's place
 	SubMode                                      string     // rule: "" (all matching), "forced" (forced only) or "none"
 	DV                                           string     // auto | drop
 	CopyVideo                                    bool
@@ -32,6 +35,7 @@ type Config struct {
 	vsyncArgs                                    []string // keep every source frame exactly once (set at start-up)
 	hwaccel                                      []string // input options for GPU decoding (set at start-up)
 	cuesFront                                    bool     // this ffmpeg can put an MKV's index at the front (set at start-up)
+	replaceFinal                                 string   // command line -replace-original: the name the result finally gets
 }
 
 type Plan struct {
@@ -44,7 +48,8 @@ type Plan struct {
 	Audio        []outAudio
 	Subs         []outSub
 	Size         *SizePlan
-	ScaleW       int // >0: resize the video to ScaleW x ScaleH
+	Src          *Tracks // the source's tracks, tags, chapters and covers
+	ScaleW       int     // >0: resize the video to ScaleW x ScaleH
 	ScaleH       int
 	SrcW, SrcH   int
 }

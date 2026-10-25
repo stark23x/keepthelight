@@ -90,6 +90,7 @@ private local web server. To choose that yourself, run `keepthelight_cli -server
     keepthelight_cli -audio-lang eng -drop-commentary -subs forced in.mkv  (rules, for scripts)
     keepthelight_cli -audio-tracks 1,1:eac3:5.1 in.mkv   (keep the 7.1 track and add a 5.1 E-AC-3 copy)
     keepthelight_cli -tag _4k in.mkv          (name the result in_4k.mkv; default _KTL)
+    keepthelight_cli -metadata-only -title "My Film" -replace-original in.mkv   (metadata only, in place)
     keepthelight_cli -gui [input]              (opens the window)
 
     keepthelight_cli -version                  (prints the name and version)
@@ -120,6 +121,22 @@ subtitles and container from the target to get a video bitrate, then:
 - If the file does not record its audio size, Keep the Light reads the file once to measure it.
 - Not available with "copy video", and not combinable with a fixed bitrate.
 - Needs FFmpeg 5.1 or newer for frame-exact passes (older builds fall back to `-vsync`).
+
+## Metadata
+- The **Metadata** section shows the file's title, year or date and description, the name, language and SDH /
+  commentary flags of each kept track, the chapter names, and the cover image (MKV). Change what you like; only the
+  changes are written, everything else is kept. It works with every mode.
+- **Metadata only** (under Video) copies every kept stream unchanged into a new file with the new metadata: no
+  re-encoding, so the quality is identical, and it takes about as long as copying the file. Audio tracks can be kept
+  or dropped but not converted. A new file is always written (FFmpeg cannot change a file in place), so Keep the
+  Light says so before starting, with the size and the free space on the drive, and stops if there is not enough.
+- **Replace the original when finished** (metadata only): the new file takes the original's name and place, and the
+  original goes to the Recycle Bin. Drives without a Recycle Bin (network drives, USB sticks) would delete it for
+  good, so there the original is renamed "... (original)" instead. The new file is checked (it must read as video,
+  with the same length) before anything happens to the original.
+- Existing MKV cover images are now kept (before, they were left out).
+- Plex uses the track languages, names and default/forced flags; titles, years, descriptions and posters come from
+  its own sources.
 
 ## Subtitles and audio
 - **Choosing tracks:** the Audio and Subtitles sections list every track of the file. Each audio track can be

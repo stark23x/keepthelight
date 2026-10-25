@@ -18,6 +18,29 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.9.0 - 2026-10-25
+
+- **Edit metadata.** A new **Metadata** section shows and changes the file's title, year or date and description;
+  each kept track's name, language and SDH / commentary flags; chapter names (or leave all chapters out); and the
+  cover image (MKV: choose a .jpg/.png, or leave the cover out). Only the changes are written. It works with
+  every mode, including re-encoding.
+- **Metadata only** (a third choice under Video, next to Re-encode and Copy video): every kept stream is copied
+  unchanged into a new file with the new metadata. Nothing is re-encoded, so the quality is identical, and it
+  takes about as long as copying the file. Tracks can be kept or dropped, not converted.
+  - Before it starts, Keep the Light explains that **a new file has to be created** (FFmpeg cannot change a file in
+    place), with the new file's size and the free space on its drive. If there is not enough space it says so
+    and does not start. For the queue, one message covers all metadata-only files.
+- **Replace the original when finished** (optional, metadata only): the new file takes the original's name and
+  place and the original goes to the **Recycle Bin**. On drives without a Recycle Bin (network drives, USB
+  sticks), which would delete it for good, the original is renamed "... (original)" instead. The new file is
+  checked first (it must read as video, with the original's length); if anything is wrong, the original is not
+  touched.
+- **Fix: MKV cover images are kept.** FFmpeg reads an MKV's cover as a picture stream, which was left out; covers
+  are now carried over (and can be replaced or removed).
+- **Fix: Dolby Vision files keep the file's title and tags** (they came from an intermediate file before).
+- `keepthelight_cli.exe`: `-metadata-only`, `-replace-original`, `-title`, `-no-chapters`, `-cover`, `-no-cover`, and
+  `-meta-json` for everything at once.
+
 ## 1.8.0 - 2026-10-25
 
 - **Mix 7.1 down to 5.1, or to stereo.** Converted audio tracks have a channels choice: as the source, mix down to

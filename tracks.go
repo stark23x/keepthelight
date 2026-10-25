@@ -33,6 +33,22 @@ func (t srcTrack) Forced() bool  { return t.Disp["forced"] }
 
 type Tracks struct {
 	Audio, Subs []srcTrack
+	Tags        map[string]string // the file's own tags (title, date, ...), keys in lower case
+	Chapters    []chapter
+	Covers      []cover // cover images (FFmpeg reads an MKV's cover as a picture stream)
+	Attachments int     // other attachments (fonts...), mapped as "t"
+}
+
+type chapter struct {
+	N          int
+	Start, End float64 // seconds
+	Title      string
+}
+
+type cover struct {
+	VIndex         int // index among the file's video streams ("0:v:N")
+	Filename, Mime string
+	Codec          string
 }
 
 // trackSel is one chosen track: for audio, how to write it (Codec "copy" or
@@ -53,19 +69,22 @@ type outAudio struct {
 	Filter   string // the downmix, when the source layout is a known one
 	Default  bool
 	Title    string // replaces the source title when it describes the old format
+	Meta     *TrackMeta
 }
 
 type outSub struct {
 	Src             srcTrack
 	Default, Forced bool
 	Codec           string // ffmpeg subtitle codec for the output container ("copy", "srt", "mov_text")
+	Meta            *TrackMeta
 }
 
 // ---------- probing ----------
 
 func probeTracks(ctx context.Context, ffprobe, path string) (*Tracks, error) {
 	out, err := toolCommand(ctx, ffprobe, "-v", "error", "-show_entries",
-		"stream=codec_type,codec_name,profile,channels,channel_layout,bit_rate:stream_tags:stream_disposition", "-of", "json", path).Output()
+		"stream=codec_type,codec_name,profile,channels,channel_layout,bit_rate:stream_tags:stream_disposition:format_tags:chapter=start_time,end_time:chapter_tags",
+		"-of", "json", path).Output()
 	if err != nil {
 		return nil, fmt.Errorf("ffprobe (tracks) failed: %w", err)
 	}
@@ -84,13 +103,55 @@ func parseTracks(data []byte) (*Tracks, error) {
 			Tags     map[string]string `json:"tags"`
 			Disp     map[string]int    `json:"disposition"`
 		} `json:"streams"`
+		Format struct {
+			Tags map[string]string `json:"tags"`
+		} `json:"format"`
+		Chapters []struct {
+			Start string            `json:"start_time"`
+			End   string            `json:"end_time"`
+			Tags  map[string]string `json:"tags"`
+		} `json:"chapters"`
 	}
 	if err := json.Unmarshal(data, &j); err != nil {
 		return nil, err
 	}
-	t := &Tracks{}
+	t := &Tracks{Tags: map[string]string{}}
+	for k, v := range j.Format.Tags {
+		t.Tags[strings.ToLower(k)] = v
+	}
+	for i, c := range j.Chapters {
+		ch := chapter{N: i + 1}
+		ch.Start, _ = strconv.ParseFloat(c.Start, 64)
+		ch.End, _ = strconv.ParseFloat(c.End, 64)
+		for k, v := range c.Tags {
+			if strings.EqualFold(k, "title") {
+				ch.Title = v
+			}
+		}
+		t.Chapters = append(t.Chapters, ch)
+	}
+	vIndex := 0
 	for _, s := range j.Streams {
-		if s.Type != "audio" && s.Type != "subtitle" {
+		tag := func(name string) string {
+			for k, v := range s.Tags {
+				if strings.EqualFold(k, name) {
+					return v
+				}
+			}
+			return ""
+		}
+		switch s.Type {
+		case "video":
+			if s.Disp["attached_pic"] == 1 {
+				t.Covers = append(t.Covers, cover{VIndex: vIndex, Filename: tag("filename"), Mime: tag("mimetype"), Codec: s.Codec})
+			}
+			vIndex++
+			continue
+		case "attachment":
+			t.Attachments++
+			continue
+		case "audio", "subtitle":
+		default:
 			continue
 		}
 		tr := srcTrack{Codec: s.Codec, Profile: s.Profile, Channels: s.Channels, Layout: s.Layout, Disp: map[string]bool{}}
@@ -459,6 +520,12 @@ func selectTracks(cfg *Config, t *Tracks, mp4 bool) (audio []outAudio, subs []ou
 	}
 	for i := range audio {
 		a := &audio[i]
+		if cfg.MetaOnly {
+			a.Codec = "copy" // nothing is re-encoded
+			if mp4 && !mp4Audio(a.Src.Codec) {
+				return nil, nil, nil, fmt.Errorf("audio track %d (%s) cannot be stored in MP4, and metadata only does not convert audio. Choose MKV, or drop the track", a.Src.N, codecName(a.Src))
+			}
+		}
 		if mp4 && a.Codec == "copy" && !mp4Audio(a.Src.Codec) {
 			a.Codec, a.Bitrate = "eac3", ""
 			warn("audio track %d (%s) cannot be stored in MP4, so it is converted to E-AC-3 (choose MKV to keep it as it is)", a.Src.N, codecName(a.Src))
@@ -563,6 +630,14 @@ func selectTracks(cfg *Config, t *Tracks, mp4 bool) (audio []outAudio, subs []ou
 			}
 		}
 	} // -1: no default subtitle
+	for i := range audio {
+		if audio[i].Meta = cfg.Meta.track("a", audio[i].Src.N); audio[i].Meta != nil && audio[i].Meta.Title != nil {
+			audio[i].Title = "" // the user's name wins over the automatic one
+		}
+	}
+	for i := range subs {
+		subs[i].Meta = cfg.Meta.track("s", subs[i].Src.N)
+	}
 	return audio, subs, warns, nil
 }
 
@@ -630,7 +705,8 @@ func audioArgs(audio []outAudio, in int) []string {
 		if t.Title != "" {
 			a = append(a, fmt.Sprintf("-metadata:s:a:%d", n), "title="+t.Title)
 		}
-		a = append(a, fmt.Sprintf("-disposition:a:%d", n), disposition(t.Src.Disp, t.Default, false, false))
+		a = append(a, trackMetaArgs(t.Meta, fmt.Sprintf("a:%d", n))...)
+		a = append(a, fmt.Sprintf("-disposition:a:%d", n), disposition(withFlags(t.Src.Disp, t.Meta), t.Default, false, false))
 	}
 	return a
 }
@@ -640,7 +716,8 @@ func subtitleArgs(subs []outSub, in int) []string {
 	var a []string
 	for n, s := range subs {
 		a = append(a, "-map", fmt.Sprintf("%d:s:%d", in, s.Src.N-1), fmt.Sprintf("-c:s:%d", n), s.Codec,
-			fmt.Sprintf("-disposition:s:%d", n), disposition(s.Src.Disp, s.Default, s.Forced, true))
+			fmt.Sprintf("-disposition:s:%d", n), disposition(withFlags(s.Src.Disp, s.Meta), s.Default, s.Forced, true))
+		a = append(a, trackMetaArgs(s.Meta, fmt.Sprintf("s:%d", n))...)
 	}
 	return a
 }
@@ -767,8 +844,11 @@ func chooseTracks(ctx context.Context, ffprobe string, cfg *Config, plan *Plan) 
 	if err != nil {
 		return err
 	}
-	plan.Audio, plan.Subs = audio, subs
+	plan.Audio, plan.Subs, plan.Src = audio, subs, t
 	plan.Warnings = append(plan.Warnings, warns...)
+	if cfg.Meta != nil && cfg.Meta.Cover != "" && isMP4(cfg.Output) {
+		plan.Warnings = append(plan.Warnings, "a cover image can only be stored in MKV; it is left out of the MP4")
+	}
 	return nil
 }
 
@@ -777,8 +857,9 @@ func chooseTracks(ctx context.Context, ffprobe string, cfg *Config, plan *Plan) 
 func trackList(ts []srcTrack, audio bool) []map[string]any {
 	out := []map[string]any{}
 	for _, t := range ts {
-		m := map[string]any{"n": t.N, "desc": describe(t, audio), "codec": t.Codec, "lang": t.Lang,
-			"default": t.Default(), "forced": t.Forced(), "commentary": isCommentary(t), "channels": t.Channels}
+		m := map[string]any{"n": t.N, "desc": describe(t, audio), "codec": t.Codec, "lang": t.Lang, "title": t.Title,
+			"default": t.Default(), "forced": t.Forced(), "commentary": isCommentary(t), "channels": t.Channels,
+			"sdhFlag": t.Disp["hearing_impaired"], "commentFlag": t.Disp["comment"]}
 		if audio {
 			m["mp4ok"] = mp4Audio(t.Codec)
 		} else {

@@ -131,6 +131,16 @@ func withOwner(fn func(owner uintptr) (string, error)) (string, error) {
 
 func fileDialog(save bool, initial string) (string, error) { return fileDialogEx(save, false, initial) }
 
+// imageDialog lets the user choose a cover image.
+func imageDialog(initial string) (string, error) {
+	coverDialog = true
+	defer func() { coverDialog = false }()
+	return fileDialogEx(false, false, initial)
+}
+
+// coverDialog switches fileDialogEx to images (dialogs run one at a time).
+var coverDialog bool
+
 // fileDialogEx shows Open or Save As. With multi, several files can be chosen;
 // they come back separated by newlines.
 func fileDialogEx(save, multi bool, initial string) (string, error) {
@@ -171,6 +181,10 @@ func fileDialogEx(save, multi bool, initial string) (string, error) {
 				"All files (*.*)", "*.*")
 			ofn.FilterIndex = 1
 			ofn.Title = u16("Choose a video file")
+			if coverDialog {
+				filter = multiString("Images (*.jpg, *.png)", "*.jpg;*.jpeg;*.png")
+				ofn.Title = u16("Choose a cover image")
+			}
 			ofn.Flags = ofnExplorer | ofnFileMustExist | ofnPathMustExist | ofnHideReadOnly | ofnNoChangeDir | ofnEnableSizing
 			if multi {
 				ofn.Flags |= ofnAllowMultiselect
@@ -249,6 +263,8 @@ func browseDialog(kind, initial string) (string, error) {
 		p, err = fileDialog(true, initial)
 	case "folder":
 		p, err = folderDialog()
+	case "image":
+		p, err = imageDialog(initial)
 	default:
 		return "", errors.New("unknown dialog")
 	}
