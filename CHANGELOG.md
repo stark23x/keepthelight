@@ -18,6 +18,14 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.6.1 - 2026-10-25
+
+- The **Queue** section now sits right under **Files**, so both ways of choosing videos are together, followed
+  by the settings that apply to both (Source, Video, Audio, Advanced).
+- The queue starts closed and opens by itself when files are added, or when files were left from last time.
+- A long queue scrolls inside its section (about six files show), so the settings stay close. When the next file
+  starts, the list scrolls to it.
+
 ## 1.6.0 - 2026-10-25
 
 - **One remembered place for converted files.** **Save converted files** (next to the original, or in a chosen

@@ -93,7 +93,8 @@
   .sum .warnmark { color: var(--warn); font-weight: 600; }
   details.sect[open] .sum { display: none; }
 
-  /* queue */
+  /* queue: about six files show; a longer list scrolls inside the section */
+  #queueList { max-height: 400px; overflow-y: auto; position: relative; }
   .qrow { display: grid; grid-template-columns: 1fr auto auto; gap: 4px 12px; align-items: center; padding: 9px 10px;
     border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); margin-bottom: 6px; }
   .qname { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -161,6 +162,18 @@
     </div>
     <div class="hint" style="margin-top:6px">Used for this file and for the queue, and remembered. Choosing another place with Save as… changes it too.</div>
     <div id="qOutNote" class="note warn hidden" style="margin:10px 0 0"></div>
+  </details>
+
+  <details class="card sect" id="secQueue" data-key="queue">
+    <summary><h2 class="sect-title">Queue</h2><span class="sum" id="sumQueue"></span></summary>
+    <div class="hint" id="queueHint" style="margin:0 0 10px">Add several files to transcode them one after another. Each file keeps the settings that were set when it was added.</div>
+    <div id="queueList"></div>
+    <div class="actions" style="margin-top:6px">
+      <button id="qAddFiles">Add files…</button>
+      <button id="qAddFolder">Add folder…</button>
+      <button id="qApply" class="hidden" title="Give every file that has not started the settings shown below">Use current settings for waiting files</button>
+      <button id="qClear" class="hidden">Clear finished</button>
+    </div>
   </details>
 
   <details class="card sect hidden" id="infoCard" data-key="source" open>
@@ -253,17 +266,6 @@
         cannot decode a file, it is decoded on the CPU as before; the log says which. Used from the next file that starts.</span></label>
   </details>
 
-  <details class="card sect" id="secQueue" data-key="queue">
-    <summary><h2 class="sect-title">Queue</h2><span class="sum" id="sumQueue"></span></summary>
-    <div class="hint" id="queueHint" style="margin:0 0 10px">Add several files to transcode them one after another. Each file keeps the settings that were set when it was added.</div>
-    <div id="queueList"></div>
-    <div class="actions" style="margin-top:6px">
-      <button id="qAddFiles">Add files…</button>
-      <button id="qAddFolder">Add folder…</button>
-      <button id="qApply" class="hidden" title="Give every file that has not started the settings shown above">Use current settings for waiting files</button>
-      <button id="qClear" class="hidden">Clear finished</button>
-    </div>
-  </details>
 
   <div class="card">
     <div class="actions">
@@ -435,6 +437,7 @@ async function restorePrefs() {
   if (!r || !r.ok || !r.prefs) return;
   const state = r.prefs.sections;
   if (state) sections.forEach(d => { if (typeof state[d.dataset.key] === 'boolean') d.open = state[d.dataset.key]; });
+  $('secQueue').open = false; // the queue starts closed; it opens when files are added or some are left from last time
   if (r.tmpDirMissing) {
     const box = $('tmpNote');
     box.textContent = 'The saved temp folder "' + r.tmpDirMissing + '" is not available (deleted, or its drive is not connected), ' +
@@ -715,6 +718,7 @@ function settingsText(st) {
 function rowButton(text, title, fn) {
   const b = document.createElement('button'); b.textContent = text; b.title = title; b.onclick = fn; return b;
 }
+let lastRunId = null;
 function renderQueue(q) {
   if (!q) return;
   queue = q;
@@ -757,6 +761,14 @@ function renderQueue(q) {
     }
   });
   list.querySelectorAll('.qrow').forEach(r => { if (!seen.has(r.dataset.id)) r.remove(); });
+  // When the next file starts, scroll the list to it (only then, so it does not fight the user's scrolling).
+  const run = q.items.find(it => it.status === 'running');
+  if (run && run.id !== lastRunId) {
+    const row = list.querySelector('[data-id="' + run.id + '"]');
+    if (row && (row.offsetTop < list.scrollTop || row.offsetTop + row.offsetHeight > list.scrollTop + list.clientHeight))
+      list.scrollTop = Math.max(0, row.offsetTop - 6);
+  }
+  lastRunId = run ? run.id : null;
 
   const c = q.counts, waiting = (c.waiting || 0) + (c.checking || 0);
   const finished = (c.done || 0) + (c.failed || 0) + (c.skipped || 0) + (c.canceled || 0) + (c.problem || 0);
