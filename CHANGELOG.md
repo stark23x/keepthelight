@@ -18,6 +18,18 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.6.0 - 2026-10-25
+
+- **One remembered place for converted files.** **Save converted files** (next to the original, or in a chosen
+  folder) moved from the Queue section to the Files section and now applies to single files as well as the
+  queue. The output file is filled in from it, and the choice is remembered.
+  - Choosing another place with **Save as…** (or typing a path) makes that folder the remembered one. Saving
+    next to the original sets it back to "next to the original".
+  - Changing the folder moves the output file there and keeps its name.
+  - A new input file always gets a fresh output name in the remembered folder (before, a name typed for an
+    earlier file was kept).
+  - The folder chosen for batches in 1.3.1-1.5.0 carries over.
+
 ## 1.5.0 - 2026-10-24
 
 - **Resolution** (under Video): shrink the video to fit 4K (2160p), 1440p, 1080p or 720p. The shape is kept

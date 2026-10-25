@@ -42,10 +42,13 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   time remaining. It is rough: speed varies through a film, and a hardware-encoder retry restarts it.
 - **Sections:** click a section's heading to close or open it. Closed sections show a summary of their
   settings, and the layout is remembered (in `%LOCALAPPDATA%\Keep the Light\settings.json`).
+- **Save converted files** (under Files): next to the original, or in a folder you choose. One remembered
+  setting for single files and the queue. Choosing another place with **Save as…** (or typing one) changes it
+  too; saving next to the original sets it back.
 - **Queue (batch):** add several files with **Add files…**, **Add folder…**, by choosing several in **Browse…**,
   by dropping several videos on `Keep the Light.exe`, or with **Add to queue**. Each file keeps the settings it
   was added with (**Use current settings for waiting files** updates them). Results go next to each input as
-  `name_hdr.mkv`, or into one folder you choose under **Save converted files** (remembered); files whose
+  `name_hdr.mkv`, or into the folder chosen under **Save converted files**; files whose
   result already exists are skipped. Files run one after another; one that fails
   does not stop the rest. Unfinished queues are remembered and come back when you reopen Keep the Light.
   **When finished** can put the PC to sleep or shut it down (with 60 seconds to cancel).

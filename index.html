@@ -153,6 +153,14 @@
         <select id="container"><option value=".mkv">MKV</option><option value=".mp4">MP4</option></select></div>
       <button id="browseOut">Save as…</button>
     </div>
+    <div class="row qout" style="margin:12px 0 0; flex-wrap:wrap">
+      <div><label for="qOutMode">Save converted files</label>
+        <select id="qOutMode"><option value="">next to the original</option><option value="dir">in this folder:</option></select></div>
+      <div class="grow hidden" id="qOutDirWrap"><label for="qOutDir">&nbsp;</label>
+        <div class="row"><div class="grow"><input type="text" id="qOutDir" spellcheck="false" placeholder="choose a folder"></div><button id="qOutBrowse">…</button></div></div>
+    </div>
+    <div class="hint" style="margin-top:6px">Used for this file and for the queue, and remembered. Choosing another place with Save as… changes it too.</div>
+    <div id="qOutNote" class="note warn hidden" style="margin:10px 0 0"></div>
   </details>
 
   <details class="card sect hidden" id="infoCard" data-key="source" open>
@@ -247,13 +255,6 @@
 
   <details class="card sect" id="secQueue" data-key="queue">
     <summary><h2 class="sect-title">Queue</h2><span class="sum" id="sumQueue"></span></summary>
-    <div class="row qout" style="margin:0 0 12px; flex-wrap:wrap">
-      <div><label for="qOutMode">Save converted files</label>
-        <select id="qOutMode"><option value="">next to each original</option><option value="dir">in this folder:</option></select></div>
-      <div class="grow hidden" id="qOutDirWrap"><label for="qOutDir">&nbsp;</label>
-        <div class="row"><div class="grow"><input type="text" id="qOutDir" spellcheck="false" placeholder="choose a folder"></div><button id="qOutBrowse">…</button></div></div>
-    </div>
-    <div id="qOutNote" class="note warn hidden" style="margin:0 0 10px"></div>
     <div class="hint" id="queueHint" style="margin:0 0 10px">Add several files to transcode them one after another. Each file keeps the settings that were set when it was added.</div>
     <div id="queueList"></div>
     <div class="actions" style="margin-top:6px">
@@ -306,7 +307,7 @@ const T = new URLSearchParams(location.search).get('t');
 const INITIAL = __INITIAL_FILE__;
 const $ = id => document.getElementById(id);
 const radio = name => document.querySelector('input[name="' + name + '"]:checked').value;
-let info = null, outTouched = false, polling = null, since = 0, jobActive = false, probeSeq = 0;
+let info = null, polling = null, since = 0, jobActive = false, probeSeq = 0;
 let curJob = 0, queue = { items: [], counts: {}, running: false }, jobBoxDismissed = false, restoredNotice = false;
 
 // Window mode: requests go to Go through the bound ktlPost function and come
@@ -358,8 +359,7 @@ function extOf(p) { const m = /\.[A-Za-z0-9]+$/.exec(p); return m ? m[0].toLower
 function suggestOutput() {
   const inp = $('input').value.trim();
   if (!inp) return;
-  $('output').value = dirOf(inp) + stem(inp) + '_hdr' + $('container').value;
-  outTouched = false;
+  $('output').value = outFolderFor(inp) + stem(inp) + '_hdr' + $('container').value;
 }
 
 function syncContainerFromOutput() {
@@ -447,11 +447,11 @@ async function restorePrefs() {
   $('lowPrio').checked = r.prefs.lowPriority === true;
   $('hwDec').checked = r.prefs.hwDecode === true;
   const bo = r.prefs.batchOut;
+  if (bo && bo.dir) $('qOutDir').value = bo.dir; // the last folder, ready if "in this folder" is chosen again
   if (bo && bo.mode === 'dir') {
-    $('qOutDir').value = bo.dir || '';
     if (r.batchOutMissing) { // keep the choice (the drive may come back) but use the default for now
       $('qOutNote').textContent = 'The folder for converted files "' + r.batchOutMissing + '" is not available (deleted, or its drive is not connected), ' +
-        'so batch files will be saved next to each original. Choose the folder again to use it.';
+        'so converted files will be saved next to the originals. Choose the folder again to use it.';
       $('qOutNote').classList.remove('hidden');
     } else $('qOutMode').value = 'dir';
   }
@@ -553,9 +553,9 @@ $('browseIn').onclick = async () => {
 $('browseOut').onclick = () => browse('save', $('output'), $('output').value);
 $('browseTmp').onclick = () => browse('folder', $('tmp'), $('tmp').value);
 
-$('input').addEventListener('change', () => { if (!outTouched || !$('output').value) suggestOutput(); scheduleProbe(50); });
-$('output').addEventListener('input', () => { outTouched = true; });
-$('output').addEventListener('change', () => { outTouched = true; syncContainerFromOutput(); scheduleProbe(); updateStart(); });
+// A new input always gets a fresh output name, in the remembered folder.
+$('input').addEventListener('change', () => { suggestOutput(); scheduleProbe(50); });
+$('output').addEventListener('change', () => { syncContainerFromOutput(); rememberOutputFolder(); scheduleProbe(); updateStart(); });
 $('container').addEventListener('change', () => {
   const o = $('output').value.trim();
   if (o) $('output').value = o.replace(/\.[A-Za-z0-9]+$/, '') + $('container').value; else suggestOutput();
@@ -596,23 +596,48 @@ function setJobUI(running) {
 }
 
 // Where batch files are saved: next to each original, or in one chosen folder (remembered).
+function batchOutMode() { return $('qOutMode').value; }
 function batchOutDir() { return $('qOutMode').value === 'dir' ? $('qOutDir').value.trim().replace(/[\\\/]+$/, '') : ''; }
+// The folder a converted file goes to (ending in a separator): the chosen one, or the original's.
+function outFolderFor(path) {
+  const dir = batchOutDir();
+  if (!dir) return dirOf(path);
+  return dir + (dir.includes('/') && !dir.includes('\\') ? '/' : '\\');
+}
 function settingsFor(path) { // the current settings, for another input file
-  const st = settings(), dir = batchOutDir();
-  const sep = dir.includes('/') && !dir.includes('\\') ? '/' : '\\';
+  const st = settings();
   st.input = path; st.overwrite = false;
-  st.output = (dir ? dir + sep : dirOf(path)) + stem(path) + '_hdr' + $('container').value;
+  st.output = outFolderFor(path) + stem(path) + '_hdr' + $('container').value;
   return st;
 }
+function sameFolder(a, b) { return a.replace(/[\\\/]+$/, '').toLowerCase() === b.replace(/[\\\/]+$/, '').toLowerCase(); }
+// Choosing (or typing) another place for the output file makes that the remembered folder;
+// saving next to the original sets it back to "next to the original".
+function rememberOutputFolder() {
+  const out = $('output').value.trim(), inp = $('input').value.trim();
+  const folder = dirOf(out);
+  if (!folder) return;
+  if (inp && sameFolder(folder, dirOf(inp))) $('qOutMode').value = '';
+  else { $('qOutMode').value = 'dir'; $('qOutDir').value = folder.replace(/[\\\/]+$/, ''); }
+  storeOutFolder();
+}
+// The folder setting changed: move the output file there, keeping its name.
+function applyOutFolder() {
+  const out = $('output').value.trim(), inp = $('input').value.trim();
+  if (!inp || !out || (batchOutMode() === 'dir' && !batchOutDir())) return;
+  $('output').value = outFolderFor(inp) + baseName(out);
+  scheduleProbe(); updateStart(); updateSummaries();
+}
 function batchOutReady() {
-  if ($('qOutMode').value === 'dir' && !batchOutDir()) { showError('Choose the folder for converted files (Queue section), or set it to "next to each original".'); return false; }
+  if ($('qOutMode').value === 'dir' && !batchOutDir()) { showError('Choose the folder for converted files (Files section), or set it to "next to the original".'); return false; }
   return true;
 }
-function saveBatchOut() {
+function storeOutFolder() {
   $('qOutDirWrap').classList.toggle('hidden', $('qOutMode').value !== 'dir');
   api('setPref', { name: 'batchOut', value: { mode: $('qOutMode').value, dir: $('qOutDir').value.trim() } });
   $('qOutNote').classList.add('hidden');
 }
+function saveBatchOut() { storeOutFolder(); applyOutFolder(); }
 $('qOutMode').addEventListener('change', saveBatchOut);
 $('qOutDir').addEventListener('change', saveBatchOut);
 $('qOutBrowse').onclick = async () => {
