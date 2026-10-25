@@ -422,6 +422,7 @@ func (g *guiServer) stopQueue() {
 
 func (g *guiServer) runQueue() {
 	stoppedByUser := false
+	finished, failed := 0, 0 // files this run got to the end of (for the sound at the end)
 	for {
 		g.mu.Lock()
 		if g.q.stop {
@@ -482,8 +483,11 @@ func (g *guiServer) runQueue() {
 			it.Status, it.Note = stCanceled, "Canceled."
 		case j.exitCode == 0:
 			it.Status, it.Note, it.Percent = stDone, "", 100
+			finished++
 		default:
 			it.Status, it.Note = stFailed, lastError(j.lines)
+			finished++
+			failed++
 		}
 		if sp := j.prog.speed; sp > 0 && !it.cfg.CopyVideo {
 			if g.q.speeds == nil {
@@ -497,6 +501,12 @@ func (g *guiServer) runQueue() {
 	}
 	g.mu.Lock()
 	g.q.running = false
+	closing := g.closing
+	g.mu.Unlock()
+	if !stoppedByUser && !closing && finished > 0 {
+		g.finishedAlert(failed > 0) // before a sleep / shut-down countdown starts
+	}
+	g.mu.Lock()
 	if g.q.after != "" && !stoppedByUser {
 		g.schedulePowerLocked()
 	}

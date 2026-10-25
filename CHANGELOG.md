@@ -18,6 +18,19 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.10.0 - 2026-10-25
+
+- **A sound when the work is done.** When a transcode, or the whole queue, has finished, Keep the Light plays a
+  sound: **Notify** when every file worked, **Critical stop** when a file failed. For a queue it plays once,
+  after the last file; stopping the queue or closing the window plays nothing.
+  - Choose the sounds under Advanced (remembered), each with a **Test** button: any Windows sound event (these
+    follow your Windows sound scheme), any sound in Windows' Media folder (Alarm 1-10, Ring 1-10, Tada, Chimes...),
+    your own .wav file, or none.
+  - The taskbar button also flashes until the window is used, so you can tell even with the sound muted (can be
+    turned off).
+  - The sound plays before a sleep or shut-down countdown starts.
+- `keepthelight_cli.exe -sound` plays the same sounds at the end.
+
 ## 1.9.0 - 2026-10-25
 
 - **Edit metadata.** A new **Metadata** section shows and changes the file's title, year or date and description;

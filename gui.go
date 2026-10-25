@@ -565,6 +565,15 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		return map[string]any{"ok": true, "path": p}
 	case "start":
 		return g.start(ctx, body)
+	case "sounds": // the sounds that can be chosen
+		return soundList()
+	case "playSound": // the Test button
+		var b struct{ ID string }
+		_ = json.Unmarshal(body, &b)
+		if !playSoundFn(b.ID, false) {
+			return failResult("This sound could not be played.")
+		}
+		return okResult()
 	case "spaceCheck": // before metadata-only jobs: a new file is written, is there room?
 		var b struct{ Settings json.RawMessage }
 		_ = json.Unmarshal(body, &b)

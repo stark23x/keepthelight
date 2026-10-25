@@ -131,15 +131,18 @@ func withOwner(fn func(owner uintptr) (string, error)) (string, error) {
 
 func fileDialog(save bool, initial string) (string, error) { return fileDialogEx(save, false, initial) }
 
-// imageDialog lets the user choose a cover image.
-func imageDialog(initial string) (string, error) {
-	coverDialog = true
-	defer func() { coverDialog = false }()
+// imageDialog lets the user choose a cover image; wavDialog a sound.
+func imageDialog(initial string) (string, error) { return specialDialog("image", initial) }
+func wavDialog(initial string) (string, error)   { return specialDialog("wav", initial) }
+
+func specialDialog(kind, initial string) (string, error) {
+	dialogKind = kind
+	defer func() { dialogKind = "" }()
 	return fileDialogEx(false, false, initial)
 }
 
-// coverDialog switches fileDialogEx to images (dialogs run one at a time).
-var coverDialog bool
+// dialogKind switches fileDialogEx from videos to images or sounds (dialogs run one at a time).
+var dialogKind string
 
 // fileDialogEx shows Open or Save As. With multi, several files can be chosen;
 // they come back separated by newlines.
@@ -181,9 +184,13 @@ func fileDialogEx(save, multi bool, initial string) (string, error) {
 				"All files (*.*)", "*.*")
 			ofn.FilterIndex = 1
 			ofn.Title = u16("Choose a video file")
-			if coverDialog {
+			switch dialogKind {
+			case "image":
 				filter = multiString("Images (*.jpg, *.png)", "*.jpg;*.jpeg;*.png")
 				ofn.Title = u16("Choose a cover image")
+			case "wav":
+				filter = multiString("Sounds (*.wav)", "*.wav")
+				ofn.Title = u16("Choose a sound")
 			}
 			ofn.Flags = ofnExplorer | ofnFileMustExist | ofnPathMustExist | ofnHideReadOnly | ofnNoChangeDir | ofnEnableSizing
 			if multi {
@@ -265,6 +272,8 @@ func browseDialog(kind, initial string) (string, error) {
 		p, err = folderDialog()
 	case "image":
 		p, err = imageDialog(initial)
+	case "wav":
+		p, err = wavDialog(initial)
 	default:
 		return "", errors.New("unknown dialog")
 	}

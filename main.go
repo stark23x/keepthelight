@@ -94,6 +94,8 @@ Metadata (with any job):
   -v                   verbose
   -low-priority        run at low priority: other programs come first, so the PC stays
                        responsive; full speed when the PC is otherwise idle
+  -sound               play a sound at the end (the window's choices: Notify when done, Critical
+                       stop when it failed)
   -pause               wait for Enter before exiting
   -ffmpeg -ffprobe -dovi-tool -mp4box -hdr10plus-tool <path>   tool locations
 
@@ -144,6 +146,7 @@ func parseArgs() (*Config, bool) {
 	fs.BoolVar(&cfg.Verbose, "v", false, "")
 	showVersion := fs.Bool("version", false, "")
 	fs.BoolVar(&cfg.Pause, "pause", false, "")
+	fs.BoolVar(&cfg.Sound, "sound", false, "")
 	fs.BoolVar(&cfg.LowPriority, "low-priority", false, "")
 	fs.BoolVar(&cfg.HWDecode, "hw-decode", false, "")
 	fs.StringVar(&cfg.Scale, "scale", "", "")
@@ -348,6 +351,12 @@ func run() int {
 		if err := transcode(ctx, cfg); err != nil {
 			fmt.Fprintln(os.Stderr, "\nERROR:", err)
 			code = 1
+		}
+		if cfg.Sound && ctx.Err() == nil { // not after Ctrl+C
+			sp := newGUIServer().soundPrefs() // the same choices as the window
+			if id := map[bool]string{true: sp.Done, false: sp.Fail}[code == 0]; id != "" {
+				playSoundFn(id, true)
+			}
 		}
 	}
 	if cfg != nil && cfg.Pause && hasConsole() {

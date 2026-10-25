@@ -340,6 +340,16 @@
       <label class="check" style="margin-top:10px"><input type="checkbox" id="hwDec"> <span><b>Decode on the GPU</b> – the graphics chip (on a PC without
         a graphics card, the processor's built-in graphics) reads the source video, so the CPU only encodes. Speeds up x265, most with 4K sources. If the GPU
         cannot decode a file, it is decoded on the CPU as before; the log says which. Used from the next file that starts.</span></label>
+      <div class="rules-title" style="margin-top:16px">When a transcode or the queue has finished <span>– remembered</span></div>
+      <div class="grid">
+        <div><label for="sndDone">Sound when all files are done</label>
+          <div class="row"><div class="grow"><select id="sndDone"></select></div><button id="sndDoneTest" title="Play this sound">▶ Test</button></div></div>
+        <div><label for="sndFail">Sound when a file failed</label>
+          <div class="row"><div class="grow"><select id="sndFail"></select></div><button id="sndFailTest" title="Play this sound">▶ Test</button></div></div>
+      </div>
+      <label class="check" style="margin-top:10px"><input type="checkbox" id="flashTask" checked> <span>Also flash the taskbar button until the window is used
+        (works with sounds muted, too)</span></label>
+      <div class="hint">For a queue, the sound plays once, after the last file. Windows sounds follow your Windows sound scheme and volume.</div>
   </details>
 
 
@@ -781,6 +791,51 @@ async function confirmNewFiles(form) {
   return await askUser(msg + '\n\nCreate the new file' + (r.metaJobs > 1 ? 's' : '') + '?');
 }
 
+// ---------- sound when finished ----------
+const SOUND_DEFAULTS = { done: 'media:notify.wav', fail: 'alias:SystemHand', flash: true };
+let soundPrefs = Object.assign({}, SOUND_DEFAULTS), soundCatalog = null;
+function fillSoundSelect(sel, value) {
+  sel.innerHTML = '';
+  const add = (parent, id, name) => { const o = el('option', '', name); o.value = id; parent.append(o); return o; };
+  add(sel, '', 'None');
+  const groups = [['Windows sounds', soundCatalog.aliases || []], ["Sounds in Windows' Media folder", soundCatalog.media || []]];
+  groups.forEach(([label, list]) => {
+    if (!list.length) return;
+    const g = el('optgroup'); g.label = label; list.forEach(x => add(g, x.id, x.name)); sel.append(g);
+  });
+  const own = el('optgroup'); own.label = 'Your own';
+  if (value && value.startsWith('file:')) add(own, value, baseName(value.slice(5)));
+  add(own, 'choose', 'Choose a .wav file…');
+  sel.append(own);
+  if (value && value.startsWith('media:') && !(soundCatalog.media || []).some(x => x.id === value)) // not on this PC: show it anyway
+    add(sel.querySelector('optgroup') || sel, value, value.slice(6).replace(/\.wav$/i, '').replace(/^./, c => c.toUpperCase()));
+  sel.value = value;
+}
+function saveSounds() { api('setPref', { name: 'sounds', value: soundPrefs }); updateSummaries(); }
+async function initSounds(saved) {
+  if (saved) soundPrefs = Object.assign({}, SOUND_DEFAULTS, saved);
+  soundCatalog = await api('sounds');
+  if (!soundCatalog || !soundCatalog.ok) soundCatalog = { aliases: [], media: [] };
+  fillSoundSelect($('sndDone'), soundPrefs.done); fillSoundSelect($('sndFail'), soundPrefs.fail);
+  $('flashTask').checked = soundPrefs.flash !== false;
+}
+[['sndDone', 'done'], ['sndFail', 'fail']].forEach(([id, key]) => {
+  $(id).addEventListener('change', async () => {
+    if ($(id).value === 'choose') {
+      const r = await api('browse', { kind: 'wav', initial: soundPrefs[key].startsWith('file:') ? soundPrefs[key].slice(5) : '' });
+      if (r.ok && r.path) soundPrefs[key] = 'file:' + r.path; else if (!r.ok && r.error) showError(r.error);
+      fillSoundSelect($(id), soundPrefs[key]);
+    } else soundPrefs[key] = $(id).value;
+    saveSounds();
+  });
+  $(id + 'Test').onclick = async () => {
+    if (!soundPrefs[key]) return;
+    const r = await api('playSound', { id: soundPrefs[key] });
+    if (!r.ok) showError(r.error || 'This sound could not be played.');
+  };
+});
+$('flashTask').addEventListener('change', () => { soundPrefs.flash = $('flashTask').checked; saveSounds(); });
+
 // ---------- collapsible sections ----------
 // A closed section shows a one-line summary of its settings in its header.
 function updateSummaries() {
@@ -804,7 +859,8 @@ function updateSummaries() {
   $('sumMeta').textContent = !metaFor() ? '' : nm ? nm + (nm === 1 ? ' change' : ' changes') : 'no changes';
   $('sumSubs').textContent = subSummary();
   const adv = [$('master').value.trim() && 'master display', $('cll').value.trim() && 'MaxCLL/FALL', $('tmp').value.trim() && 'temp folder',
-    $('lowPrio').checked && 'low priority', $('hwDec').checked && 'GPU decoding'].filter(Boolean);
+    $('lowPrio').checked && 'low priority', $('hwDec').checked && 'GPU decoding',
+    (soundPrefs.done !== SOUND_DEFAULTS.done || soundPrefs.fail !== SOUND_DEFAULTS.fail || soundPrefs.flash === false) && 'sounds'].filter(Boolean);
   $('sumAdv').textContent = adv.length ? 'custom: ' + adv.join(', ') : 'defaults';
 }
 
@@ -836,6 +892,7 @@ async function restorePrefs() {
   $('lowPrio').checked = r.prefs.lowPriority === true;
   $('hwDec').checked = r.prefs.hwDecode === true;
   if (typeof r.prefs.nameTag === 'string') $('nameTag').value = r.prefs.nameTag;
+  initSounds(r.prefs.sounds);
   const tr = r.prefs.trackRules;
   if (tr) {
     $('audioLang').value = tr.audioLang || ''; $('dropComm').checked = !!tr.dropCommentary;

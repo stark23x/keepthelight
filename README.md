@@ -60,6 +60,9 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
 - **Decode on the GPU** (under Advanced): the graphics chip reads the source video, so the CPU only encodes.
   Speeds up x265, most with 4K sources. Before each file, Keep the Light test-decodes a few frames; if the GPU
   cannot decode it, that file is decoded on the CPU as before, and the log says which was used. Remembered.
+- **Sound when finished** (under Advanced, remembered): when a transcode or the whole queue is done, Keep the Light
+  plays a sound (Notify by default) and flashes its taskbar button; a different sound (Critical stop) means a file
+  failed. Choose any Windows sound, a sound from Windows' Media folder (Alarm 1-10 and so on), your own .wav, or none.
 - **One window at a time:** starting Keep the Light again, or dropping videos on the exe while it is open,
   brings the open window to the front and adds the files there.
 - The PC is kept awake while a transcode runs. Results are written as `name_KTL.partial.mkv` and renamed when

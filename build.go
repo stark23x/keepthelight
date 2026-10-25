@@ -28,7 +28,7 @@ type Config struct {
 	MasterDisplay, MaxCLL                        string
 	Ffmpeg, Ffprobe, DoviTool, MP4Box, HDR10Plus string
 	Tmp                                          string
-	DryRun, Keep, Verbose, Pause                 bool
+	DryRun, Keep, Verbose, Pause, Sound          bool
 	TargetBytes                                  int64    // >0: aim for this output file size
 	Retries                                      int      // hardware encoders: extra attempts to land on the target
 	Pass                                         int      // x265 two-pass: 0 off, 1 or 2
