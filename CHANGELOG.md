@@ -18,6 +18,13 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.12.1 - 2026-10-26
+
+- **"Add to the name" can be typed in while a profile names the files.** The box shows the profile's ending; typing
+  another one uses it for now (for the file in the form and files added to the queue), without changing the
+  profile or your own remembered ending. **↺** next to the box, or choosing the profile again, brings the
+  profile's ending back.
+
 ## 1.12.0 - 2026-10-26
 
 - **Keep all / drop all subtitles** with one checkbox above the subtitle list. It is ticked when every track is kept,

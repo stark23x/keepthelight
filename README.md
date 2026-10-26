@@ -62,7 +62,8 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   cannot decode it, that file is decoded on the CPU as before, and the log says which was used. Remembered.
 - **Profiles** (above Video): save the settings below the Files section under a name of your own, and pick them again
   later from the dropdown. A profile holds the Video settings, the Audio and Subtitles rules and the Advanced
-  overrides, and can name converted files after itself (`Film_Plex 4K.mkv` instead of `Film_KTL.mkv`). "changed"
+  overrides, and can name converted files after itself (`Film_Plex 4K.mkv` instead of `Film_KTL.mkv`; type another
+  ending in "Add to the name" to use it for now, ↺ brings the profile's back). "changed"
   next to the dropdown means the form no longer matches the profile; **Update** saves it. **Export…** / **Import…**
   save profiles to a .json file and read them back (a backup, or another PC). Not included: files and folders,
   one file's own tracks and metadata, PC settings (temp folder, priority, GPU decoding, sounds), and "Replace the
