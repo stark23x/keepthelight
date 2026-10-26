@@ -18,6 +18,17 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.12.0 - 2026-10-26
+
+- **Keep all / drop all subtitles** with one checkbox above the subtitle list. It is ticked when every track is kept,
+  empty when none is, and shows a dash when only some are. Ticking keeps every track (each with the forced flag it
+  has in the file); unticking drops them all and clears the default subtitle. Picture subtitles that MP4 cannot
+  hold are left out of "all".
+- **Set all audio tracks at once** with the **Set all tracks to…** menu above the audio list: Copy, Convert to
+  E-AC-3 / AC-3 / AAC / Opus / FLAC, or Drop (which asks first, since the file would have no sound). In
+  "Metadata only" mode it offers Copy and Drop.
+- Both work when changing a queued file, too.
+
 ## 1.11.1 - 2026-10-25
 
 - **Fix: the "Add to the name" box could not be typed in** (since 1.11.0). Each keystroke put the saved ending

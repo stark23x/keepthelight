@@ -101,6 +101,10 @@
   .trow.dropped .tdesc { color: var(--muted); text-decoration: line-through; text-decoration-color: #555c69; }
   .trow select { padding: 5px 8px; }
   .trow select.tch { width: auto; }
+  .thead { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; padding-left: 11px; }
+  .thead select.tall { width: 185px; padding: 4px 8px; }
+  .thead label.check { margin: 0; width: 90px; }
+  .thead label.check span { color: var(--text); }
   .tdesc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tnum { color: var(--muted); margin-right: 6px; }
   .trow label.check { margin: 0; white-space: nowrap; }
@@ -560,7 +564,37 @@ function renderTracks() {
   // MP4 cannot hold some formats: such a track is converted (Keep the Light would do it anyway)
   t.audio.forEach(a => { const src = info.audioTracks.find(x => x.n === a.n); if (mp4 && a.codec === 'copy' && src && !src.mp4ok && !metaMode()) a.codec = 'eac3'; });
   if (metaMode()) t.audio.forEach(a => { a.codec = 'copy'; });
-  if (info.audioTracks.length) al.append(el('div', 'hint', 'Tracks in this file'));
+  if (info.audioTracks.length) {
+    // "Set all tracks to": one choice for every audio track at once
+    const head = el('div', 'thead'), all = el('select', 'tall');
+    const first = el('option', '', 'Set all tracks to…'); first.value = ''; all.append(first);
+    ACTIONS.forEach(([v, text]) => {
+      const o = el('option', '', v === 'drop' ? 'Drop all (no audio)' : text); o.value = v;
+      if (metaMode() && v !== 'copy' && v !== 'drop') o.disabled = true;
+      all.append(o);
+    });
+    all.onchange = async () => {
+      const v = all.value; all.value = '';
+      if (!v) return;
+      if (v === 'drop') {
+        if (!await askUser('Drop every audio track? The converted file will have no sound.')) return;
+        t.audio = []; t.audioDefault = 0;
+      } else {
+        const ch = $('audioCh').value || 'orig';
+        t.audio = info.audioTracks.map(src => {
+          const old = t.audio.find(a => a.n === src.n);
+          return { n: src.n, codec: v, channels: old && old.channels ? old.channels : ch };
+        });
+        if (!t.audio.some(a => a.n === t.audioDefault)) {
+          const d = info.audioTracks.find(x => x.default) || info.audioTracks[0];
+          t.audioDefault = d.n;
+        }
+      }
+      tracksChanged();
+    };
+    head.append(all, el('span', 'hint', 'tracks in this file'));
+    al.append(head);
+  }
   info.audioTracks.forEach(src => {
     const kept = t.audio.find(a => a.n === src.n);
     const row = el('div', 'trow' + (kept ? '' : ' dropped'));
@@ -602,7 +636,23 @@ function renderTracks() {
   if (!info.audioTracks.length) al.append(el('div', 'hint', 'This file has no audio tracks.'));
 
   if (info.subTracks.length) {
-    sl.append(el('div', 'hint', 'Tracks in this file'));
+    // "Keep all": ticked when every track that can be kept is kept, a dash when only some are
+    const keepable = info.subTracks.filter(x => !(mp4 && !x.mp4ok));
+    const nKept = keepable.filter(x => t.subs.some(k => k.n === x.n)).length;
+    const head = el('div', 'thead');
+    const all = checkLabel(keepable.length > 0 && nKept === keepable.length, 'Keep all', e => {
+      if (e.target.checked) {
+        t.subs = keepable.map(x => ({ n: x.n, forced: x.forced })); // each with the forced flag it has in the file
+        if (t.subDefault > 0 && !t.subs.some(k => k.n === t.subDefault)) t.subDefault = -1;
+      } else { t.subs = []; t.subDefault = -1; }
+      tracksChanged();
+    });
+    const box = all.querySelector('input');
+    box.indeterminate = nKept > 0 && nKept < keepable.length;
+    box.disabled = !keepable.length;
+    all.title = 'Keep or drop every subtitle track at once';
+    head.append(all, el('span', 'hint', 'tracks in this file'));
+    sl.append(head);
     info.subTracks.forEach(src => {
       const kept = t.subs.find(x => x.n === src.n);
       const noMP4 = mp4 && !src.mp4ok;

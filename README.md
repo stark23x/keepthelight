@@ -155,7 +155,8 @@ subtitles and container from the target to get a video bitrate, then:
 ## Subtitles and audio
 - **Choosing tracks:** the Audio and Subtitles sections list every track of the file. Each audio track can be
   copied, converted (E-AC-3, AC-3, AAC, Opus, FLAC) or dropped; each subtitle track kept or dropped, with its
-  forced flag. One audio track and (optionally) one subtitle track are marked as the default.
+  forced flag. One audio track and (optionally) one subtitle track are marked as the default. **Set all tracks
+  to…** (audio) and **Keep all** (subtitles) change every track at once.
 - **Rules** (remembered) give the starting choice for each file and decide the tracks for the queue, where every
   file is different: languages to keep (for example `eng, jpn`), leave out commentary tracks, and all / forced
   only / no subtitles. Tracks with no language set are kept; if no audio track matches, the file's default
