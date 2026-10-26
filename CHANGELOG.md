@@ -18,6 +18,11 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.11.1 - 2026-10-25
+
+- **Fix: the "Add to the name" box could not be typed in** (since 1.11.0). Each keystroke put the saved ending
+  back. It now only shows a profile's ending while that profile names the files, and gives yours back afterwards.
+
 ## 1.11.0 - 2026-10-25
 
 - **Profiles.** Save the settings below the Files section under a name of your own and pick them again later from

@@ -851,7 +851,11 @@ function profileUI() {
   const tagFromProfile = !!(p && p.useNameTag);
   $('nameTag').disabled = tagFromProfile;
   $('nameTag').title = tagFromProfile ? 'Set by the profile "' + p.name + '"' : '';
-  if (tagFromProfile) $('nameTag').value = profileTag(p); else if ($('nameTag').dataset.own !== undefined) $('nameTag').value = $('nameTag').dataset.own;
+  // while a profile names the files, the box shows its ending; afterwards, your own ending comes back
+  // (only then: the box must not be reset while you type in it)
+  const tag = $('nameTag');
+  if (tagFromProfile) { tag.value = profileTag(p); tag.dataset.byProfile = '1'; }
+  else if (tag.dataset.byProfile === '1') { tag.value = tag.dataset.own !== undefined ? tag.dataset.own : '_KTL'; tag.dataset.byProfile = ''; }
   $('profState').textContent = p && JSON.stringify(profileSettings()) !== JSON.stringify(p.settings) ? 'changed' : '';
 }
 function setRadio(name, v) { const r = document.querySelector('input[name="' + name + '"][value="' + v + '"]'); if (r) r.checked = true; }
