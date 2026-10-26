@@ -57,6 +57,15 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
 - **Resolution** (under Video): shrink the video to fit 4K, 1440p, 1080p or 720p, keeping its shape (a
   3840x1600 film becomes 1920x800 at 1080p) and its HDR10, HDR10+ and Dolby Vision data. A smaller picture
   encodes much faster (1080p is about a quarter of the work of 4K). Videos are never enlarged.
+- **Noise reduction** (under Video): Off / Light / Medium / Strong (fast, on the CPU) or High quality (on the GPU
+  when the FFmpeg build and graphics driver allow it, through Vulkan or OpenCL; otherwise a slower CPU filter).
+  Only filters that work in 10-bit are used, so HDR keeps its gradations; Dolby Vision is unaffected. Besides a
+  cleaner picture, it usually makes files noticeably smaller. Light keeps film grain recognisable; Strong can look
+  smoothed. The log says where "High quality" ran.
+- **Test 30 seconds** (under Video): encodes 30 seconds with the current settings, from a chosen time or 40% into
+  the film, and saves it next to the result as "... (30 s test)". It runs on its own, even when files are waiting
+  in the queue. A target file size becomes the bitrate it works out to for the whole film. The test starts on the
+  keyframe before the chosen time, so it can be a few seconds longer.
 - **Decode on the GPU** (under Advanced): the graphics chip reads the source video, so the CPU only encodes.
   Speeds up x265, most with 4K sources. Before each file, Keep the Light test-decodes a few frames; if the GPU
   cannot decode it, that file is decoded on the CPU as before, and the log says which was used. Remembered.
@@ -101,6 +110,7 @@ private local web server. To choose that yourself, run `keepthelight_cli -server
     keepthelight_cli -low-priority in.mkv     (other programs come first)
     keepthelight_cli -scale 1080p in.mkv      (shrink to fit 1920x1080, keeping HDR / Dolby Vision)
     keepthelight_cli -hw-decode in.mkv        (decode on the GPU, encode on the CPU)
+    keepthelight_cli -denoise light -sample 30 -sample-start 1:00:00 in.mkv test.mkv   (try noise reduction on 30 s)
     keepthelight_cli -audio-tracks 1,3:eac3 -sub-tracks 2:forced in.mkv   (choose tracks)
     keepthelight_cli -audio-lang eng -drop-commentary -subs forced in.mkv  (rules, for scripts)
     keepthelight_cli -audio-tracks 1,1:eac3:5.1 in.mkv   (keep the 7.1 track and add a 5.1 E-AC-3 copy)

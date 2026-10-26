@@ -7,9 +7,12 @@ import (
 )
 
 type Config struct {
-	LowPriority                                  bool   // run (and start the tools) at below-normal priority
-	HWDecode                                     bool   // decode the source on the GPU (falls back to the CPU)
-	Scale                                        string // "" keeps the size; "1080p" etc. shrinks to fit that frame
+	LowPriority                                  bool    // run (and start the tools) at below-normal priority
+	HWDecode                                     bool    // decode the source on the GPU (falls back to the CPU)
+	Scale                                        string  // "" keeps the size; "1080p" etc. shrinks to fit that frame
+	Denoise                                      string  // noise reduction: "" off, light, medium, strong, hq
+	SampleSecs                                   int     // >0: encode only a test of this many seconds
+	SampleStart                                  float64 // where the test starts (seconds; <0 = automatic)
 	Input, Output                                string
 	CRF                                          int
 	Preset, Codec, Bitrate                       string
@@ -29,13 +32,15 @@ type Config struct {
 	Ffmpeg, Ffprobe, DoviTool, MP4Box, HDR10Plus string
 	Tmp                                          string
 	DryRun, Keep, Verbose, Pause, Sound          bool
-	TargetBytes                                  int64    // >0: aim for this output file size
-	Retries                                      int      // hardware encoders: extra attempts to land on the target
-	Pass                                         int      // x265 two-pass: 0 off, 1 or 2
-	vsyncArgs                                    []string // keep every source frame exactly once (set at start-up)
-	hwaccel                                      []string // input options for GPU decoding (set at start-up)
-	cuesFront                                    bool     // this ffmpeg can put an MKV's index at the front (set at start-up)
-	replaceFinal                                 string   // command line -replace-original: the name the result finally gets
+	TargetBytes                                  int64          // >0: aim for this output file size
+	Retries                                      int            // hardware encoders: extra attempts to land on the target
+	Pass                                         int            // x265 two-pass: 0 off, 1 or 2
+	vsyncArgs                                    []string       // keep every source frame exactly once (set at start-up)
+	hwaccel                                      []string       // input options for GPU decoding (set at start-up)
+	cuesFront                                    bool           // this ffmpeg can put an MKV's index at the front (set at start-up)
+	hqDenoise                                    *denoiseChoice // "high quality" noise reduction as chosen at start-up
+	cleanup                                      []string       // files to remove when the job ends (a test's sample)
+	replaceFinal                                 string         // command line -replace-original: the name the result finally gets
 }
 
 type Plan struct {
@@ -195,11 +200,17 @@ func buildVideoArgs(cfg *Config, p *Probe, plan *Plan, hdr10plusJSON string) ([]
 		trc = "arib-std-b67"
 		prim, space = dflt(prim, "bt2020"), dflt(space, "bt2020nc")
 	}
-	var args []string
+	var args, filters []string
 	if plan.ScaleW > 0 {
 		// Same pixel format and colour space in and out: only the size changes,
 		// so the HDR picture (PQ/HLG, BT.2020, 10-bit) is untouched.
-		args = append(args, "-vf", fmt.Sprintf("scale=%d:%d:flags=lanczos", plan.ScaleW, plan.ScaleH))
+		filters = append(filters, fmt.Sprintf("scale=%d:%d:flags=lanczos", plan.ScaleW, plan.ScaleH))
+	}
+	if f := cfg.denoiseFilter(); f != "" { // after resizing: fewer pixels to clean, and resizing already smooths a little
+		filters = append(filters, f)
+	}
+	if len(filters) > 0 {
+		args = append(args, "-vf", strings.Join(filters, ","))
 	}
 	switch cfg.Codec {
 	case "nvenc":

@@ -101,6 +101,7 @@
   .trow.dropped .tdesc { color: var(--muted); text-decoration: line-through; text-decoration-color: #555c69; }
   .trow select { padding: 5px 8px; }
   .trow select.tch { width: auto; }
+  .testrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
   .thead { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; padding-left: 11px; }
   .thead select.tall { width: 185px; padding: 4px 8px; }
   .thead label.check { margin: 0; width: 90px; }
@@ -260,6 +261,10 @@
           <select id="scale"><option value="">Keep original</option><option value="2160p">4K (2160p)</option><option value="1440p">1440p</option>
             <option value="1080p">1080p</option><option value="720p">720p</option></select>
           <div class="hint" id="scaleHint">Smaller = much faster encode and smaller file. HDR10, HDR10+ and Dolby Vision are kept.</div></div>
+        <div><label for="denoise">Noise reduction</label>
+          <select id="denoise"><option value="">Off</option><option value="light">Light</option><option value="medium">Medium</option>
+            <option value="strong">Strong</option><option value="hq">High quality (slower)</option></select>
+          <div class="hint" id="denoiseHint">Cleans up noise and compression fizz; also makes files smaller. Light keeps film grain recognisable.</div></div>
         <div id="dvWrap" class="hidden"><label for="dv">Dolby Vision</label>
           <select id="dv"><option value="auto">Keep Dolby Vision</option><option value="drop">Drop (plain HDR10)</option></select></div>
       </div>
@@ -290,6 +295,12 @@
             <select id="retries"><option value="0">0 more times</option><option value="1">1 more time</option><option value="2" selected>2 more times</option><option value="3">3 more times</option></select>
           </div>
         </div>
+      </div>
+      <div class="testrow">
+        <button id="testBtn" title="Encode 30 seconds with these settings, to check the picture, the size and the speed">Test 30 seconds</button>
+        <label for="testStart" style="margin:0">starting at</label>
+        <input type="text" id="testStart" spellcheck="false" placeholder="auto (40% in)" style="width:130px" title="For example 1:02:30">
+        <span class="hint" style="margin:0">Saved next to the result as "… (30 s test)". Compare it with the original, or try other settings first.</span>
       </div>
     </div>
   </details>
@@ -471,7 +482,7 @@ function settings() {
     preset: $('preset').value, audio: $('audio').value, audioBitrate: $('abitrate').value.trim(),
     dv: $('dv').value, masterDisplay: $('master').value.trim(), maxCLL: $('cll').value.trim(), tmp: $('tmp').value.trim(),
     targetSize: $('targetNum').value.trim().replace(',', '.') + $('targetUnit').value, retries: +$('retries').value,
-    scale: $('scale').value,
+    scale: $('scale').value, denoise: $('denoise').value,
     audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, audioChannels: $('audioCh').value, subLang: $('subLang').value.trim(), subMode: $('subMode').value,
     ...trackSettings(),
     meta: metaEdits(), replaceOriginal: replacing(), profile: $('profile').value
@@ -876,7 +887,7 @@ async function confirmNewFiles(form) {
 // ---------- profiles ----------
 // A profile is a named set of the settings below the Files section. It can
 // name converted files after itself ("Film_Plex 4K.mkv").
-const PROFILE_KEYS = ['mode', 'codec', 'preset', 'scale', 'dv', 'quality', 'crf', 'bitrate', 'targetSize', 'retries',
+const PROFILE_KEYS = ['mode', 'codec', 'preset', 'scale', 'denoise', 'dv', 'quality', 'crf', 'bitrate', 'targetSize', 'retries',
   'audio', 'audioBitrate', 'audioChannels', 'audioLang', 'dropCommentary', 'subLang', 'subMode', 'masterDisplay', 'maxCLL'];
 let profiles = []; // [{ name, useNameTag, settings }]
 function activeProfile() { const n = $('profile').value; return n ? profiles.find(p => p.name === n) || null : null; }
@@ -908,7 +919,8 @@ function profileUI() {
   if (tagFromProfile) { if (document.activeElement !== tag) tag.value = nameTag(); tag.dataset.byProfile = '1'; }
   else if (tag.dataset.byProfile === '1') { tag.value = tag.dataset.own !== undefined ? tag.dataset.own : '_KTL'; tag.dataset.byProfile = ''; tagOverride = null; }
   $('tagReset').classList.toggle('hidden', !(tagFromProfile && tagOverride !== null && cleanTagText(tagOverride) !== profileTag(p)));
-  $('profState').textContent = p && JSON.stringify(profileSettings()) !== JSON.stringify(p.settings) ? 'changed' : '';
+  const cur = profileSettings(), want = withDefaults(p ? p.settings : {});
+  $('profState').textContent = p && PROFILE_KEYS.some(k => k in want && JSON.stringify(cur[k]) !== JSON.stringify(want[k])) ? 'changed' : '';
 }
 function setRadio(name, v) { const r = document.querySelector('input[name="' + name + '"][value="' + v + '"]'); if (r) r.checked = true; }
 // applyFields puts settings into the form (keys: only these; default all known ones).
@@ -918,6 +930,7 @@ function applyFields(st, keys) {
   if (has('codec')) $('codec').value = st.codec;
   if (has('preset')) $('preset').value = st.preset;
   if (has('scale')) $('scale').value = st.scale;
+  if (has('denoise')) $('denoise').value = st.denoise;
   if (has('dv')) $('dv').value = st.dv;
   if (has('quality')) setRadio('quality', st.quality);
   if (has('crf')) $('crf').value = st.crf;
@@ -934,8 +947,11 @@ function applyFields(st, keys) {
   if (has('masterDisplay')) $('master').value = st.masterDisplay;
   if (has('maxCLL')) $('cll').value = st.maxCLL;
 }
+// settings added after a profile was saved: their defaults, so older profiles still apply cleanly
+const PROFILE_DEFAULTS = { denoise: '' };
+function withDefaults(st) { return Object.assign({}, PROFILE_DEFAULTS, st); }
 function applyProfile(p) {
-  if (p) applyFields(p.settings, PROFILE_KEYS);
+  if (p) applyFields(withDefaults(p.settings), PROFILE_KEYS);
   profileUI();
   updateVisibility();
   const inp = $('input').value.trim();
@@ -1088,6 +1104,12 @@ async function endEdit(save) {
   tracks = snap.tracks; metaState = snap.meta;
   updateVisibility(); renderMeta(); updateStart(); probe(); poll();
 }
+$('testBtn').onclick = async () => {
+  jobBoxDismissed = false;
+  const r = await api('test', Object.assign(settings(), { testSeconds: 30, testStart: $('testStart').value.trim() }));
+  if (!r.ok) { showError(r.error || 'Could not start the test'); return; }
+  poll();
+};
 $('editSave').onclick = () => endEdit(true);
 $('editCancel').onclick = () => endEdit(false);
 // The tracks and metadata a queued file was given, put back into the form's state.
@@ -1170,6 +1192,7 @@ function updateSummaries() {
       : 'target ' + $('targetNum').value.trim() + ' ' + ($('targetUnit').value === 'G' ? 'GB' : 'MB');
     v = [{ x265: 'x265', nvenc: 'NVENC', qsv: 'QuickSync' }[$('codec').value], quality, $('preset').value].join('  ·  ');
     if ($('scale').value) v += '  ·  ' + (info && info.scaledTo ? info.scaledTo : $('scale').value);
+    if ($('denoise').value) v += '  ·  noise reduction ' + $('denoise').options[$('denoise').selectedIndex].text.toLowerCase().replace(' (slower)', '');
     if (info && info.dv && $('dv').value === 'drop') v += '  ·  drop Dolby Vision';
   }
   $('sumVideo').textContent = v;
@@ -1316,6 +1339,7 @@ function updateStart() {
   $('start').textContent = waiting && !queue.running ? 'Start queue (' + waiting + (waiting === 1 ? ' file)' : ' files)') : 'Start transcode';
   $('start').disabled = jobActive || !(waiting || formOk) || !!editing;
   $('addQueue').disabled = !formOk || !!editing;
+  $('testBtn').disabled = jobActive || !!editing || !formOk || radio('mode') !== 'encode';
   return;
   $('start').disabled = !ok;
 }
@@ -1346,7 +1370,7 @@ $('container').addEventListener('change', () => {
   if (o) $('output').value = o.replace(/\.[A-Za-z0-9]+$/, '') + $('container').value; else suggestOutput();
   updateAudioNote(); renderMeta(); scheduleProbe();
 });
-['preset', 'scale', 'dv', 'bitrate', 'abitrate', 'master', 'cll', 'tmp', 'targetNum', 'targetUnit', 'retries'].forEach(id => $(id).addEventListener('change', () => scheduleProbe(200)));
+['preset', 'scale', 'denoise', 'dv', 'bitrate', 'abitrate', 'master', 'cll', 'tmp', 'targetNum', 'targetUnit', 'retries'].forEach(id => $(id).addEventListener('change', () => scheduleProbe(200)));
 $('targetNum').addEventListener('input', () => scheduleProbe(600));
 $('audio').addEventListener('change', () => { updateVisibility(); rulesChanged(); });
 ['audioLang', 'subLang'].forEach(id => $(id).addEventListener('change', rulesChanged));
@@ -1519,6 +1543,8 @@ function settingsText(st) {
   const parts = [{ x265: 'x265', nvenc: 'NVENC', qsv: 'QuickSync' }[st.codec] || st.codec, q, st.preset];
   if (st.profile) parts.unshift(st.profile);
   if (st.scale) parts.push(st.scale);
+  if (st.denoise) parts.push('NR ' + (st.denoise === 'hq' ? 'high quality' : st.denoise));
+  if (st.testSeconds) parts.unshift(st.testSeconds + ' s test');
   if (st.audioTracks) parts.push(st.audioTracks.length + ' audio' + (st.subTracks ? ', ' + st.subTracks.length + ' subtitle' + (st.subTracks.length === 1 ? '' : 's') : '') + ' (own choice)');
   if (st.meta) parts.push('own metadata');
   else {

@@ -70,6 +70,10 @@ Choosing tracks (numbers as the window shows them: audio 1, 2, ...; subtitles 1,
   -scale <size>        shrink the video to fit 2160p, 1440p, 1080p or 720p, keeping its shape
                        (3840x1600 -> 1920x800 at 1080p) and its HDR10 / HDR10+ / Dolby Vision
                        data. Never enlarges.
+  -denoise <level>     noise reduction: light, medium, strong (fast, CPU), or hq (high quality:
+                       on the GPU when it can, else slower on the CPU). Keeps 10-bit HDR intact.
+  -sample <seconds>    encode only a test of this length (e.g. 30), to check the settings
+  -sample-start <time> where the test starts, e.g. 1:02:30 (default: 40%% into the video)
   -hw-decode           decode the source on the GPU, so the CPU only encodes (falls back to
                        the CPU if the GPU cannot decode the file)
   -copy-video          do not re-encode video at all (keeps any HDR/DV exactly)
@@ -150,6 +154,9 @@ func parseArgs() (*Config, bool) {
 	fs.BoolVar(&cfg.LowPriority, "low-priority", false, "")
 	fs.BoolVar(&cfg.HWDecode, "hw-decode", false, "")
 	fs.StringVar(&cfg.Scale, "scale", "", "")
+	fs.StringVar(&cfg.Denoise, "denoise", "", "")
+	fs.IntVar(&cfg.SampleSecs, "sample", 0, "")
+	sampleStartArg := fs.String("sample-start", "", "")
 	fs.StringVar(&cfg.Ffmpeg, "ffmpeg", "", "")
 	fs.StringVar(&cfg.Ffprobe, "ffprobe", "", "")
 	fs.StringVar(&cfg.DoviTool, "dovi-tool", "", "")
@@ -209,6 +216,23 @@ func parseArgs() (*Config, bool) {
 	}
 	if cfg.Audio == "opus" {
 		cfg.Audio = "libopus"
+	}
+	if cfg.Denoise = strings.ToLower(cfg.Denoise); cfg.Denoise == "off" {
+		cfg.Denoise = ""
+	}
+	if !validDenoise(cfg.Denoise) {
+		fmt.Fprintln(os.Stderr, "error: -denoise must be light, medium, strong or hq")
+		return cfg, false
+	}
+	if cfg.SampleSecs < 0 || cfg.SampleSecs > 600 {
+		fmt.Fprintln(os.Stderr, "error: -sample must be between 1 and 600 seconds")
+		return cfg, false
+	}
+	if st, err := parseTimeArg(*sampleStartArg); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		return cfg, false
+	} else {
+		cfg.SampleStart = st
 	}
 	var err error
 	if cfg.AudioSel, err = parseAudioSel(*audioTracks); err == nil {
@@ -411,6 +435,16 @@ func transcode(ctx context.Context, cfg *Config) error {
 		}
 	}
 
+	defer func() { // a test's sample
+		for _, f := range cfg.cleanup {
+			_ = os.Remove(f)
+		}
+	}()
+	if cfg.SampleSecs > 0 {
+		if err := prepareSample(ctx, cfg); err != nil {
+			return err
+		}
+	}
 	if !cfg.CopyVideo {
 		if name := map[string]string{"x265": "libx265", "nvenc": "hevc_nvenc", "qsv": "hevc_qsv"}[cfg.Codec]; name != "" && !hasEncoder(ctx, ffmpeg, name) {
 			return fmt.Errorf("this ffmpeg build does not include the %s encoder; use a full ffmpeg build or pick another encoder", name)
@@ -464,6 +498,13 @@ func transcode(ctx context.Context, cfg *Config) error {
 			cfg.hwaccel = args
 			fmt.Println(msg)
 		}
+	}
+	if cfg.Denoise == "hq" && !cfg.CopyVideo && !cfg.DryRun {
+		c, msg := chooseHQDenoise(ctx, ffmpeg, cfg.Input, cfg.hwaccel)
+		cfg.hqDenoise = &c
+		fmt.Println(msg)
+	} else if cfg.Denoise != "" && !cfg.CopyVideo {
+		fmt.Println("Noise reduction:", denoiseNames[cfg.Denoise])
 	}
 	if !cfg.DryRun {
 		defer preventSleep()() // a long encode must not be stopped by the PC going to sleep
@@ -552,7 +593,7 @@ func runSimple(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 	mk := func(pass int, out string) []string {
 		cfg.Pass = pass
 		vargs, _ := buildVideoArgs(cfg, p, plan, hdr10plusJSON)
-		args := append([]string{"-hide_banner", "-y"}, cfg.hwaccel...)
+		args := append([]string{"-hide_banner", "-y"}, cfg.inputPrefix()...)
 		args = append(args, "-i", cfg.Input)
 		if pass != 1 {
 			args = append(args, meta.Inputs...)
@@ -655,7 +696,7 @@ func runDV(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 	mk := func(pass int, out string) []string {
 		cfg.Pass = pass
 		vargs, _ := buildVideoArgs(cfg, p, plan, "")
-		args := append([]string{"-hide_banner", "-y"}, cfg.hwaccel...)
+		args := append([]string{"-hide_banner", "-y"}, cfg.inputPrefix()...)
 		args = append(args, "-i", cfg.Input, "-map", "0:v:0", "-an", "-sn", "-dn")
 		args = append(args, cfg.vsyncArgs...)
 		args = append(args, vargs...)

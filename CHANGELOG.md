@@ -18,6 +18,22 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.13.0 - 2026-10-26
+
+- **Noise reduction** (Video section): Off, Light, Medium, Strong, or High quality.
+  - Light / Medium / Strong use FFmpeg's hqdn3d filter: fast, on the CPU.
+  - High quality uses nlmeans on the GPU (through Vulkan or OpenCL, whichever the FFmpeg build and graphics driver
+    support; it is tested on the file first). Without a usable GPU filter it uses fftdnoiz on the CPU, which is
+    slower. The log says which was used.
+  - Only filters that work in 10-bit are used (FFmpeg's CPU nlmeans converts to 8-bit and would cause banding in
+    HDR, so it is not used). Every frame is kept, so Dolby Vision data still lines up.
+  - Applied after resizing (fewer pixels to clean). Saved in profiles; profiles saved earlier mean Off.
+- **Test 30 seconds** (Video section): encodes 30 seconds with the current settings, starting at a chosen time
+  (or 40% into the film), and saves it next to the result as "... (30 s test)". It runs on its own: files
+  waiting in the queue are not started. With a target file size, the test uses the bitrate the size works out to
+  for the whole film. The test begins on the keyframe before the chosen time, so it can be a few seconds longer.
+- `keepthelight_cli.exe`: `-denoise light|medium|strong|hq`, `-sample <seconds>`, `-sample-start <time>`.
+
 ## 1.12.1 - 2026-10-26
 
 - **"Add to the name" can be typed in while a profile names the files.** The box shows the profile's ending; typing

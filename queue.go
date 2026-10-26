@@ -68,6 +68,7 @@ type batch struct {
 	nextID  int
 	running bool // the runner is working through the queue
 	stop    bool // stop after the current file
+	only    int  // >0: run only this file (a test), not the rest of the queue
 	index   int  // position of the current file in this run (1-based)
 	total   int  // files in this run
 
@@ -321,6 +322,48 @@ func (g *guiServer) queueApply(raw json.RawMessage) (n int, errs []string) {
 	return n, errs
 }
 
+// startTest runs a short test of the form's settings straight away, on its own:
+// files waiting in the queue are not started.
+func (g *guiServer) startTest(raw json.RawMessage) map[string]any {
+	var s settings
+	if err := json.Unmarshal(raw, &s); err != nil || s.TestSeconds <= 0 {
+		return failResult("bad request")
+	}
+	if g.running() {
+		return failResult("A job is already running. Try the test when it has finished.")
+	}
+	s.Overwrite = true // a new test replaces the previous one
+	if _, err := validateSettings(s); err != nil {
+		return failResult(capitalize(err.Error()))
+	}
+	b, _ := json.Marshal(s)
+	ids, errs := g.queueAdd([]json.RawMessage{b})
+	if len(errs) > 0 {
+		return failResult(errs[0])
+	}
+	g.mu.Lock()
+	if g.q.running {
+		g.mu.Unlock()
+		return failResult("The queue is running. Try the test when it has finished.")
+	}
+	// put the test first and run only it
+	for i, it := range g.q.items {
+		if it.ID == ids[0] && i > 0 {
+			copy(g.q.items[1:i+1], g.q.items[0:i])
+			g.q.items[0] = it
+		}
+	}
+	g.q.only = ids[0]
+	g.mu.Unlock()
+	if err := g.startQueue(); err != nil {
+		g.mu.Lock()
+		g.q.only = 0
+		g.mu.Unlock()
+		return failResult(capitalize(err.Error()))
+	}
+	return okResult()
+}
+
 // ownKeys are a file's own choices: its tracks and its metadata.
 var ownKeys = []string{"audioTracks", "subTracks", "audioDefault", "subDefault", "meta"}
 
@@ -437,6 +480,9 @@ func applyProbe(it *queueItem, r map[string]any) {
 		return
 	}
 	it.Duration, _ = r["duration"].(float64)
+	if it.cfg != nil && it.cfg.SampleSecs > 0 && it.Duration > float64(it.cfg.SampleSecs) {
+		it.Duration = float64(it.cfg.SampleSecs) // a test: only that much is encoded
+	}
 	it.height, _ = r["height"].(int)
 	_, it.dv = r["dv"]
 	parts := []string{map[string]string{"hdr10": "HDR10", "hlg": "HLG"}[fmt.Sprint(r["kind"])]}
@@ -493,6 +539,9 @@ func (g *guiServer) startQueue() error {
 		return errors.New("there is nothing waiting in the queue")
 	}
 	g.cancelPowerLocked()
+	if g.q.only > 0 {
+		n = 1 // a test on its own
+	}
 	g.q.running, g.q.stop, g.q.index, g.q.total = true, false, 0, n
 	go g.runQueue()
 	return nil
@@ -519,6 +568,9 @@ func (g *guiServer) runQueue() {
 		var it *queueItem
 		waitingForCheck, waitingForEdit := false, false
 		for _, x := range g.q.items {
+			if g.q.only > 0 && x.ID != g.q.only {
+				continue // a test runs on its own
+			}
 			if x.Editing && (x.Status == stWaiting || x.Status == stChecking) {
 				waitingForEdit = true // held back; the queue goes on with the next file
 				continue
@@ -590,7 +642,7 @@ func (g *guiServer) runQueue() {
 		g.saveQueue()
 	}
 	g.mu.Lock()
-	g.q.running = false
+	g.q.running, g.q.only = false, 0
 	closing := g.closing
 	g.mu.Unlock()
 	if !stoppedByUser && !closing && finished > 0 {

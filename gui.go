@@ -99,6 +99,9 @@ type settings struct {
 	AudioChannels              string    // rules: channels for converted tracks: "" (as the source), "5.1", "stereo"
 	SubMode                    string    // rules: "" all matching, "forced", "none"
 	Meta                       *MetaEdit // metadata changes for this file (null = none)
+	Denoise                    string    // noise reduction: "" off, light, medium, strong, hq
+	TestSeconds                int       // >0: only a test of this many seconds
+	TestStart                  string    // where the test starts ("" = automatic)
 	ReplaceOriginal            bool      // metadata only: the result takes the original's place
 	Retries                    int       // hardware encoders: extra attempts to hit the target
 	Overwrite                  bool      // replace an existing output (the user confirmed it)
@@ -135,6 +138,25 @@ func (s *settings) toConfig() (*Config, error) {
 	}
 	if !presets[cfg.Preset] {
 		return nil, fmt.Errorf("unknown preset")
+	}
+	if !validDenoise(s.Denoise) {
+		return nil, fmt.Errorf("unknown noise reduction option")
+	}
+	if !cfg.CopyVideo {
+		cfg.Denoise = s.Denoise
+	}
+	if s.TestSeconds > 0 {
+		if cfg.CopyVideo {
+			return nil, fmt.Errorf("a test is only useful when the video is re-encoded")
+		}
+		st, err := parseTimeArg(s.TestStart)
+		if err != nil {
+			return nil, err
+		}
+		cfg.SampleSecs, cfg.SampleStart = min(600, s.TestSeconds), st
+		if cfg.Output != "" {
+			cfg.Output = testOutputName(cfg.Output, cfg.SampleSecs) // "Film_KTL (30 s test).mkv", next to where the film would go
+		}
 	}
 	sc, ok := normScale(s.Scale)
 	if !ok {
@@ -254,6 +276,15 @@ func (cfg *Config) cliArgs() []string {
 	}
 	if cfg.Scale != "" {
 		a = append(a, "-scale", cfg.Scale)
+	}
+	if cfg.Denoise != "" {
+		a = append(a, "-denoise", cfg.Denoise)
+	}
+	if cfg.SampleSecs > 0 {
+		a = append(a, "-sample", strconv.Itoa(cfg.SampleSecs))
+		if cfg.SampleStart >= 0 {
+			a = append(a, "-sample-start", strconv.FormatFloat(cfg.SampleStart, 'f', 0, 64))
+		}
 	}
 	if cfg.AudioBitrate != "" {
 		a = append(a, "-audio-bitrate", cfg.AudioBitrate)
@@ -565,6 +596,8 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		return map[string]any{"ok": true, "path": p}
 	case "start":
 		return g.start(ctx, body)
+	case "test":
+		return g.startTest(body)
 	case "queueEditStart", "queueEditCancel":
 		var b struct{ ID int }
 		_ = json.Unmarshal(body, &b)
