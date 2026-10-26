@@ -625,6 +625,11 @@ func (g *guiServer) runQueue() {
 			it.Status, it.Note = stCanceled, "Canceled."
 		case j.exitCode == 0:
 			it.Status, it.Note, it.Percent = stDone, "", 100
+			for _, l := range j.lines { // a test's measured quality
+				if strings.HasPrefix(l, "Test quality:") {
+					it.Note = l
+				}
+			}
 			finished++
 		default:
 			it.Status, it.Note = stFailed, lastError(j.lines)

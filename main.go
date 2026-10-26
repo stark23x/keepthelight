@@ -482,6 +482,9 @@ func transcode(ctx context.Context, cfg *Config) error {
 	if plan.Size != nil {
 		fmt.Println(plan.Size.Describe())
 	}
+	if plan.Quality != nil && plan.Size == nil {
+		fmt.Println("Quality guide:", plan.Quality.Text, "(rough rule of thumb)")
+	}
 	for _, w := range plan.Warnings {
 		fmt.Println("WARNING:", w)
 	}
@@ -562,6 +565,18 @@ func transcode(ctx context.Context, cfg *Config) error {
 			fmt.Println(l)
 		}
 		cfg.Output = cfg.replaceFinal
+	}
+	if cfg.sample != "" { // a test: measure it against the same stretch of the original
+		fmt.Println("\nMeasuring the test's quality")
+		w, h := p.Width, p.Height
+		if plan.ScaleW > 0 {
+			w, h = plan.ScaleW, plan.ScaleH
+		}
+		if line, err := scoreTest(ctx, cfg.Ffmpeg, cfg.Output, cfg.sample, w, h, cfg.Denoise); err == nil {
+			fmt.Println(line)
+		} else {
+			fmt.Println("WARNING: could not measure the test's quality:", err)
+		}
 	}
 	keepOriginalClip(cfg)
 	fmt.Println("\nDone:", cfg.Output)

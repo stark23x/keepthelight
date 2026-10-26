@@ -18,6 +18,19 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.14.0 - 2026-10-26
+
+- **Quality guide** under the quality setting, for Constant quality and Target bitrate (Target file size shows it in
+  its plan line). It judges the bits per pixel of the resulting picture, adjusted for the encoder and preset, noise
+  reduction and HDR, and compares with the source in HEVC terms: 10 Mbps is "good" for 4K HDR but "excellent" for
+  1080p from an H.264 Blu-ray. Very low settings get a warning (also in the log), and so does a bitrate higher
+  than the source needs. It is a rule of thumb, not a measurement.
+- **The 30-second test is measured**: after a test, Keep the Light compares it with the same 30 seconds of the
+  original and reports a score, for example "Test quality: VMAF 94.2 of 100 (very good: differences are hard to
+  see)". VMAF judges like a viewer and is used when the FFmpeg build includes it (gyan.dev "full" and BtbN builds
+  do); otherwise SSIM. The score appears in the queue list and the log. Noise reduction lowers the score, because
+  removed grain counts as a difference; the message says so.
+
 ## 1.13.1 - 2026-10-26
 
 - **Test 30 seconds also keeps the same 30 seconds of the original**, unchanged, as "... (30 s original)" next to

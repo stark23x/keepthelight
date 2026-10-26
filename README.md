@@ -62,11 +62,20 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   Only filters that work in 10-bit are used, so HDR keeps its gradations; Dolby Vision is unaffected. Besides a
   cleaner picture, it usually makes files noticeably smaller. Light keeps film grain recognisable; Strong can look
   smoothed. The log says where "High quality" ran.
+- **Quality guide** (under Video): for Constant quality and Target bitrate, a line under the setting judges the
+  choice: bits per pixel for the resulting picture size, adjusted for the encoder and preset (GPU encoders need about
+  25% more), noise reduction (less needed) and HDR (a little more needed), compared with the source (in HEVC
+  terms: H.264 needs about 1.7 times the bitrate of HEVC). Very low settings get a warning, and so does a bitrate
+  higher than the source needs. Target file size shows the same guide in its plan line. It is a rule of thumb;
+  the 30-second test measures the real result.
 - **Test 30 seconds** (under Video): encodes 30 seconds with the current settings, from a chosen time or 40% into
   the film, and saves it next to the result as "... (30 s test)". It runs on its own, even when files are waiting
   in the queue. A target file size becomes the bitrate it works out to for the whole film. The test starts on the
   keyframe before the chosen time, so it can be a few seconds longer. The same seconds of the original are saved
-  next to it, unchanged, as "... (30 s original)", so the two short files can be compared directly.
+  next to it, unchanged, as "... (30 s original)", so the two short files can be compared directly. The test is then
+  measured against that original: VMAF (0-100, a score that judges like a viewer) when the FFmpeg build includes
+  it, otherwise SSIM. The score is shown in the queue list and the log; noise reduction lowers it, because removed
+  grain counts as a difference.
 - **Decode on the GPU** (under Advanced): the graphics chip reads the source video, so the CPU only encodes.
   Speeds up x265, most with 4K sources. Before each file, Keep the Light test-decodes a few frames; if the GPU
   cannot decode it, that file is decoded on the CPU as before, and the log says which was used. Remembered.

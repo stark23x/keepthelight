@@ -166,6 +166,7 @@ type SizePlan struct {
 	DVExtra       int64 // Dolby Vision RPU, added after the encode
 	VideoKbps     int
 	BPP           float64 // bits per pixel per frame
+	Guide         *QualityGuide
 	Width, Height int
 	FPS           float64
 	Warnings      []string
@@ -271,9 +272,11 @@ func planSize(ctx context.Context, cfg *Config, p *Probe, plan *Plan, srcBytes i
 	}
 	if sp.Width > 0 && sp.Height > 0 && sp.FPS > 0 {
 		sp.BPP = float64(sp.VideoKbps) * 1000 / (float64(sp.Width) * float64(sp.Height) * sp.FPS)
-		if sp.BPP < 0.018 {
-			sp.Warnings = append(sp.Warnings, fmt.Sprintf("%.1f Mbps is very low for %dx%d video; expect obvious blocking and banding. Consider a bigger target.",
-				float64(sp.VideoKbps)/1000, sp.Width, sp.Height))
+	}
+	if g := bitrateGuide(float64(sp.VideoKbps)*1000, cfg, p, plan); g != nil {
+		sp.Guide, plan.Quality = g, g
+		if g.Warn != "" {
+			sp.Warnings = append(sp.Warnings, g.Warn+" (or choose a bigger target)")
 		}
 	}
 	if srcBytes > 0 && sp.Target > srcBytes {
@@ -295,7 +298,9 @@ func planSize(ctx context.Context, cfg *Config, p *Probe, plan *Plan, srcBytes i
 func (s *SizePlan) Describe() string {
 	d := fmt.Sprintf("Target %s: about %s kbps for video after ~%s of audio/overhead",
 		formatBytes(s.Target), thousands(s.VideoKbps), formatBytes(s.NonVideo()+s.DVExtra))
-	if s.BPP > 0 {
+	if s.Guide != nil {
+		d += "; " + s.Guide.Text + " (rough guide)"
+	} else if s.BPP > 0 {
 		d += fmt.Sprintf("; %.3f bits/pixel, %s (rough guide)", s.BPP, qualityLabel(s.BPP))
 	}
 	return d

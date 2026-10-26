@@ -101,6 +101,12 @@
   .trow.dropped .tdesc { color: var(--muted); text-decoration: line-through; text-decoration-color: #555c69; }
   .trow select { padding: 5px 8px; }
   .trow select.tch { width: auto; }
+  .qguide { margin-top: 10px; padding: 7px 10px; border-radius: 6px; font-size: 12.5px; border: 1px solid var(--line); color: var(--muted); }
+  .qguide b { color: var(--text); }
+  .qguide.q-excellent b, .qguide.q-verygood b { color: var(--ok); }
+  .qguide.q-fair b { color: var(--warn); }
+  .qguide.q-low, .qguide.q-verylow { border-color: #6b5420; background: #3a2f17; color: var(--warn); }
+  .qguide.q-low b, .qguide.q-verylow b { color: var(--warn); }
   .testrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
   .thead { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; padding-left: 11px; }
   .thead select.tall { width: 185px; padding: 4px 8px; }
@@ -296,6 +302,7 @@
           </div>
         </div>
       </div>
+      <div id="qualGuide" class="qguide hidden"></div>
       <div class="testrow">
         <button id="testBtn" title="Encode 30 seconds with these settings, to check the picture, the size and the speed">Test 30 seconds</button>
         <label for="testStart" style="margin:0">starting at</label>
@@ -514,6 +521,20 @@ function updateAudioNote() { // MP4 limits are shown per track (and in the plan'
   renderTracks();
 }
 
+// The quality guide under the quality setting: a rule of thumb from the
+// numbers (the size plan has its own line in the Source box).
+function showQualityGuide() {
+  const g = info && info.quality, box = $('qualGuide');
+  const show = !!g && radio('mode') === 'encode' && radio('quality') !== 'size';
+  box.classList.toggle('hidden', !show);
+  if (!show) return;
+  box.className = 'qguide q-' + g.level;
+  const [head, ...rest] = g.text.split(': ');
+  box.innerHTML = '';
+  const b = el('b', '', rest.length ? rest.join(': ') : head);
+  box.append(document.createTextNode('Quality guide' + (rest.length ? ' (' + head + ')' : '') + ': '), b,
+    document.createTextNode('. A rough rule of thumb; Test 30 seconds measures the real result.'));
+}
 function updateVisibility() {
   const enc = radio('mode') === 'encode';
   $('encodeOpts').classList.toggle('hidden', !enc);
@@ -534,6 +555,7 @@ function updateVisibility() {
     : 'Smaller = much faster encode and smaller file. HDR10, HDR10+ and Dolby Vision are kept.';
   $('gpuHint').classList.toggle('hidden', $('codec').value === 'x265');
   updateAudioNote();
+  showQualityGuide();
   updateSummaries();
 }
 
@@ -1380,7 +1402,8 @@ $('audio').addEventListener('change', () => { updateVisibility(); rulesChanged()
 ['audioLang', 'subLang'].forEach(id => $(id).addEventListener('change', rulesChanged));
 ['dropComm', 'subMode', 'audioCh'].forEach(id => $(id).addEventListener('change', rulesChanged));
 $('codec').addEventListener('change', () => { updateVisibility(); scheduleProbe(200); });
-$('crf').addEventListener('input', updateVisibility);
+$('crf').addEventListener('input', () => { updateVisibility(); scheduleProbe(500); });
+$('bitrate').addEventListener('input', () => scheduleProbe(700));
 document.querySelectorAll('input[name="mode"], input[name="quality"]').forEach(el => el.addEventListener('change', () => { updateVisibility(); renderMeta(); scheduleProbe(100); }));
 ['input', 'change'].forEach(t => document.querySelector('.wrap').addEventListener(t, updateSummaries));
 // Low priority is a remembered setting for all transcodes (not per file).

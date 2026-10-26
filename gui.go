@@ -1004,6 +1004,9 @@ func (g *guiServer) probe(ctx context.Context, s settings) map[string]any {
 		}
 	}
 	resp["mode"] = describeMode(cfg, plan)
+	if plan.Quality != nil {
+		resp["quality"] = plan.Quality
+	}
 	if plan.ScaleW > 0 {
 		resp["scaledTo"] = fmt.Sprintf("%d×%d", plan.ScaleW, plan.ScaleH)
 	}

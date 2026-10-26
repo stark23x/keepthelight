@@ -56,6 +56,7 @@ type Plan struct {
 	Subs         []outSub
 	Size         *SizePlan
 	Src          *Tracks // the source's tracks, tags, chapters and covers
+	Quality      *QualityGuide
 	ScaleW       int     // >0: resize the video to ScaleW x ScaleH
 	ScaleH       int
 	SrcW, SrcH   int
@@ -175,6 +176,13 @@ func makePlan(cfg *Config, p *Probe) (*Plan, error) {
 			plan.ScaleW, plan.ScaleH, plan.SrcW, plan.SrcH = w, h, p.Width, p.Height
 		} else {
 			warn("the video is %dx%d, which already fits %s, so it is not resized (Keep the Light never enlarges)", p.Width, p.Height, cfg.Scale)
+		}
+	}
+
+	if g := qualityGuide(cfg, p, plan); g != nil {
+		plan.Quality = g
+		if g.Warn != "" {
+			warn("%s", g.Warn)
 		}
 	}
 

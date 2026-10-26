@@ -25,6 +25,7 @@ type DoviConfig struct {
 type Probe struct {
 	Codec, PixFmt                     string
 	Width, Height                     int
+	VideoBps                          float64 // the source video's bitrate (bits/s), 0 if unknown
 	Primaries, Transfer, Space, Range string
 	AvgFPS, RFPS                      string
 	Mastering                         *MasteringDisplay
@@ -72,20 +73,23 @@ func orUnknown(s string) string {
 
 type ffprobeOut struct {
 	Streams []struct {
-		CodecName     string           `json:"codec_name"`
-		Width         int              `json:"width"`
-		Height        int              `json:"height"`
-		PixFmt        string           `json:"pix_fmt"`
-		ColorRange    string           `json:"color_range"`
-		ColorSpace    string           `json:"color_space"`
-		ColorTransfer string           `json:"color_transfer"`
-		ColorPrim     string           `json:"color_primaries"`
-		RFrameRate    string           `json:"r_frame_rate"`
-		AvgFrameRate  string           `json:"avg_frame_rate"`
-		SideData      []map[string]any `json:"side_data_list"`
+		CodecName     string            `json:"codec_name"`
+		Width         int               `json:"width"`
+		Height        int               `json:"height"`
+		PixFmt        string            `json:"pix_fmt"`
+		ColorRange    string            `json:"color_range"`
+		ColorSpace    string            `json:"color_space"`
+		ColorTransfer string            `json:"color_transfer"`
+		ColorPrim     string            `json:"color_primaries"`
+		RFrameRate    string            `json:"r_frame_rate"`
+		AvgFrameRate  string            `json:"avg_frame_rate"`
+		BitRate       string            `json:"bit_rate"`
+		Tags          map[string]string `json:"tags"`
+		SideData      []map[string]any  `json:"side_data_list"`
 	} `json:"streams"`
 	Format struct {
 		Duration string `json:"duration"`
+		BitRate  string `json:"bit_rate"`
 	} `json:"format"`
 	Frames []struct {
 		SideData []map[string]any `json:"side_data_list"`
@@ -116,6 +120,19 @@ func parseProbe(data []byte) (*Probe, error) {
 		AvgFPS: s.AvgFrameRate, RFPS: s.RFrameRate,
 	}
 	p.Duration, _ = strconv.ParseFloat(j.Format.Duration, 64)
+	// the video's own bitrate: from the stream, or MKV's statistics tags; else
+	// most of the whole file's (a rough figure: the file also holds audio)
+	p.VideoBps, _ = strconv.ParseFloat(s.BitRate, 64)
+	for k, v := range s.Tags {
+		if p.VideoBps == 0 && strings.HasPrefix(strings.ToUpper(k), "BPS") {
+			p.VideoBps, _ = strconv.ParseFloat(strings.TrimSpace(v), 64)
+		}
+	}
+	if p.VideoBps == 0 {
+		if f, err := strconv.ParseFloat(j.Format.BitRate, 64); err == nil {
+			p.VideoBps = f * 0.8
+		}
+	}
 	all := append([]map[string]any{}, s.SideData...)
 	if len(j.Frames) > 0 {
 		all = append(all, j.Frames[0].SideData...)
