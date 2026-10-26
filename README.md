@@ -65,7 +65,8 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
 - **Test 30 seconds** (under Video): encodes 30 seconds with the current settings, from a chosen time or 40% into
   the film, and saves it next to the result as "... (30 s test)". It runs on its own, even when files are waiting
   in the queue. A target file size becomes the bitrate it works out to for the whole film. The test starts on the
-  keyframe before the chosen time, so it can be a few seconds longer.
+  keyframe before the chosen time, so it can be a few seconds longer. The same seconds of the original are saved
+  next to it, unchanged, as "... (30 s original)", so the two short files can be compared directly.
 - **Decode on the GPU** (under Advanced): the graphics chip reads the source video, so the CPU only encodes.
   Speeds up x265, most with 4K sources. Before each file, Keep the Light test-decodes a few frames; if the GPU
   cannot decode it, that file is decoded on the CPU as before, and the log says which was used. Remembered.

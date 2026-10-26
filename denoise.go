@@ -145,6 +145,43 @@ func cutSample(r *runner, cfg *Config, start float64, dir string) (string, error
 	return name, nil
 }
 
+// originalClipName is where the unchanged 30 seconds of the original go:
+// "Film_KTL (30 s original).mkv" next to "Film_KTL (30 s test).mkv".
+func originalClipName(testOutput string, secs int) string {
+	ext := filepath.Ext(testOutput)
+	base := strings.TrimSuffix(testOutput, ext)
+	base = strings.TrimSuffix(base, ".partial")
+	if t := fmt.Sprintf(" (%d s test)", secs); strings.HasSuffix(base, t) {
+		return strings.TrimSuffix(base, t) + fmt.Sprintf(" (%d s original).mkv", secs)
+	}
+	return base + " (original clip).mkv"
+}
+
+// keepOriginalClip keeps the cut stretch of the original (it is copied, not
+// re-encoded) next to the test, so the two can be compared side by side.
+func keepOriginalClip(cfg *Config) {
+	if cfg.sample == "" {
+		return
+	}
+	dst := cfg.SampleOriginal
+	if dst == "" {
+		dst = originalClipName(cfg.Output, cfg.SampleSecs)
+	}
+	_ = os.Remove(dst) // the previous test's
+	if err := os.Rename(cfg.sample, dst); err != nil {
+		fmt.Println("WARNING: could not keep the original clip for comparing:", err)
+		return
+	}
+	_ = os.Chmod(dst, 0o644) // made as a private temporary file
+	for i, f := range cfg.cleanup {
+		if f == cfg.sample {
+			cfg.cleanup = append(cfg.cleanup[:i], cfg.cleanup[i+1:]...)
+			break
+		}
+	}
+	fmt.Println("Original clip for comparing (the same stretch, unchanged): " + dst)
+}
+
 func formatClock(s float64) string {
 	t := int(s)
 	return fmt.Sprintf("%d:%02d:%02d", t/3600, t/60%60, t%60)
@@ -204,6 +241,7 @@ func prepareSample(ctx context.Context, cfg *Config) error {
 		return err
 	}
 	cfg.cleanup = append(cfg.cleanup, sample)
+	cfg.sample = sample
 	cfg.Input = sample
 	return nil
 }

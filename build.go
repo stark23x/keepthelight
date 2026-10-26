@@ -13,6 +13,7 @@ type Config struct {
 	Denoise                                      string  // noise reduction: "" off, light, medium, strong, hq
 	SampleSecs                                   int     // >0: encode only a test of this many seconds
 	SampleStart                                  float64 // where the test starts (seconds; <0 = automatic)
+	SampleOriginal                               string  // where the same stretch of the original is kept, for comparing ("" = automatic)
 	Input, Output                                string
 	CRF                                          int
 	Preset, Codec, Bitrate                       string
@@ -40,6 +41,7 @@ type Config struct {
 	cuesFront                                    bool           // this ffmpeg can put an MKV's index at the front (set at start-up)
 	hqDenoise                                    *denoiseChoice // "high quality" noise reduction as chosen at start-up
 	cleanup                                      []string       // files to remove when the job ends (a test's sample)
+	sample                                       string         // a test's cut of the original
 	replaceFinal                                 string         // command line -replace-original: the name the result finally gets
 }
 

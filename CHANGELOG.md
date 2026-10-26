@@ -18,6 +18,14 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.13.1 - 2026-10-26
+
+- **Test 30 seconds also keeps the same 30 seconds of the original**, unchanged, as "... (30 s original)" next to
+  "... (30 s test)", so the two short files can be played one after the other or side by side. A new test replaces
+  both.
+- The Video section explains what the test does: only 30 seconds are converted, which two files it saves, and that
+  the whole film is converted only with Start.
+
 ## 1.13.0 - 2026-10-26
 
 - **Noise reduction** (Video section): Off, Light, Medium, Strong, or High quality.

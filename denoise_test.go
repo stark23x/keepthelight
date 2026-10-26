@@ -86,7 +86,19 @@ func TestTestRunsAlone(t *testing.T) {
 	}
 	waitFor(t, "the test", func() bool { g.mu.Lock(); defer g.mu.Unlock(); return !g.q.running })
 	s := statuses(g)
-	if s[0] != "film.mkv="+stDone || s[1] != "waiting.mkv="+stWaiting || !fileExists(filepath.Join(dir, "film_KTL (30 s test).mkv")) {
+	if s[0] != "film.mkv="+stDone || s[1] != "waiting.mkv="+stWaiting || !fileExists(filepath.Join(dir, "film_KTL (30 s test).mkv")) || len(s) != 2 {
 		t.Fatalf("%v", s)
+	}
+}
+
+func TestOriginalClipName(t *testing.T) {
+	for in, want := range map[string]string{
+		`D:\F\Film_KTL (30 s test).mkv`:         `D:\F\Film_KTL (30 s original).mkv`,
+		`D:\F\Film_KTL (30 s test).partial.mp4`: `D:\F\Film_KTL (30 s original).mkv`, // the window's unfinished name; the clip is always MKV
+		`/x/clip.mkv`:                           `/x/clip (original clip).mkv`,
+	} {
+		if got := originalClipName(in, 30); got != want {
+			t.Errorf("%s: %s", in, got)
+		}
 	}
 }

@@ -285,6 +285,7 @@ func (cfg *Config) cliArgs() []string {
 		if cfg.SampleStart >= 0 {
 			a = append(a, "-sample-start", strconv.FormatFloat(cfg.SampleStart, 'f', 0, 64))
 		}
+		a = append(a, "-sample-original", originalClipName(cfg.Output, cfg.SampleSecs))
 	}
 	if cfg.AudioBitrate != "" {
 		a = append(a, "-audio-bitrate", cfg.AudioBitrate)

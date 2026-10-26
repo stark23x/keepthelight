@@ -74,6 +74,8 @@ Choosing tracks (numbers as the window shows them: audio 1, 2, ...; subtitles 1,
                        on the GPU when it can, else slower on the CPU). Keeps 10-bit HDR intact.
   -sample <seconds>    encode only a test of this length (e.g. 30), to check the settings
   -sample-start <time> where the test starts, e.g. 1:02:30 (default: 40%% into the video)
+                       The same stretch of the original is kept next to the test, unchanged, for
+                       comparing ("... (original clip).mkv"; -sample-original <file> to choose)
   -hw-decode           decode the source on the GPU, so the CPU only encodes (falls back to
                        the CPU if the GPU cannot decode the file)
   -copy-video          do not re-encode video at all (keeps any HDR/DV exactly)
@@ -156,6 +158,7 @@ func parseArgs() (*Config, bool) {
 	fs.StringVar(&cfg.Scale, "scale", "", "")
 	fs.StringVar(&cfg.Denoise, "denoise", "", "")
 	fs.IntVar(&cfg.SampleSecs, "sample", 0, "")
+	fs.StringVar(&cfg.SampleOriginal, "sample-original", "", "")
 	sampleStartArg := fs.String("sample-start", "", "")
 	fs.StringVar(&cfg.Ffmpeg, "ffmpeg", "", "")
 	fs.StringVar(&cfg.Ffprobe, "ffprobe", "", "")
@@ -560,6 +563,7 @@ func transcode(ctx context.Context, cfg *Config) error {
 		}
 		cfg.Output = cfg.replaceFinal
 	}
+	keepOriginalClip(cfg)
 	fmt.Println("\nDone:", cfg.Output)
 	return nil
 }
