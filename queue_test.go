@@ -39,8 +39,9 @@ func fakeTools(t *testing.T) {
 		t.Fatal(err)
 	}
 	write("ffprobe", `for a in "$@"; do [ "$a" = "v:0" ] && exec cat "`+dir+`/probe.json"; done; echo '{"streams":[]}'`+"\n")
-	write("ffmpeg", `case "$*" in -version|--version) echo "fake 1.0"; exit 0;; *-encoders*) echo " V..... libx265 x"; exit 0;; *"-h full"*) echo "-fps_mode"; exit 0;; *"-h muxer"*) echo "cues_to_front"; exit 0;; esac
+	write("ffmpeg", `case "$*" in -version|--version) echo "fake 1.0"; exit 0;; *-encoders*) echo " V..... libx265 x"; exit 0;; *"-h full"*) echo "-fps_mode"; exit 0;; *"-h muxer"*) echo "cues_to_front"; exit 0;; *-filters*) echo " .. ssim  VV->V  x"; exit 0;; esac
 for a in "$@"; do last="$a"; case "$a" in *bad*) echo "Error: broken file" >&2; exit 1;; *slow*) slow=1;; esac; done
+[ "$last" = "-" ] && { echo "[Parsed_ssim] SSIM Y:0.99 All:0.990000 (20.0)" >&2; exit 0; } # measuring: nothing to write
 [ -n "$slow" ] && sleep 30
 echo "frame= 100 fps=50 q=28.0 size= 1kB time=00:00:30.00 bitrate=1k speed=1x" >&2
 echo done > "$last"
