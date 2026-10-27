@@ -18,6 +18,14 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.17.0 - 2026-10-27
+
+- **Look up metadata on TMDB.** The Metadata section can search The Movie Database for a film or a TV episode and
+  fill in the title, date, description and cover (poster) with one click; the fields stay editable for corrections.
+  The search is guessed from the file's name (or its folder's, for names like "movie.mkv"), including SxxEyy for
+  episodes. English, single files for now. Needs a free TMDB API key, entered under Advanced (with a Check button).
+  Posters are saved in `%LOCALAPPDATA%\Keep the Light\covers` and removed after 60 days.
+
 ## 1.16.0 - 2026-10-26
 
 - **Library scan: what's worth converting?** A new section reads every video in a folder (and its subfolders, if

@@ -784,6 +784,8 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		raw, _ := json.Marshal(b.Low)
 		_ = g.savePref("lowPriority", raw)
 		return okResult()
+	case "tmdbGuess", "tmdbSearch", "tmdbDetails", "tmdbTestKey":
+		return g.tmdbCall(ctx, name, body)
 	case "scanStart":
 		var b struct {
 			Dir, Tag  string

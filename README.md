@@ -190,6 +190,14 @@ subtitles and container from the target to get a video bitrate, then:
 - The **Metadata** section shows the file's title, year or date and description, the name, language and SDH /
   commentary flags of each kept track, the chapter names, and the cover image (MKV). Change what you like; only the
   changes are written, everything else is kept. It works with every mode.
+- **Look up on TMDB** (top of the Metadata section): searches The Movie Database for the film, or a TV show's
+  episode, and fills in the title, date, description and cover (the poster, or the season's poster for an episode).
+  The search starts from the file's name ("Dune.Part.Two.2024.2160p.REMUX.mkv" becomes "Dune Part Two", 2024;
+  "The.Bear.S02E03…" becomes The Bear, season 2, episode 3; "movie.mkv" in a "Heat (1995)" folder uses the folder);
+  correct it and search again if needed. Pick a result with **Use**; the fields stay editable, and nothing is written
+  until the job runs. English for now; for single files (and a queued file opened with Edit). Needs your own free
+  TMDB API key (or API read access token), entered once under Advanced: create a TMDB account, then Settings → API.
+  This product uses the TMDB API but is not endorsed or certified by TMDB.
 - **Metadata only** (under Video) copies every kept stream unchanged into a new file with the new metadata: no
   re-encoding, so the quality is identical, and it takes about as long as copying the file. Audio tracks can be kept
   or dropped but not converted. A new file is always written (FFmpeg cannot change a file in place), so Keep the
