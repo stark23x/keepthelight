@@ -6,7 +6,7 @@
 <title>Keep the Light</title>
 <style>
   :root {
-    --bg: #14161a; --panel: #1d2026; --panel2: #252932; --line: #333844; --text: #e6e8ec; --muted: #98a0ae;
+    --bg: #14161a; --panel: #1d2026; --panel2: #252932; --line: #333844; --text: #e6e8ec; --muted: #a7afbc;
     --accent: #5b9dff; --accent2: #3d7de0; --ok: #4cc38a; --warn: #f0b74a; --bad: #ff6b6b;
   }
   * { box-sizing: border-box; }
@@ -14,18 +14,20 @@
   .wrap { max-width: 940px; margin: 0 auto; padding: 20px 20px 40px; }
   header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
   header .logo { width: 40px; height: 40px; flex: none; margin: -6px 0; } /* does not make the header taller */
-  header .about { margin-left: auto; background: none; border: 0; padding: 2px 4px; color: var(--muted); font-size: 13px; }
+  header .hbtn { margin-left: auto; background: none; border: 1px solid transparent; padding: 4px 10px; color: var(--muted); font-size: 13px; }
+  header .hbtn:hover { color: var(--text); border-color: var(--line); }
+  header .about { background: none; border: 0; padding: 2px 4px; color: var(--muted); font-size: 13px; }
   header .about:hover { color: var(--text); text-decoration: underline; }
   h1 { font-size: 20px; margin: 0; font-weight: 600; }
   header span { color: var(--muted); font-size: 12px; }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
   .card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
   label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 4px; }
-  input[type=text], select {
+  input[type=text], input[type=password], select {
     width: 100%; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
     padding: 8px 10px; font: inherit; outline: none;
   }
-  input[type=text]:focus, select:focus { border-color: var(--accent); }
+  input[type=text]:focus, input[type=password]:focus, select:focus { border-color: var(--accent); }
   .row { display: flex; gap: 8px; align-items: flex-end; }
   .row > .grow { flex: 1; min-width: 0; }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
@@ -91,7 +93,7 @@
   .sum { color: var(--text); opacity: .75; font-size: 13px; text-transform: none; letter-spacing: 0; font-weight: 400;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .sum .warnmark { color: var(--warn); font-weight: 600; }
-  details.sect[open] .sum { display: none; }
+  details.sect[open] > summary .sum { display: none; }
 
   /* audio and subtitle tracks */
   .tracks:empty { display: none; }
@@ -171,6 +173,77 @@
   .after select { width: auto; padding: 6px 8px; }
   #powerNote { display: flex; align-items: center; gap: 10px; margin: 12px 0 0; }
 
+  /* tabs */
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 0 0 14px; }
+  .tabs .tab { background: none; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 8px 14px; color: var(--muted); font-weight: 600; }
+  .tabs .tab:hover { color: var(--text); border-color: transparent; border-bottom-color: var(--line); }
+  .tabs .tab.on { color: var(--text); border-bottom-color: var(--accent); }
+  .tbadge { display: inline-block; min-width: 18px; padding: 0 6px; margin-left: 4px; border-radius: 99px; background: var(--accent2); color: #fff;
+    font-size: 11.5px; line-height: 18px; text-align: center; }
+  .tbadge.pulse { animation: pulse .9s ease 2; }
+  @keyframes pulse { 50% { transform: scale(1.35); background: var(--accent); } }
+  .tabhead { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+  .tabhead h2 { margin: 0; }
+  .tabhead .sum { white-space: normal; }
+  /* the source, under the input */
+  .srcinfo { margin: -4px 0 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); }
+  .srcinfo .badges { margin-bottom: 4px; }
+  .srcinfo #notes .note:first-child { margin-top: 6px; }
+  /* settings heading with the profile */
+  .settitle { margin: 0 6px 0 0 !important; }
+  .profsel select { width: auto; min-width: 180px; }
+  /* short help, more on request */
+  details.help { display: inline; }
+  details.help > summary { display: inline; color: var(--accent); text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 12px; margin: 0; list-style: none; }
+  details.help > summary::-webkit-details-marker { display: none; }
+  details.help[open] > summary { margin: 0; }
+  details.help[open] { display: block; margin-top: 3px; }
+  details.pop { position: relative; display: inline-block; }
+  details.pop > summary { list-style: none; width: 22px; height: 22px; border-radius: 99px; border: 1px solid var(--line); text-align: center; line-height: 20px;
+    color: var(--muted); font-size: 12px; text-transform: none; letter-spacing: 0; margin: 0; }
+  details.pop > summary::-webkit-details-marker { display: none; }
+  details.pop[open] > summary { margin: 0; color: var(--text); border-color: var(--accent); }
+  .popin { position: absolute; right: 0; top: 28px; z-index: 20; width: min(380px, 80vw); background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 10px 12px; font-size: 12.5px; color: var(--muted); box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+  .popin b { color: var(--text); }
+  details.pop.up .popin { top: auto; bottom: 28px; left: 0; right: auto; }
+  /* the rules: what new files and the queue start from */
+  details.rulesbox { border: 1px solid var(--line); border-radius: 8px; background: #1a2230; margin-top: 4px; }
+  details.rulesbox > summary { list-style: none; display: flex; gap: 10px; align-items: center; padding: 9px 12px; text-transform: none;
+    letter-spacing: 0; font-size: 13px; margin: 0; }
+  details.rulesbox > summary::-webkit-details-marker { display: none; }
+  details.rulesbox > summary::before { content: ""; width: 6px; height: 6px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+    transform: rotate(-45deg); flex: none; }
+  details.rulesbox[open] > summary::before { transform: rotate(45deg); }
+  .rb-title { color: var(--text); font-weight: 600; flex: none; }
+  details.rulesbox[open] .sum { display: none; }
+  .rb-in { padding: 2px 12px 12px; }
+  .nrrow { margin-top: 14px; max-width: 360px; }
+  /* settings dialog */
+  dialog.setdlg { width: min(680px, 94vw); max-height: calc(100vh - 48px); padding: 18px 20px; }
+  dialog.setdlg .about-head h2 { font-size: 17px; } dialog.setdlg .about-head h2 .meta { font-weight: 400; }
+  .setbody { overflow-y: auto; }
+  .setbody a { color: var(--accent); }
+  details.menu > summary { width: auto; height: auto; border-radius: 6px; padding: 8px 12px; line-height: inherit; font-size: 14px; color: var(--text); background: var(--panel2); }
+  details.menu .popin { width: 190px; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+  details.menu .popin button { text-align: left; border-color: transparent; background: none; }
+  details.menu .popin button:hover:not(:disabled) { background: var(--panel2); }
+  .linkbtn { background: none; border: 0; color: var(--accent); padding: 4px 6px; }
+  .linkbtn:hover:not(:disabled) { text-decoration: underline; }
+  /* the dock: Start and progress, always in view */
+  .dock { position: sticky; bottom: 0; z-index: 10; background: var(--panel); border: 1px solid var(--line); border-radius: 10px 10px 0 0;
+    padding: 12px 16px; box-shadow: 0 -8px 24px rgba(0,0,0,.45); margin-top: 6px; }
+  .dock .actions { gap: 8px; }
+  .testgrp { display: inline-flex; gap: 6px; align-items: center; }
+  .testgrp input { width: 110px; padding: 7px 8px; }
+  .dock pre#log { max-height: 28vh; }
+  @media (min-width: 1400px) {
+    .wrap { max-width: 1460px; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 16px; align-items: start; }
+    .dock { position: sticky; top: 16px; bottom: auto; border-radius: 10px; box-shadow: none; margin-top: 0; }
+    .dock pre#log { max-height: calc(100vh - 330px); }
+  }
+
   /* About */
   dialog#about { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 0;
     width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 48px); box-shadow: 0 18px 50px rgba(0,0,0,.55); }
@@ -196,20 +269,34 @@
 </head>
 <body>
 <div class="wrap">
-  <header><img class="logo" src="__ICON__" alt=""><h1>Keep the Light</h1><span>HDR10 · HLG · HDR10+ · Dolby Vision &nbsp;|&nbsp; v__VERSION__</span>
+  <header><img class="logo" src="__ICON__" alt=""><h1>Keep the Light</h1><span class="hsub">HDR10 · HLG · HDR10+ · Dolby Vision &nbsp;|&nbsp; v__VERSION__</span>
+    <button class="hbtn" id="settingsBtn" title="Settings for this PC">⚙ Settings</button>
     <button class="about" id="aboutBtn">About</button></header>
+  <nav class="tabs" role="tablist">
+    <button role="tab" class="tab on" data-tab="convert" aria-selected="true">Convert</button>
+    <button role="tab" class="tab" data-tab="queue" aria-selected="false">Queue <span class="tbadge hidden" id="qBadge"></span></button>
+    <button role="tab" class="tab" data-tab="scan" aria-selected="false">Library scan</button>
+  </nav>
 
-  <div id="editBanner" class="note info editbar hidden"><span>Changing queued file <b id="editName"></b>. The changes apply to this file only;
+<div id="editBanner" class="note info editbar hidden"><span>Changing queued file <b id="editName"></b>. The changes apply to this file only;
     it waits in the queue until they are saved.</span><span class="grow"></span><button id="editSave" class="primary" style="padding:7px 16px">Save changes to the queue</button><button id="editCancel">Cancel</button></div>
   <div id="toolsNote" class="note bad tools hidden"></div>
   <div id="tmpNote" class="note warn hidden" style="margin:0 0 14px"></div>
   <div id="dropNote" class="note info hidden">Dropping a file on the window can't tell Keep the Light where the file is. Use Browse, paste the path, or drop the video onto Keep the Light.exe itself.</div>
 
-  <details class="card sect" id="secFiles" data-key="files" open>
+    <div class="layout">
+    <main>
+      <section class="tabpane" id="tabConvert">
+<details class="card sect" id="secFiles" data-key="files" open>
     <summary><h2 class="sect-title">Files</h2><span class="sum" id="sumFiles"></span></summary>
     <div class="row" style="margin-bottom:12px">
       <div class="grow"><label for="input">Input video</label><input type="text" id="input" spellcheck="false" placeholder="Choose a file or paste its path"></div>
       <button id="browseIn">Browse…</button>
+    </div>
+    <div id="infoCard" class="srcinfo hidden">
+      <div class="badges" id="badges"></div>
+      <div class="meta" id="meta"></div>
+      <div id="notes"></div>
     </div>
     <div class="row">
       <div class="grow"><label for="output">Output file</label><input type="text" id="output" spellcheck="false" placeholder="Where to save the result"></div>
@@ -226,75 +313,31 @@
         <div class="row" style="gap:6px"><div class="grow"><input type="text" id="nameTag" spellcheck="false" value="_KTL" placeholder="nothing"></div>
           <button id="tagReset" class="hidden" title="Use the profile's ending again">↺</button></div></div>
     </div>
-    <div class="hint" style="margin-top:6px">Used for this file and for the queue, and remembered. Choosing another place with Save as… changes the folder too.
-      With nothing added to the name, save in another folder or as MP4: a file cannot replace its original.</div>
+    <div class="hint" style="margin-top:6px">Used for this file and the queue, and remembered.
+      <details class="help"><summary>More</summary>Choosing another place with Save as… changes the folder too; saving next to the original sets it back.
+      With nothing added to the name, save in another folder or as MP4: a file cannot replace its original.</details></div>
     <div id="qOutNote" class="note warn hidden" style="margin:10px 0 0"></div>
     <label class="check hidden" id="replaceWrap" style="margin-top:12px"><input type="checkbox" id="replaceOrig"> <span><b>Replace the original when finished</b> –
       the new file takes the original's name and place, and the original goes to the Recycle Bin (on drives without one, such as network drives,
       it is renamed "… (original)" instead of being deleted). The new file is checked before anything happens to the original.</span></label>
   </details>
 
-  <details class="card sect" id="secQueue" data-key="queue">
-    <summary><h2 class="sect-title">Queue</h2><span class="sum" id="sumQueue"></span></summary>
-    <div class="hint" id="queueHint" style="margin:0 0 10px">Add several files to transcode them one after another. Each file keeps the settings that were set when it was added.</div>
-    <div id="queueList"></div>
-    <div class="actions" style="margin-top:6px">
-      <button id="qAddFiles">Add files…</button>
-      <button id="qAddFolder">Add folder…</button>
-      <button id="qApply" class="hidden" title="Give every file that has not started the settings shown below">Use current settings for waiting files</button>
-      <select id="qProfile" class="hidden" style="width:auto" title="Give every file that has not started the settings of a profile"><option value="">Apply a profile to waiting files…</option></select>
-      <button id="qClear" class="hidden">Clear finished</button>
-    </div>
-  </details>
-
-  <details class="card sect" id="secScan" data-key="scan">
-    <summary><h2 class="sect-title">Library scan</h2><span class="sum" id="sumScan"></span></summary>
-    <div class="hint" style="margin:0 0 10px">What's worth converting? Reads every video in a folder (only the file information; nothing is changed),
-      estimates how much space converting each one to HEVC would save, and points out files that are likely to make Plex convert them while you watch.</div>
-    <div class="row" style="flex-wrap:wrap">
-      <div class="grow"><label for="scanDir">Folder</label><input type="text" id="scanDir" spellcheck="false" placeholder="for example \\PlexRaid01\Movies"></div>
-      <button id="scanBrowse">Browse…</button>
-      <button id="scanGo" class="primary">Scan</button>
-      <button id="scanStop" class="hidden">Stop</button>
-    </div>
-    <label class="check" style="margin-top:10px"><input type="checkbox" id="scanSub" checked> <span>Include subfolders</span></label>
-    <div id="scanProg" class="hint hidden" style="margin-top:10px"></div>
-    <div id="scanResult" class="hidden">
-      <div id="scanSumLine" class="note info" style="margin:12px 0 10px"></div>
-      <div class="row" style="flex-wrap:wrap; gap:8px; margin-bottom:8px">
-        <div><label for="scanShow">Show</label>
-          <select id="scanShow"><option value="all">all files</option><option value="worth">worth converting</option><option value="trouble">Plex trouble spots</option></select></div>
-        <div style="align-self:flex-end" class="row"><button id="scanSelWorth">Select worth converting</button><button id="scanSelNone">Select none</button></div>
-      </div>
-      <div id="scanList"></div>
-      <div class="hint" style="margin-top:6px">Estimates assume x265 at very good quality (constant quality around 18–20); grain and dark films come out bigger.
-        A 30-second test shows the real result for one file. "Worth converting" means at least 300 MB and a quarter of the file saved.</div>
-      <div class="actions" style="margin-top:10px">
-        <div><label for="scanWith">Settings for the queue</label><select id="scanWith" style="width:auto"></select></div>
-        <button id="scanAdd" class="primary" disabled style="align-self:flex-end">Add selected to queue</button>
-      </div>
-    </div>
-  </details>
-
-  <details class="card sect hidden" id="infoCard" data-key="source" open>
-    <summary><h2 class="sect-title">Source</h2><span class="sum" id="sumSource"></span></summary>
-    <div class="badges" id="badges"></div>
-    <div class="meta" id="meta"></div>
-    <div id="notes"></div>
-  </details>
-
   <div class="card prof" id="profCard">
-    <div class="row" style="align-items:flex-end; flex-wrap:wrap; gap:8px">
-      <div style="min-width:220px" class="grow"><label for="profile">Profile</label>
-        <div class="row" style="align-items:center"><select id="profile"><option value="">— none —</option></select><span id="profState" class="profstate"></span></div></div>
-      <button id="profSave">Save as new…</button><button id="profUpdate" disabled>Update</button><button id="profRename" disabled>Rename…</button>
-      <button id="profDelete" disabled>Delete</button><button id="profExport">Export…</button><button id="profImport">Import…</button>
+    <div class="row" style="align-items:center; flex-wrap:wrap; gap:8px">
+      <h2 class="settitle">Settings</h2>
+      <div class="row profsel" style="align-items:center"><label for="profile" style="margin:0">Profile</label>
+        <select id="profile"><option value="">— none —</option></select><span id="profState" class="profstate"></span></div>
+      <span class="grow"></span>
+      <button id="profSave">Save as new…</button><button id="profUpdate" disabled>Update</button>
+      <details class="pop menu"><summary>More ▾</summary><div class="popin"><button id="profRename" disabled>Rename…</button>
+        <button id="profDelete" disabled>Delete</button><button id="profExport">Export…</button><button id="profImport">Import…</button></div></details>
+      <details class="pop"><summary title="About profiles">?</summary><div class="popin">A profile keeps the Video settings, the Audio and Subtitles
+        rules and the Advanced overrides, and can name the converted files after itself. Not included: the files and folders, one file's own track
+        choices and metadata, PC settings, and "Replace the original".</div></details>
     </div>
-    <div class="hint" style="margin-top:6px">A profile keeps the Video settings, the Audio and Subtitles rules and the Advanced overrides, and can name the
-      converted files after itself. Not included: the files and folders, one file's own track choices and metadata, PC settings, and "Replace the original".</div>
   </div>
 
-  <details class="card sect" id="secVideo" data-key="video" open>
+<details class="card sect" id="secVideo" data-key="video" open>
     <summary><h2 class="sect-title">Video</h2><span class="sum" id="sumVideo"></span></summary>
     <div class="seg" style="margin-bottom:12px" id="modeSeg">
       <label><input type="radio" name="mode" value="encode" checked><span>Re-encode (keep HDR)</span></label>
@@ -315,10 +358,6 @@
           <select id="scale"><option value="">Keep original</option><option value="2160p">4K (2160p)</option><option value="1440p">1440p</option>
             <option value="1080p">1080p</option><option value="720p">720p</option></select>
           <div class="hint" id="scaleHint">Smaller = much faster encode and smaller file. HDR10, HDR10+ and Dolby Vision are kept.</div></div>
-        <div><label for="denoise">Noise reduction</label>
-          <select id="denoise"><option value="">Off</option><option value="light">Light</option><option value="medium">Medium</option>
-            <option value="strong">Strong</option><option value="hq">High quality (slower)</option></select>
-          <div class="hint" id="denoiseHint">Cleans up noise and compression fizz; also makes files smaller. Light keeps film grain recognisable.</div></div>
         <div id="dvWrap" class="hidden"><label for="dv">Dolby Vision</label>
           <select id="dv"><option value="auto">Keep Dolby Vision</option><option value="drop">Drop (plain HDR10)</option></select></div>
       </div>
@@ -351,24 +390,18 @@
         </div>
       </div>
       <div id="qualGuide" class="qguide hidden"></div>
-      <div class="testrow">
-        <button id="testBtn" title="Encode 30 seconds with these settings, to check the picture, the size and the speed">Test 30 seconds</button>
-        <label for="testStart" style="margin:0">starting at</label>
-        <input type="text" id="testStart" spellcheck="false" placeholder="auto (40% in)" style="width:130px" title="For example 1:02:30">
-      </div>
-      <div class="hint" style="margin-top:8px">Try your settings before converting the whole film: <b>Test 30 seconds</b> converts only 30 seconds
-        (from the time you choose, or 40% into the film) and saves two short files where the result would go:
-        <b>"… (30 s test)"</b>, those seconds converted with these settings, and <b>"… (30 s original)"</b>, the same seconds from the original,
-        unchanged. Play them one after the other, or side by side, to compare the picture, the sound and the size. Change a setting and test
-        again (the clips are replaced), and press Start when you are happy. The test clips are not needed after that.</div>
+      <div class="nrrow"><label for="denoise">Noise reduction</label>
+          <select id="denoise"><option value="">Off</option><option value="light">Light</option><option value="medium">Medium</option>
+            <option value="strong">Strong</option><option value="hq">High quality (slower)</option></select>
+          <div class="hint" id="denoiseHint">Cleans up noise and compression fizz; also makes files smaller. Light keeps film grain recognisable.</div></div>
     </div>
   </details>
 
-  <details class="card sect" id="secAudio" data-key="audio" open>
+<details class="card sect" id="secAudio" data-key="audio" open>
     <summary><h2 class="sect-title">Audio</h2><span class="sum" id="sumAudio"></span></summary>
     <div id="audioList" class="tracks"></div>
-    <div class="rules">
-      <div class="rules-title">Rules <span>– the starting choice for each file, and what the queue uses (remembered)</span></div>
+    <details class="rulesbox" data-key="audioRules"><summary><span class="rb-title">For new files and the queue</span><span class="sum" id="sumARules"></span></summary>
+    <div class="rb-in">
       <div class="grid">
         <div><label for="audioLang">Languages to keep</label><input type="text" id="audioLang" spellcheck="false" placeholder="all, or for example eng, jpn"></div>
         <div><label for="audio">Kept tracks</label>
@@ -382,33 +415,32 @@
         <div><label for="abitrate">Bitrate for converted tracks</label><input type="text" id="abitrate" spellcheck="false" placeholder="automatic (by format and channels)"></div>
       </div>
       <label class="check" style="margin-top:10px"><input type="checkbox" id="dropComm"> <span>Leave out commentary tracks</span></label>
-      <label class="check" style="margin-top:6px"><input type="checkbox" id="addCompat"> <span><b>Add a compatible audio track when needed</b> – if no kept track
-        is AC-3, E-AC-3 or AAC (only TrueHD or DTS, say), an E-AC-3 copy of the main track is added for TVs and streamers that cannot play the
-        original, so Plex does not have to convert the sound. The original track stays.</span></label>
+      <label class="check" style="margin-top:6px"><input type="checkbox" id="addCompat"> <span><b>Add a compatible audio track when needed</b> – an E-AC-3 copy of the
+        main track when there is only TrueHD, DTS or FLAC, so Plex does not have to convert the sound. The original stays.</span></label>
       <div class="hint">Tracks with no language set are kept. If no track matches, the file's default track is kept, so nothing ends up silent.</div>
-    </div>
+    </div></details>
   </details>
 
-  <details class="card sect" id="secSubs" data-key="subtitles" open>
+<details class="card sect" id="secSubs" data-key="subtitles" open>
     <summary><h2 class="sect-title">Subtitles</h2><span class="sum" id="sumSubs"></span></summary>
     <div id="subList" class="tracks"></div>
-    <div class="rules">
-      <div class="rules-title">Rules <span>– the starting choice for each file, and what the queue uses (remembered)</span></div>
+    <details class="rulesbox" data-key="subRules"><summary><span class="rb-title">For new files and the queue</span><span class="sum" id="sumSRules"></span></summary>
+    <div class="rb-in">
       <div class="grid">
         <div><label for="subLang">Languages to keep</label><input type="text" id="subLang" spellcheck="false" placeholder="all, or for example eng"></div>
         <div><label for="subMode">Keep</label>
           <select id="subMode"><option value="">all subtitles in those languages</option><option value="forced">only forced subtitles</option><option value="none">no subtitles</option></select></div>
       </div>
-    </div>
+    </div></details>
   </details>
 
-  <details class="card sect" id="secMeta" data-key="metadata">
+<details class="card sect" id="secMeta" data-key="metadata">
     <summary><h2 class="sect-title">Metadata</h2><span class="sum" id="sumMeta"></span></summary>
     <div id="metaNoFile" class="hint">Choose a file to see and change its metadata.</div>
     <div id="metaBody" class="hidden">
       <div class="tmdb">
         <div class="rules-title">Look up on TMDB <span>– fills in the title, date, description and cover below; check and correct them before starting</span></div>
-        <div id="tNoKey" class="note info hidden" style="margin:0 0 10px">To look up films and shows, add your free TMDB API key under Advanced.</div>
+        <div id="tNoKey" class="note info hidden" style="margin:0 0 10px">To look up films and shows, add your free TMDB API key in Settings (⚙ at the top).</div>
         <div class="row" style="flex-wrap:wrap; align-items:flex-end">
           <div><label for="tKind">Type</label><select id="tKind" style="width:auto"><option value="movie">Film</option><option value="tv">TV episode</option></select></div>
           <div class="grow" style="min-width:180px"><label for="tQuery">Search for</label><input type="text" id="tQuery" spellcheck="false" placeholder="title"></div>
@@ -447,18 +479,103 @@
       <div class="grid">
         <div><label for="master">Master-display override</label><input type="text" id="master" spellcheck="false" placeholder="auto (from the source)"></div>
         <div><label for="cll">MaxCLL,MaxFALL override</label><input type="text" id="cll" spellcheck="false" placeholder="auto, e.g. 1000,400"></div>
-        <div><label for="tmp">Temp folder (Dolby Vision / HDR10+)</label>
-          <div class="row"><div class="grow"><input type="text" id="tmp" spellcheck="false" placeholder="next to the output file"></div><button id="browseTmp">…</button></div></div>
       </div>
-      <label class="check" style="margin-top:14px"><input type="checkbox" id="lowPrio"> <span><b>Low priority</b> – other programs come first, so the PC
-        stays responsive while encoding. It still runs at full speed when the PC is otherwise idle. Takes effect immediately, also on a running transcode.</span></label>
-      <label class="check" style="margin-top:10px"><input type="checkbox" id="hwDec"> <span><b>Decode on the GPU</b> – the graphics chip (on a PC without
-        a graphics card, the processor's built-in graphics) reads the source video, so the CPU only encodes. Speeds up x265, most with 4K sources. If the GPU
-        cannot decode a file, it is decoded on the CPU as before; the log says which. Used from the next file that starts.</span></label>
-      <label class="check" style="margin-top:10px"><input type="checkbox" id="workLocal"> <span><b>Work locally with network files</b> – a source or result
-        on a network drive (your RAID shares, say) is copied to this PC first, converted here, and the result copied back. The network is used once
-        each way instead of throughout a long conversion, and a network hiccup cannot break it halfway. Uses the temp folder above if it is on this
-        PC, otherwise Windows' temp folder; needs free space for the source and the result. Not used for tests or metadata-only jobs.</span></label>
+      <div class="hint">Only needed when the source's HDR10 information is missing or wrong. PC settings (temp folder, priority, GPU decoding,
+        working locally, TMDB, sounds) are under ⚙ Settings at the top.</div>
+  </details>
+      </section>
+      <section class="tabpane hidden" id="tabQueue">
+<div class="card" id="secQueue">
+    <div class="tabhead"><h2>Queue</h2><span class="sum" id="sumQueue"></span></div>
+    <div class="hint" id="queueHint" style="margin:0 0 10px">Add several files to transcode them one after another. Each file keeps the settings that were set when it was added.</div>
+    <div id="queueList"></div>
+    <div class="actions" style="margin-top:6px">
+      <button id="qAddFiles">Add files…</button>
+      <button id="qAddFolder">Add folder…</button>
+      <button id="qApply" class="hidden" title="Give every file that has not started the settings shown below">Use current settings for waiting files</button>
+      <select id="qProfile" class="hidden" style="width:auto" title="Give every file that has not started the settings of a profile"><option value="">Apply a profile to waiting files…</option></select>
+      <button id="qClear" class="hidden">Clear finished</button>
+    </div>
+  </div>
+      </section>
+      <section class="tabpane hidden" id="tabScan">
+<div class="card" id="secScan">
+    <div class="tabhead"><h2>Library scan</h2><span class="sum" id="sumScan"></span></div>
+    <div class="hint" style="margin:0 0 10px">What's worth converting? Reads every video in a folder; nothing is changed.
+      <details class="help"><summary>More</summary>Only the file information is read. For each file it estimates how much space converting to HEVC would
+      save, and points out things likely to make Plex convert the file while you watch (audio, Dolby Vision profile 7, forced picture subtitles…).</details></div>
+    <div class="row" style="flex-wrap:wrap">
+      <div class="grow"><label for="scanDir">Folder</label><input type="text" id="scanDir" spellcheck="false" placeholder="for example \\PlexRaid01\Movies"></div>
+      <button id="scanBrowse">Browse…</button>
+      <button id="scanGo" class="primary">Scan</button>
+      <button id="scanStop" class="hidden">Stop</button>
+    </div>
+    <label class="check" style="margin-top:10px"><input type="checkbox" id="scanSub" checked> <span>Include subfolders</span></label>
+    <div id="scanProg" class="hint hidden" style="margin-top:10px"></div>
+    <div id="scanResult" class="hidden">
+      <div id="scanSumLine" class="note info" style="margin:12px 0 10px"></div>
+      <div class="row" style="flex-wrap:wrap; gap:8px; margin-bottom:8px">
+        <div><label for="scanShow">Show</label>
+          <select id="scanShow"><option value="all">all files</option><option value="worth">worth converting</option><option value="trouble">Plex trouble spots</option></select></div>
+        <div style="align-self:flex-end" class="row"><button id="scanSelWorth">Select worth converting</button><button id="scanSelNone">Select none</button></div>
+      </div>
+      <div id="scanList"></div>
+      <div class="hint" style="margin-top:6px">Estimates assume x265 at very good quality (constant quality around 18–20); grain and dark films come out bigger.
+        A 30-second test shows the real result for one file. "Worth converting" means at least 300 MB and a quarter of the file saved.</div>
+      <div class="actions" style="margin-top:10px">
+        <div><label for="scanWith">Settings for the queue</label><select id="scanWith" style="width:auto"></select></div>
+        <button id="scanAdd" class="primary" disabled style="align-self:flex-end">Add selected to queue</button>
+      </div>
+    </div>
+  </div>
+      </section>
+    </main>
+    <aside id="dock" class="dock">
+      <div class="actions">
+        <button class="primary" id="start" disabled>Start transcode</button>
+        <button id="addQueue" disabled>Add to queue</button>
+        <span class="testgrp" id="testGrp"><button id="testBtn" title="Encode 30 seconds with these settings, to check the picture, the size and the speed">Test 30 s</button>
+          <input type="text" id="testStart" spellcheck="false" placeholder="from: auto" title="Where the test starts, for example 1:02:30 (empty: 40% into the film)">
+          <details class="pop up"><summary title="About the test">?</summary><div class="popin"><b>Test 30 s</b> converts only 30 seconds (from the time
+            you choose, or 40% into the film) and saves two short files where the result would go: <b>"… (30 s test)"</b>, converted with these settings,
+            and <b>"… (30 s original)"</b>, the same seconds unchanged. Compare them, change a setting and test again (the clips are replaced), and press
+            Start when you are happy. The test is scored (VMAF or SSIM) in the log.</div></details></span>
+        <button class="danger hidden" id="cancel">Cancel</button>
+        <button class="hidden" id="stopQueue" title="Cancel this file and do not start the rest">Stop queue</button>
+        <button id="reveal" class="hidden">Show in folder</button>
+        <button id="again" class="hidden">New job</button>
+        <button id="queueLink" class="linkbtn hidden"></button>
+        <span class="meta" id="planLine"></span>
+        <span class="after hidden" id="afterWrap"><label for="after">When finished</label>
+          <select id="after"><option value="">Do nothing</option><option value="sleep">Sleep</option><option value="shutdown">Shut down</option></select></span>
+      </div>
+      <div id="powerNote" class="note warn hidden"><span id="powerText"></span><button id="powerCancel">Cancel</button></div>
+      <div id="jobBox" class="hidden" style="margin-top:10px">
+        <div class="stage"><span id="stage">Starting</span><span id="pct"></span></div>
+        <div class="bar" id="bar"><div></div></div>
+        <div class="prog" id="prog"></div>
+        <details id="logBox" style="margin-top:8px"><summary>Log</summary><pre id="log"></pre></details>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<dialog id="setDlg" class="kdlg setdlg" aria-labelledby="setTitle">
+  <div class="about-head"><h2 id="setTitle">Settings <span class="meta">– for this PC, remembered</span></h2>
+    <button class="x" id="setClose" aria-label="Close">×</button></div>
+  <div class="setbody">
+    <div class="rules-title">While converting</div>
+    <div class="grid" style="grid-template-columns:1fr">
+      <div><label for="tmp">Temp folder (Dolby Vision, HDR10+ and working locally)</label>
+          <div class="row"><div class="grow"><input type="text" id="tmp" spellcheck="false" placeholder="next to the output file"></div><button id="browseTmp">…</button></div></div>
+    </div>
+      <label class="check" style="margin-top:12px"><input type="checkbox" id="lowPrio"> <span><b>Low priority</b> – other programs come first, so the PC
+        stays responsive; still full speed when the PC is idle. Takes effect at once.</span></label>
+      <label class="check" style="margin-top:10px"><input type="checkbox" id="hwDec"> <span><b>Decode on the GPU</b> – the graphics chip reads the
+        source, so the CPU only encodes. Speeds up x265, most with 4K. Files the GPU cannot decode use the CPU as before.</span></label>
+      <label class="check" style="margin-top:10px"><input type="checkbox" id="workLocal"> <span><b>Work locally with network files</b> – network files (your RAID shares)
+        are copied to this PC, converted here, and the result copied back, so a network hiccup cannot break a long conversion. Uses the temp folder
+        above if it is on this PC, otherwise Windows' temp folder. Not used for tests or metadata-only jobs.</span></label>
       <div class="rules-title" style="margin-top:16px">TMDB (film and TV information for Metadata) <span>– remembered on this PC</span></div>
       <div class="row" style="align-items:flex-end">
         <div class="grow"><label for="tmdbKey">TMDB API key or API read access token</label><input type="password" id="tmdbKey" spellcheck="false" autocomplete="off" placeholder="not set"></div>
@@ -477,30 +594,11 @@
       <label class="check" style="margin-top:10px"><input type="checkbox" id="flashTask" checked> <span>Also flash the taskbar button until the window is used
         (works with sounds muted, too)</span></label>
       <div class="hint">For a queue, the sound plays once, after the last file. Windows sounds follow your Windows sound scheme and volume.</div>
-  </details>
-
-
-  <div class="card">
-    <div class="actions">
-      <button class="primary" id="start" disabled>Start transcode</button>
-      <button id="addQueue" disabled>Add to queue</button>
-      <button class="danger hidden" id="cancel">Cancel</button>
-      <button class="hidden" id="stopQueue" title="Cancel this file and do not start the rest">Stop queue</button>
-      <button id="reveal" class="hidden">Show in folder</button>
-      <button id="again" class="hidden">New job</button>
-      <span class="meta" id="planLine"></span>
-      <span class="after hidden" id="afterWrap"><label for="after">When finished</label>
-        <select id="after"><option value="">Do nothing</option><option value="sleep">Sleep</option><option value="shutdown">Shut down</option></select></span>
-    </div>
-    <div id="powerNote" class="note warn hidden"><span id="powerText"></span><button id="powerCancel">Cancel</button></div>
-    <div id="jobBox" class="hidden" style="margin-top:14px">
-      <div class="stage"><span id="stage">Starting</span><span id="pct"></span></div>
-      <div class="bar" id="bar"><div></div></div>
-      <div class="prog" id="prog"></div>
-      <details style="margin-top:10px"><summary>Log</summary><pre id="log"></pre></details>
-    </div>
+    <div class="rules-title" style="margin-top:16px">Notices</div>
+    <div class="row" style="align-items:center"><span class="hint grow" id="toolsHiddenText">The tools notice at the top is shown when a tool is missing.</span>
+      <button id="toolsUnhide" class="hidden">Show the tools notice again</button></div>
   </div>
-</div>
+</dialog>
 
 <dialog id="profDlg" class="kdlg" aria-labelledby="profDlgTitle">
   <h3 id="profDlgTitle">Save profile</h3>
@@ -755,21 +853,20 @@ function renderTracks() {
   if (!info.audioTracks.length) al.append(el('div', 'hint', 'This file has no audio tracks.'));
 
   if (info.subTracks.length) {
-    // "Keep all": ticked when every track that can be kept is kept, a dash when only some are
+    // "Set all tracks to": keep or drop every subtitle track at once (as for audio)
     const keepable = info.subTracks.filter(x => !(mp4 && !x.mp4ok));
-    const nKept = keepable.filter(x => t.subs.some(k => k.n === x.n)).length;
-    const head = el('div', 'thead');
-    const all = checkLabel(keepable.length > 0 && nKept === keepable.length, 'Keep all', e => {
-      if (e.target.checked) {
+    const head = el('div', 'thead'), all = el('select', 'tall');
+    [['', 'Set all tracks to…'], ['keep', 'Keep all'], ['drop', 'Drop all']].forEach(([v, text]) => { const o = el('option', '', text); o.value = v; all.append(o); });
+    if (!keepable.length) all.options[1].disabled = true;
+    all.onchange = () => {
+      const v = all.value; all.value = '';
+      if (v === 'keep') {
         t.subs = keepable.map(x => ({ n: x.n, forced: x.forced })); // each with the forced flag it has in the file
         if (t.subDefault > 0 && !t.subs.some(k => k.n === t.subDefault)) t.subDefault = -1;
-      } else { t.subs = []; t.subDefault = -1; }
+      } else if (v === 'drop') { t.subs = []; t.subDefault = -1; }
+      else return;
       tracksChanged();
-    });
-    const box = all.querySelector('input');
-    box.indeterminate = nKept > 0 && nKept < keepable.length;
-    box.disabled = !keepable.length;
-    all.title = 'Keep or drop every subtitle track at once';
+    };
     head.append(all, el('span', 'hint', 'tracks in this file'));
     sl.append(head);
     info.subTracks.forEach(src => {
@@ -1194,7 +1291,7 @@ async function startEdit(it) {
   const st = typeof r.settings === 'string' ? JSON.parse(r.settings) : r.settings;
   loadForm(st);
   tracks = null; metaState = null; pendingLoad = st;
-  $('editName').textContent = it.name; $('editBanner').classList.remove('hidden');
+  $('editName').textContent = it.name; $('editBanner').classList.remove('hidden'); showTab('convert'); window.scrollTo(0, 0);
   $('input').readOnly = true; $('browseIn').disabled = true;
   $('secFiles').open = true; window.scrollTo(0, 0);
   updateVisibility(); updateStart(); probe();
@@ -1290,7 +1387,9 @@ $('flashTask').addEventListener('change', () => { soundPrefs.flash = $('flashTas
 // A closed section shows a one-line summary of its settings in its header.
 function updateSummaries() {
   const inp = $('input').value.trim(), out = $('output').value.trim();
-  $('sumFiles').textContent = inp ? baseName(inp) + (out ? '  →  ' + baseName(out) : '') : 'no file chosen';
+  const sf = $('sumFiles');
+  sf.textContent = inp ? baseName(inp) + (srcSummary ? '  (' + srcSummary + ')' : '') + (out ? '  →  ' + baseName(out) : '') : 'no file chosen';
+  if (inp && srcWarn) { const m = el('span', 'warnmark', '  ·  ⚠ ' + srcWarn + (srcWarn === 1 ? ' warning' : ' warnings')); sf.append(m); }
   let v;
   if (radio('mode') === 'copy') v = 'Copy video untouched';
   else if (radio('mode') === 'meta') v = 'Metadata only (everything copied unchanged)' + (replacing() ? '  ·  replaces the original' : '');
@@ -1310,15 +1409,18 @@ function updateSummaries() {
   const nm = metaChangeCount();
   $('sumMeta').textContent = !metaFor() ? '' : nm ? nm + (nm === 1 ? ' change' : ' changes') : 'no changes';
   $('sumSubs').textContent = subSummary();
-  const adv = [$('master').value.trim() && 'master display', $('cll').value.trim() && 'MaxCLL/FALL', $('tmp').value.trim() && 'temp folder',
-    $('lowPrio').checked && 'low priority', $('hwDec').checked && 'GPU decoding', $('workLocal').checked && 'work locally',
-    (soundPrefs.done !== SOUND_DEFAULTS.done || soundPrefs.fail !== SOUND_DEFAULTS.fail || soundPrefs.flash === false) && 'sounds'].filter(Boolean);
-  $('sumAdv').textContent = adv.length ? 'custom: ' + adv.join(', ') : 'defaults';
+  const adv = [$('master').value.trim() && 'master display', $('cll').value.trim() && 'MaxCLL/FALL'].filter(Boolean);
+  $('sumAdv').textContent = adv.length ? 'override: ' + adv.join(', ') : 'none';
+  const opt = s => s.options[s.selectedIndex].text;
+  $('sumARules').textContent = [$('audioLang').value.trim() || 'all languages', opt($('audio')).replace(' (no re-encode)', '').toLowerCase(),
+    $('audio').value !== 'copy' && $('audioCh').value && opt($('audioCh')).replace(/ \(.*\)/, ''), $('dropComm').checked && 'no commentary',
+    $('addCompat').checked && '+ compatible track'].filter(Boolean).join('  ·  ');
+  $('sumSRules').textContent = [$('subLang').value.trim() || 'all languages', opt($('subMode'))].join('  ·  ');
 }
 
 // Which sections are open is remembered between runs. Only the user's own
 // clicks are saved; sections opened automatically (a problem with the file) are not.
-const sections = Array.from(document.querySelectorAll('details.sect'));
+const sections = Array.from(document.querySelectorAll('details.sect, details.rulesbox'));
 function saveSections() {
   const state = {};
   sections.forEach(d => { state[d.dataset.key] = d.open; });
@@ -1331,6 +1433,7 @@ async function restorePrefs() {
   if (!r || !r.ok || !r.prefs) return;
   const state = r.prefs.sections;
   if (state) sections.forEach(d => { if (typeof state[d.dataset.key] === 'boolean') d.open = state[d.dataset.key]; });
+  if (typeof r.prefs.toolsHidden === 'string') toolsHidden = r.prefs.toolsHidden;
   if (typeof r.prefs.tmdbKey === 'string') $('tmdbKey').value = r.prefs.tmdbKey;
   tmdbKeyUI();
   if (typeof r.prefs.scanDir === 'string') $('scanDir').value = r.prefs.scanDir;
@@ -1339,7 +1442,7 @@ async function restorePrefs() {
   if (r.tmpDirMissing) {
     const box = $('tmpNote');
     box.textContent = 'The saved temp folder "' + r.tmpDirMissing + '" is not available (deleted, or its drive is not connected), ' +
-      'so temporary files will go next to the output file. Choose another folder under Advanced to change this.';
+      'so temporary files will go next to the output file. Choose another folder in Settings (⚙) to change this.';
     box.classList.remove('hidden');
     $('tmp').addEventListener('change', () => box.classList.add('hidden'), { once: true });
   } else if (typeof r.prefs.tmpDir === 'string') {
@@ -1384,14 +1487,14 @@ function fmtDur(s) {
   return (h ? h + 'h ' : '') + m + 'm ' + sec + 's';
 }
 
+let srcSummary = '', srcWarn = 0;
 function showInfo(r) {
+  srcSummary = ''; srcWarn = 0;
   const card = $('infoCard'), b = $('badges'), notes = $('notes');
   b.innerHTML = ''; notes.innerHTML = ''; $('meta').textContent = '';
-  $('sumSource').textContent = '';
   if (!r || (!r.ok && !r.error)) { card.classList.add('hidden'); return; }
   card.classList.remove('hidden');
-  // A problem that stops the job must not hide in a closed section.
-  if (!r.ok || r.blocker) card.open = true;
+  if (!r.ok || r.blocker) $('secFiles').open = true; // a problem that stops the job must not hide in a closed section
   if (!r.ok) { notes.appendChild(note(r.error, 'bad')); return; }
   if (r.kind === 'hdr10') b.appendChild(badge('HDR10 (PQ)', 'hdr'));
   else if (r.kind === 'hlg') b.appendChild(badge('HLG', 'hdr'));
@@ -1406,21 +1509,16 @@ function showInfo(r) {
   bits.push(r.hasMastering ? 'mastering display metadata found' : 'no mastering display metadata');
   $('meta').textContent = bits.join('  ·  ');
   if (r.blocker) notes.appendChild(note(r.blocker, 'bad'));
-  else if (r.mode) notes.appendChild(note('Plan: ' + r.mode, 'info'));
+  else if (r.modeText || r.mode) notes.appendChild(note(r.modeText || r.mode, 'info'));
   if (r.sizeText) notes.appendChild(note(r.sizeText + (r.sizeExact ? '' : ' (audio size estimated)'), 'info'));
   (r.notesInfo || []).forEach(n => notes.appendChild(note(n.charAt(0).toUpperCase() + n.slice(1), 'info')));
   (r.warnings || []).forEach(w => notes.appendChild(note(w, 'warn')));
   if (r.kind === 'sdr' && !r.dv) notes.appendChild(note('This file does not look like HDR. It will still be transcoded, but there is no HDR to preserve.', 'warn'));
-  // summary for the closed section: what the file is, plus a marker if there are warnings
-  const sum = $('sumSource');
-  sum.textContent = [r.kind === 'hdr10' ? 'HDR10' : r.kind === 'hlg' ? 'HLG' : 'SDR', r.dv && 'Dolby Vision ' + r.dv,
-    r.hdr10plus && 'HDR10+', r.width + '×' + r.height, r.duration && fmtDur(r.duration)].filter(Boolean).join('  ·  ');
-  const nWarn = notes.querySelectorAll('.note.warn').length;
-  if (nWarn) {
-    const m = document.createElement('span');
-    m.className = 'warnmark'; m.textContent = '  ·  ⚠ ' + nWarn + (nWarn === 1 ? ' warning' : ' warnings');
-    sum.appendChild(m);
-  }
+  // for the closed Files section: what the file is, plus a marker if there are warnings
+  srcSummary = [r.kind === 'hdr10' ? 'HDR10' : r.kind === 'hlg' ? 'HLG' : 'SDR', r.dv && 'DV ' + r.dv, r.hdr10plus && 'HDR10+',
+    r.width + '×' + r.height].filter(Boolean).join(' ');
+  srcWarn = notes.querySelectorAll('.note.warn').length;
+  updateSummaries();
 }
 
 let probeTimer = null;
@@ -1599,7 +1697,8 @@ $('qOutBrowse').onclick = async () => {
   if (!r.ok) { if (r.error) showError(r.error); return; }
   if (r.path) { $('qOutDir').value = r.path; saveBatchOut(); }
 };
-function showQueue() { if (!$('secQueue').open) $('secQueue').open = true; } // not saved: it was not the user's click
+// Files went into the queue: the Queue tab's count pulses (the view stays where the user is).
+function showQueue() { const b = $('qBadge'); b.classList.remove('pulse'); void b.offsetWidth; b.classList.add('pulse'); }
 
 async function addToQueue(items) {
   const r = await api('queueAdd', { items });
@@ -1644,6 +1743,27 @@ $('qApply').onclick = () => applyToWaiting(Object.assign(settings(), { nameTag: 
 $('qClear').onclick = async () => { await api('queueClear', {}); poll(); };
 
 
+
+// ---------- tabs ----------
+let curTab = 'convert';
+function showTab(name) {
+  curTab = name;
+  document.querySelectorAll('.tabs .tab').forEach(b => { const on = b.dataset.tab === name; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+  [['convert', 'tabConvert'], ['queue', 'tabQueue'], ['scan', 'tabScan']].forEach(([n, id]) => $(id).classList.toggle('hidden', n !== name));
+  $('testGrp').classList.toggle('hidden', name !== 'convert');
+  renderQueue(queue);
+}
+document.querySelectorAll('.tabs .tab').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+$('queueLink').onclick = () => showTab('queue');
+// ---------- settings for this PC ----------
+$('settingsBtn').onclick = () => $('setDlg').showModal();
+// pop-ups and menus close after a choice, or a click elsewhere
+document.addEventListener('click', e => {
+  document.querySelectorAll('details.pop[open]').forEach(d => { if (!d.contains(e.target) || (d.classList.contains('menu') && e.target.closest('.popin button'))) d.open = false; });
+});
+$('setClose').onclick = () => $('setDlg').close();
+$('setDlg').addEventListener('click', e => { if (e.target === $('setDlg')) $('setDlg').close(); }); // a click outside closes it
+if (window.matchMedia('(min-width: 1400px)').matches) $('logBox').open = true; // wide window: the log has room beside the settings
 // ---------- TMDB lookup (Metadata) ----------
 function tmdbKeyUI() { $('tNoKey').classList.toggle('hidden', !!$('tmdbKey').value.trim()); }
 function tmdbEpUI() { $('tEpWrap').classList.toggle('hidden', $('tKind').value !== 'tv'); }
@@ -1657,7 +1777,7 @@ async function tmdbPrefill(input) {
   tmdbEpUI();
 }
 async function tmdbSearch() {
-  if (!$('tmdbKey').value.trim()) { showError('Add your TMDB API key under Advanced first (it is free for personal use).'); return; }
+  if (!$('tmdbKey').value.trim()) { showError('Add your TMDB API key in Settings (⚙) first (it is free for personal use).'); return; }
   const box = $('tResults');
   box.innerHTML = ''; box.append(el('div', 'hint', 'Searching…'));
   $('tSearch').disabled = true;
@@ -1920,6 +2040,10 @@ function renderQueue(q) {
   if (q.savedRun) bits.push((q.savedRun > 0 ? 'saved ' + q.savedRunText : q.savedRunText.slice(1) + ' bigger') + ' this run');
   if (q.savedTotal > 0) bits.push(q.savedTotalText + ' saved in total');
   $('sumQueue').textContent = bits.length ? bits.join('  ·  ') : 'empty';
+  const pending = waiting + (q.running ? 1 : 0);
+  $('qBadge').textContent = pending; $('qBadge').classList.toggle('hidden', !pending);
+  $('queueLink').textContent = 'Queue: ' + [q.running && (q.total > 1 ? 'file ' + q.index + ' of ' + q.total : 'running'), waiting && waiting + ' waiting'].filter(Boolean).join(', ') + ' →';
+  $('queueLink').classList.toggle('hidden', !pending || curTab === 'queue');
   if (q.running) restoredNotice = false;
   $('queueHint').classList.toggle('hidden', q.items.length > 0 && !restoredNotice);
   $('qApply').classList.toggle('hidden', !(waiting || c.problem));
@@ -1934,7 +2058,7 @@ function renderQueue(q) {
 
 // Files given at start-up or by a later start: one goes into the form, several into the queue.
 function openFiles(files) {
-  if (files.length === 1) { $('input').value = files[0]; suggestOutput(); probe(); $('secFiles').open = true; }
+  if (files.length === 1) { showTab('convert'); $('input').value = files[0]; suggestOutput(); probe(); $('secFiles').open = true; }
   else if (files.length > 1 && batchOutReady()) addToQueue(files.map(settingsFor));
 }
 
@@ -1978,7 +2102,7 @@ async function poll() {
       $('stage').textContent = 'Queue finished: ' + [c.done && c.done + ' done', c.failed && c.failed + ' failed',
         c.skipped && c.skipped + ' skipped', c.canceled && c.canceled + ' canceled'].filter(Boolean).join(', ');
       $('bar').classList.add(c.failed ? 'fail' : 'done'); $('bar').firstElementChild.style.width = '100%'; $('pct').textContent = '';
-      if (c.failed) $('secQueue').open = true;
+      if (c.failed) showQueue();
     } else if (r.canceled) { $('stage').textContent = 'Canceled'; $('bar').classList.add('fail'); }
     else if (r.exitCode === 0) { $('bar').classList.add('done'); $('pct').textContent = '100%'; $('bar').firstElementChild.style.width = '100%'; }
     else { $('bar').classList.add('fail'); $('stage').textContent = 'Failed - see the log'; $('jobBox').querySelector('details').open = true; }
@@ -2010,6 +2134,8 @@ const FFMPEG_URL = 'https://www.gyan.dev/ffmpeg/builds/#release-builds';
 const GPAC_URL = 'https://gpac.io/downloads/';
 const VCREDIST_URL = 'https://aka.ms/vs/17/release/vc_redist.x64.exe';
 function linkButton(text, href) { const a = document.createElement('a'); a.href = href; a.textContent = text; return a; }
+let toolsHidden = '';
+$('toolsUnhide').onclick = () => { toolsHidden = ''; api('setPref', { name: 'toolsHidden', value: '' }); checkTools(); };
 async function checkTools() {
   const t = await api('tools');
   const box = $('toolsNote');
@@ -2035,7 +2161,12 @@ async function checkTools() {
     msgs.push('dovi_tool and hdr10plus_tool need the Microsoft Visual C++ Runtime, which is not installed on this PC.');
     links.push(linkButton('Get the runtime', VCREDIST_URL));
   }
-  if (!msgs.length) return t;
+  // a notice about optional tools can be hidden (until what it says changes); missing FFmpeg cannot
+  const sig = msgs.join('|');
+  $('toolsUnhide').classList.toggle('hidden', !(toolsHidden && toolsHidden === sig));
+  $('toolsHiddenText').textContent = toolsHidden && toolsHidden === sig ? 'The tools notice is hidden. Dolby Vision files still say so if a tool they need is missing.'
+    : 'The tools notice at the top is shown when a tool is missing.';
+  if (!msgs.length || (!miss.length && toolsHidden === sig)) return t;
   box.className = 'note tools ' + (miss.length ? 'bad' : 'warn');
   msgs.forEach(m => { const d = document.createElement('div'); d.textContent = m; d.style.marginBottom = '4px'; box.append(d); });
   const actions = document.createElement('div'); actions.className = 'tool-actions';
@@ -2044,6 +2175,12 @@ async function checkTools() {
   const again = document.createElement('button'); again.textContent = 'Check again';
   again.onclick = async () => { await checkTools(); if ($('input').value.trim()) probe(); };
   actions.append(...links, open, again);
+  if (!miss.length) {
+    const hide = document.createElement('button'); hide.textContent = "Hide (I don't need it)";
+    hide.title = 'Hide this notice until something changes. Files that need a missing tool still say so.';
+    hide.onclick = () => { toolsHidden = sig; api('setPref', { name: 'toolsHidden', value: sig }); checkTools(); };
+    actions.append(hide);
+  }
   box.append(actions);
   return t;
 }

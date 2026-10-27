@@ -100,7 +100,7 @@ func TestTMDB(t *testing.T) {
 	if _, err := tmdbSearch(ctx, "bad", "movie", "x", ""); err == nil || !strings.Contains(err.Error(), "did not accept the API key") {
 		t.Errorf("bad key: %v", err)
 	}
-	if _, err := tmdbSearch(ctx, "", "movie", "x", ""); err == nil || !strings.Contains(err.Error(), "under Advanced") {
+	if _, err := tmdbSearch(ctx, "", "movie", "x", ""); err == nil || !strings.Contains(err.Error(), "in Settings") {
 		t.Errorf("no key: %v", err)
 	}
 }

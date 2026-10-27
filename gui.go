@@ -1050,6 +1050,7 @@ func (g *guiServer) probe(ctx context.Context, s settings) map[string]any {
 		}
 	}
 	resp["mode"] = describeMode(cfg, plan)
+	resp["modeText"] = friendlyMode(cfg, plan)
 	if plan.Quality != nil {
 		resp["quality"] = plan.Quality
 	}
@@ -1191,4 +1192,29 @@ func (g *guiServer) reveal() {
 			revealFile(out)
 		}
 	}
+}
+
+// friendlyMode says in plain words what the job will keep (for the window).
+func friendlyMode(cfg *Config, plan *Plan) string {
+	var s string
+	switch {
+	case cfg.MetaOnly:
+		s = "Will copy every kept track unchanged and write the new metadata"
+	case cfg.CopyVideo:
+		s = "Will copy the video unchanged (its HDR stays as it is)"
+	case plan.UseDV:
+		s = "Will keep: Dolby Vision (profile " + plan.DVProfile + ") and the HDR10 information"
+	case plan.UseHDR10Plus:
+		s = "Will keep: HDR10+ (scene-by-scene) and the HDR10 information"
+	case plan.Kind == "hdr10":
+		s = "Will keep: the HDR10 information"
+	case plan.Kind == "hlg":
+		s = "Will keep: HLG"
+	default:
+		s = "Plain SDR video: no HDR to keep"
+	}
+	if plan.ScaleW > 0 && !cfg.CopyVideo {
+		s += fmt.Sprintf("; resized to %dx%d", plan.ScaleW, plan.ScaleH)
+	}
+	return s
 }

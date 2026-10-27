@@ -40,6 +40,13 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
 
 - **Time left:** about 30 seconds into the encode, the title bar and progress line show an estimate of the
   time remaining. It is rough: speed varies through a film, and a hardware-encoder retry restarts it.
+- **Layout:** three tabs: **Convert** (the file and its settings), **Queue** and **Library scan**. Start, Add to queue,
+  Test 30 s and the progress bar stay in view at the bottom of the window (on a wide window, in a column on the right,
+  with the log). The Queue tab shows how many files are waiting. Settings for this PC (temp folder, priority, GPU
+  decoding, working locally, TMDB key, sounds) are under **⚙ Settings** at the top; profiles never include them.
+  What the input file is (HDR10, Dolby Vision, resolution, and what will be kept) shows right under it. The Audio and
+  Subtitles rules for new files and the queue are in a box of their own under each file's tracks. A notice about
+  optional tools (GPAC for Dolby Vision, say) can be hidden; Dolby Vision files still say so if a tool is missing.
 - **Sections:** click a section's heading to close or open it. Closed sections show a summary of their
   settings, and the layout is remembered (in `%LOCALAPPDATA%\Keep the Light\settings.json`).
 - **Save converted files** (under Files): next to the original, or in a folder you choose. One remembered
@@ -52,7 +59,7 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   result already exists are skipped. Files run one after another; one that fails
   does not stop the rest. Unfinished queues are remembered and come back when you reopen Keep the Light.
   **When finished** can put the PC to sleep or shut it down (with 60 seconds to cancel).
-- **Low priority** (under Advanced): other programs come first, so the PC stays responsive while encoding; it
+- **Low priority** (⚙ Settings): other programs come first, so the PC stays responsive while encoding; it
   still runs at full speed when the PC is otherwise idle. Remembered, and takes effect at once.
 - **Resolution** (under Video): shrink the video to fit 4K, 1440p, 1080p or 720p, keeping its shape (a
   3840x1600 film becomes 1920x800 at 1080p) and its HDR10, HDR10+ and Dolby Vision data. A smaller picture
@@ -68,7 +75,7 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   terms: H.264 needs about 1.7 times the bitrate of HEVC). Very low settings get a warning, and so does a bitrate
   higher than the source needs. Target file size shows the same guide in its plan line. It is a rule of thumb;
   the 30-second test measures the real result.
-- **Test 30 seconds** (under Video): encodes 30 seconds with the current settings, from a chosen time or 40% into
+- **Test 30 s** (next to Start): encodes 30 seconds with the current settings, from a chosen time or 40% into
   the film, and saves it next to the result as "... (30 s test)". It runs on its own, even when files are waiting
   in the queue. A target file size becomes the bitrate it works out to for the whole film. The test starts on the
   keyframe before the chosen time, so it can be a few seconds longer. The same seconds of the original are saved
@@ -85,7 +92,7 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
 - **Space saved:** each finished file shows its size before and after ("18.7 GB → 9.2 GB · saved 9.5 GB (51%)"),
   the Queue heading adds up the run, and a single running total ("4.2 TB saved in total") is kept for this PC.
   No history is stored.
-- **Library scan** (its own section, under Queue): choose a folder (for example `\\PlexRaid01\Movies`), with or
+- **Library scan** (its own tab): choose a folder (for example `\\PlexRaid01\Movies`), with or
   without its subfolders, and Keep the Light reads every video in it (only the file information; nothing is changed).
   Each file shows its video (codec, resolution, HDR10 / HLG / Dolby Vision profile), bitrate, audio and size, an
   estimate of its size as HEVC and the space that would save, and the things likely to make Plex convert it while you
@@ -97,13 +104,13 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
 - **Add a compatible audio track when needed** (Audio rules): if a file has no AC-3, E-AC-3 or AAC track (TrueHD,
   DTS or FLAC only), an E-AC-3 5.1 copy of the main track is added next to the original, so TVs and streamers that
   cannot play the original get sound without Plex converting it. Files that already have one are left as they are.
-- **Work locally with network files** (under Advanced, remembered): a file on a network drive (`\\PlexRaid01\...`
+- **Work locally with network files** (⚙ Settings, remembered): a file on a network drive (`\\PlexRaid01\...`
   or a mapped drive letter) is first copied to this PC (the temp folder, or Windows' temp folder if that is on the
   network too), converted there, and the result copied back. Reading and writing over the network during a long
   encode is avoided, and a network hiccup cannot break the encode. Needs free space for the file and its result;
   without enough, the file is converted over the network as before, and the log says so. If a job fails, the local
   copy is kept and the log says where.
-- **Decode on the GPU** (under Advanced): the graphics chip reads the source video, so the CPU only encodes.
+- **Decode on the GPU** (⚙ Settings): the graphics chip reads the source video, so the CPU only encodes.
   Speeds up x265, most with 4K sources. Before each file, Keep the Light test-decodes a few frames; if the GPU
   cannot decode it, that file is decoded on the CPU as before, and the log says which was used. Remembered.
 - **Profiles** (above Video): save the settings below the Files section under a name of your own, and pick them again
@@ -118,14 +125,14 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   metadata; **Save changes to the queue** puts it back with those changes (for this file only), **Cancel** leaves it
   as it was. While it is being changed it waits; the queue goes on with the other files. **Apply a profile to waiting
   files** (Queue) and **Use current settings for waiting files** ask whether files with their own changes keep them.
-- **Sound when finished** (under Advanced, remembered): when a transcode or the whole queue is done, Keep the Light
+- **Sound when finished** (⚙ Settings, remembered): when a transcode or the whole queue is done, Keep the Light
   plays a sound (Notify by default) and flashes its taskbar button; a different sound (Critical stop) means a file
   failed. Choose any Windows sound, a sound from Windows' Media folder (Alarm 1-10 and so on), your own .wav, or none.
 - **One window at a time:** starting Keep the Light again, or dropping videos on the exe while it is open,
   brings the open window to the front and adds the files there.
 - The PC is kept awake while a transcode runs. Results are written as `name_KTL.partial.mkv` and renamed when
   complete.
-- **Temp folder** (under Advanced): Dolby Vision and two-pass jobs write large temporary files, next to the
+- **Temp folder** (⚙ Settings): Dolby Vision and two-pass jobs write large temporary files, next to the
   output file unless you choose a folder here. The choice is remembered.
 - **About** (top right): version, contact information and licences. Its text is in `about.html` in the source.
 
@@ -196,7 +203,7 @@ subtitles and container from the target to get a video bitrate, then:
   "The.Bear.S02E03…" becomes The Bear, season 2, episode 3; "movie.mkv" in a "Heat (1995)" folder uses the folder);
   correct it and search again if needed. Pick a result with **Use**; the fields stay editable, and nothing is written
   until the job runs. English for now; for single files (and a queued file opened with Edit). Needs your own free
-  TMDB API key (or API read access token), entered once under Advanced: create a TMDB account, then Settings → API.
+  TMDB API key (or API read access token), entered once in ⚙ Settings: create a TMDB account, then Settings → API.
   This product uses the TMDB API but is not endorsed or certified by TMDB.
 - **Metadata only** (under Video) copies every kept stream unchanged into a new file with the new metadata: no
   re-encoding, so the quality is identical, and it takes about as long as copying the file. Audio tracks can be kept

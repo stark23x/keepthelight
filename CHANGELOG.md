@@ -18,6 +18,23 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.18.0 - 2026-10-27
+
+- **New layout.** Tabs for **Convert**, **Queue** and **Library scan**, so the settings for a file start right below
+  it. Start, Add to queue, **Test 30 s** and the progress bar stay in view at the bottom (on a window 1400 pixels or
+  wider, in a column on the right, with the log open). The Queue tab's count pulses when files are added; "Queue: 2
+  waiting →" next to Start goes there.
+- **⚙ Settings** (top right) holds the settings for this PC: temp folder, low priority, GPU decoding, working
+  locally, the TMDB key and the sounds. Advanced now has only the HDR10 overrides.
+- **The source under the input:** the Source section is now a box under the input file, with a plain line on what
+  will be kept ("Will keep: Dolby Vision (profile 8.1) and the HDR10 information").
+- **Profile** is the heading of the settings, with Rename, Delete, Export and Import under **More ▾**.
+- **Rules apart from tracks:** each Audio and Subtitles section shows the file's tracks, then a closed box "For new
+  files and the queue" with the rules and a one-line summary of them.
+- **Less text up front:** longer explanations are behind **More** or **?**.
+- Subtitles have a "Set all tracks to…" menu (Keep all / Drop all) like Audio; the tools notice can be hidden when
+  it is only about optional tools; Video lists the quality before noise reduction; lighter hint text.
+
 ## 1.17.0 - 2026-10-27
 
 - **Look up metadata on TMDB.** The Metadata section can search The Movie Database for a film or a TV episode and

@@ -46,7 +46,7 @@ type tmdbResult struct {
 func tmdbGet(ctx context.Context, key, path string, q url.Values, out any) error {
 	key = strings.TrimSpace(key)
 	if key == "" {
-		return fmt.Errorf("add your TMDB API key under Advanced first")
+		return fmt.Errorf("add your TMDB API key in Settings first")
 	}
 	if q == nil {
 		q = url.Values{}
@@ -77,7 +77,7 @@ func tmdbGet(ctx context.Context, key, path string, q url.Values, out any) error
 		_ = json.Unmarshal(body, &e)
 		switch resp.StatusCode {
 		case http.StatusUnauthorized:
-			return fmt.Errorf("TMDB did not accept the API key (check it under Advanced)")
+			return fmt.Errorf("TMDB did not accept the API key (check it in Settings)")
 		case http.StatusNotFound:
 			return fmt.Errorf("TMDB has no such entry (%s)", strings.TrimSuffix(e.Message, "."))
 		case http.StatusTooManyRequests:
