@@ -1,7 +1,7 @@
 # Keep the Light
 
 Windows only transcoder written in Go, that keeps HDR10, HLG, HDR10+ and Dolby Vision intact, with its own window and a command-line version.
-It orchestrates FFmpeg, dovi_tool, MP4Box and (optionally) hdr10plus_tool.
+It orchestrates FFmpeg, dovi_tool, MP4Box and (optionally) hdr10plus_tool. It has evolved into those functions, plus many functions that will help you manage your Plex (or Jellyfin or Emby) media server files.
 
 ## Download
 Get the latest version from the [Releases page](https://github.com/stark23x/keepthelight/releases/latest):
