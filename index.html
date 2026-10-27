@@ -141,6 +141,16 @@
   .qrow.st-done .qstat { color: var(--ok); }
   .qrow.st-failed .qstat, .qrow.st-problem .qstat, .qrow.st-problem .qnote, .qrow.st-failed .qnote { color: var(--bad); }
   .qrow.st-skipped .qstat, .qrow.st-waiting .qnote { color: var(--warn); }
+  /* library scan */
+  #scanList { max-height: 460px; overflow-y: auto; }
+  .srow { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 10px; align-items: start; padding: 8px 10px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); margin-bottom: 6px; }
+  .srow > div { min-width: 0; }
+  .srow input { margin-top: 3px; }
+  .srow .ssave { font-weight: 600; font-size: 12.5px; white-space: nowrap; text-align: right; }
+  .srow.worth .ssave { color: var(--ok); }
+  .srow .sissue { font-size: 12px; color: var(--warn); margin-top: 2px; }
+  .srow .serr { font-size: 12px; color: var(--bad); }
   .qbtns { display: flex; gap: 4px; }
   .qbtns button { padding: 3px 8px; font-size: 12px; }
   .qmini { height: 4px; border-radius: 9px; background: var(--line); overflow: hidden; grid-column: 1 / -1; }
@@ -225,6 +235,35 @@
       <button id="qApply" class="hidden" title="Give every file that has not started the settings shown below">Use current settings for waiting files</button>
       <select id="qProfile" class="hidden" style="width:auto" title="Give every file that has not started the settings of a profile"><option value="">Apply a profile to waiting files…</option></select>
       <button id="qClear" class="hidden">Clear finished</button>
+    </div>
+  </details>
+
+  <details class="card sect" id="secScan" data-key="scan">
+    <summary><h2 class="sect-title">Library scan</h2><span class="sum" id="sumScan"></span></summary>
+    <div class="hint" style="margin:0 0 10px">What's worth converting? Reads every video in a folder (only the file information; nothing is changed),
+      estimates how much space converting each one to HEVC would save, and points out files that are likely to make Plex convert them while you watch.</div>
+    <div class="row" style="flex-wrap:wrap">
+      <div class="grow"><label for="scanDir">Folder</label><input type="text" id="scanDir" spellcheck="false" placeholder="for example \\PlexRaid01\Movies"></div>
+      <button id="scanBrowse">Browse…</button>
+      <button id="scanGo" class="primary">Scan</button>
+      <button id="scanStop" class="hidden">Stop</button>
+    </div>
+    <label class="check" style="margin-top:10px"><input type="checkbox" id="scanSub" checked> <span>Include subfolders</span></label>
+    <div id="scanProg" class="hint hidden" style="margin-top:10px"></div>
+    <div id="scanResult" class="hidden">
+      <div id="scanSumLine" class="note info" style="margin:12px 0 10px"></div>
+      <div class="row" style="flex-wrap:wrap; gap:8px; margin-bottom:8px">
+        <div><label for="scanShow">Show</label>
+          <select id="scanShow"><option value="all">all files</option><option value="worth">worth converting</option><option value="trouble">Plex trouble spots</option></select></div>
+        <div style="align-self:flex-end" class="row"><button id="scanSelWorth">Select worth converting</button><button id="scanSelNone">Select none</button></div>
+      </div>
+      <div id="scanList"></div>
+      <div class="hint" style="margin-top:6px">Estimates assume x265 at very good quality (constant quality around 18–20); grain and dark films come out bigger.
+        A 30-second test shows the real result for one file. "Worth converting" means at least 300 MB and a quarter of the file saved.</div>
+      <div class="actions" style="margin-top:10px">
+        <div><label for="scanWith">Settings for the queue</label><select id="scanWith" style="width:auto"></select></div>
+        <button id="scanAdd" class="primary" disabled style="align-self:flex-end">Add selected to queue</button>
+      </div>
     </div>
   </details>
 
@@ -334,6 +373,9 @@
         <div><label for="abitrate">Bitrate for converted tracks</label><input type="text" id="abitrate" spellcheck="false" placeholder="automatic (by format and channels)"></div>
       </div>
       <label class="check" style="margin-top:10px"><input type="checkbox" id="dropComm"> <span>Leave out commentary tracks</span></label>
+      <label class="check" style="margin-top:6px"><input type="checkbox" id="addCompat"> <span><b>Add a compatible audio track when needed</b> – if no kept track
+        is AC-3, E-AC-3 or AAC (only TrueHD or DTS, say), an E-AC-3 copy of the main track is added for TVs and streamers that cannot play the
+        original, so Plex does not have to convert the sound. The original track stays.</span></label>
       <div class="hint">Tracks with no language set are kept. If no track matches, the file's default track is kept, so nothing ends up silent.</div>
     </div>
   </details>
@@ -389,6 +431,10 @@
       <label class="check" style="margin-top:10px"><input type="checkbox" id="hwDec"> <span><b>Decode on the GPU</b> – the graphics chip (on a PC without
         a graphics card, the processor's built-in graphics) reads the source video, so the CPU only encodes. Speeds up x265, most with 4K sources. If the GPU
         cannot decode a file, it is decoded on the CPU as before; the log says which. Used from the next file that starts.</span></label>
+      <label class="check" style="margin-top:10px"><input type="checkbox" id="workLocal"> <span><b>Work locally with network files</b> – a source or result
+        on a network drive (your RAID shares, say) is copied to this PC first, converted here, and the result copied back. The network is used once
+        each way instead of throughout a long conversion, and a network hiccup cannot break it halfway. Uses the temp folder above if it is on this
+        PC, otherwise Windows' temp folder; needs free space for the source and the result. Not used for tests or metadata-only jobs.</span></label>
       <div class="rules-title" style="margin-top:16px">When a transcode or the queue has finished <span>– remembered</span></div>
       <div class="grid">
         <div><label for="sndDone">Sound when all files are done</label>
@@ -494,7 +540,7 @@ function settings() {
     dv: $('dv').value, masterDisplay: $('master').value.trim(), maxCLL: $('cll').value.trim(), tmp: $('tmp').value.trim(),
     targetSize: $('targetNum').value.trim().replace(',', '.') + $('targetUnit').value, retries: +$('retries').value,
     scale: $('scale').value, denoise: $('denoise').value,
-    audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, audioChannels: $('audioCh').value, subLang: $('subLang').value.trim(), subMode: $('subMode').value,
+    audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, audioChannels: $('audioCh').value, addCompatAudio: $('addCompat').checked, subLang: $('subLang').value.trim(), subMode: $('subMode').value,
     ...trackSettings(),
     meta: metaEdits(), replaceOriginal: replacing(), profile: $('profile').value
   };
@@ -720,7 +766,7 @@ function tracksChanged() { renderTracks(); renderMeta(); updateSummaries(); sche
 // The rules changed: start again from them for the file in the form.
 function rulesChanged() {
   tracks = null;
-  api('setPref', { name: 'trackRules', value: { audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, audioChannels: $('audioCh').value,
+  api('setPref', { name: 'trackRules', value: { audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, audioChannels: $('audioCh').value, addCompatAudio: $('addCompat').checked,
     subLang: $('subLang').value.trim(), subMode: $('subMode').value } });
   updateSummaries(); scheduleProbe(150);
 }
@@ -729,6 +775,7 @@ function audioRulesText() {
   const a = $('audio'), parts = [a.value === 'copy' ? 'copy' : a.options[a.selectedIndex].text.replace(/^Convert to /, '')];
   if ($('audioLang').value.trim()) parts.unshift($('audioLang').value.trim());
   if ($('dropComm').checked) parts.push('no commentary');
+  if ($('addCompat').checked) parts.push('+ compatible copy');
   if (a.value !== 'copy' && $('audioCh').value) parts.push($('audioCh').value === '5.1' ? 'max 5.1' : 'stereo');
   return parts.join('  ·  ');
 }
@@ -914,7 +961,7 @@ async function confirmNewFiles(form) {
 // A profile is a named set of the settings below the Files section. It can
 // name converted files after itself ("Film_Plex 4K.mkv").
 const PROFILE_KEYS = ['mode', 'codec', 'preset', 'scale', 'denoise', 'dv', 'quality', 'crf', 'bitrate', 'targetSize', 'retries',
-  'audio', 'audioBitrate', 'audioChannels', 'audioLang', 'dropCommentary', 'subLang', 'subMode', 'masterDisplay', 'maxCLL'];
+  'audio', 'audioBitrate', 'audioChannels', 'audioLang', 'dropCommentary', 'addCompatAudio', 'subLang', 'subMode', 'masterDisplay', 'maxCLL'];
 let profiles = []; // [{ name, useNameTag, settings }]
 function activeProfile() { const n = $('profile').value; return n ? profiles.find(p => p.name === n) || null : null; }
 function profileTag(p) { return '_' + cleanTagText(p.name.trim().replace(/\s+/g, ' ')); }
@@ -930,6 +977,7 @@ function fillProfiles(selected) {
     const q = el('option', '', p.name); q.value = p.name; qs.append(q);
   });
   sel.value = profiles.some(p => p.name === selected) ? selected : '';
+  fillScanWith();
   profileUI();
 }
 // the controls that depend on the chosen profile, and whether the form still matches it
@@ -968,13 +1016,14 @@ function applyFields(st, keys) {
   if (has('audioChannels')) $('audioCh').value = st.audioChannels;
   if (has('audioLang')) $('audioLang').value = st.audioLang;
   if (has('dropCommentary')) $('dropComm').checked = !!st.dropCommentary;
+  if (has('addCompatAudio')) $('addCompat').checked = !!st.addCompatAudio;
   if (has('subLang')) $('subLang').value = st.subLang;
   if (has('subMode')) $('subMode').value = st.subMode;
   if (has('masterDisplay')) $('master').value = st.masterDisplay;
   if (has('maxCLL')) $('cll').value = st.maxCLL;
 }
 // settings added after a profile was saved: their defaults, so older profiles still apply cleanly
-const PROFILE_DEFAULTS = { denoise: '' };
+const PROFILE_DEFAULTS = { denoise: '', addCompatAudio: false };
 function withDefaults(st) { return Object.assign({}, PROFILE_DEFAULTS, st); }
 function applyProfile(p) {
   if (p) applyFields(withDefaults(p.settings), PROFILE_KEYS);
@@ -1228,7 +1277,7 @@ function updateSummaries() {
   $('sumMeta').textContent = !metaFor() ? '' : nm ? nm + (nm === 1 ? ' change' : ' changes') : 'no changes';
   $('sumSubs').textContent = subSummary();
   const adv = [$('master').value.trim() && 'master display', $('cll').value.trim() && 'MaxCLL/FALL', $('tmp').value.trim() && 'temp folder',
-    $('lowPrio').checked && 'low priority', $('hwDec').checked && 'GPU decoding',
+    $('lowPrio').checked && 'low priority', $('hwDec').checked && 'GPU decoding', $('workLocal').checked && 'work locally',
     (soundPrefs.done !== SOUND_DEFAULTS.done || soundPrefs.fail !== SOUND_DEFAULTS.fail || soundPrefs.flash === false) && 'sounds'].filter(Boolean);
   $('sumAdv').textContent = adv.length ? 'custom: ' + adv.join(', ') : 'defaults';
 }
@@ -1248,6 +1297,8 @@ async function restorePrefs() {
   if (!r || !r.ok || !r.prefs) return;
   const state = r.prefs.sections;
   if (state) sections.forEach(d => { if (typeof state[d.dataset.key] === 'boolean') d.open = state[d.dataset.key]; });
+  if (typeof r.prefs.scanDir === 'string') $('scanDir').value = r.prefs.scanDir;
+  if (typeof r.prefs.scanSub === 'boolean') $('scanSub').checked = r.prefs.scanSub;
   $('secQueue').open = false; // the queue starts closed; it opens when files are added or some are left from last time
   if (r.tmpDirMissing) {
     const box = $('tmpNote');
@@ -1260,6 +1311,7 @@ async function restorePrefs() {
   }
   $('lowPrio').checked = r.prefs.lowPriority === true;
   $('hwDec').checked = r.prefs.hwDecode === true;
+  $('workLocal').checked = r.prefs.workLocal === true;
   if (typeof r.prefs.nameTag === 'string') $('nameTag').value = r.prefs.nameTag;
   $('nameTag').dataset.own = $('nameTag').value;
   profiles = Array.isArray(r.prefs.profiles) ? r.prefs.profiles.filter(p => p && p.name && p.settings) : [];
@@ -1267,7 +1319,7 @@ async function restorePrefs() {
   initSounds(r.prefs.sounds);
   const tr = r.prefs.trackRules;
   if (tr) {
-    $('audioLang').value = tr.audioLang || ''; $('dropComm').checked = !!tr.dropCommentary;
+    $('audioLang').value = tr.audioLang || ''; $('dropComm').checked = !!tr.dropCommentary; $('addCompat').checked = !!tr.addCompatAudio;
     $('audioCh').value = ['', '5.1', 'stereo'].includes(tr.audioChannels) ? tr.audioChannels : '';
     $('subLang').value = tr.subLang || ''; $('subMode').value = ['', 'forced', 'none'].includes(tr.subMode) ? tr.subMode : '';
   }
@@ -1320,6 +1372,7 @@ function showInfo(r) {
   if (r.blocker) notes.appendChild(note(r.blocker, 'bad'));
   else if (r.mode) notes.appendChild(note('Plan: ' + r.mode, 'info'));
   if (r.sizeText) notes.appendChild(note(r.sizeText + (r.sizeExact ? '' : ' (audio size estimated)'), 'info'));
+  (r.notesInfo || []).forEach(n => notes.appendChild(note(n.charAt(0).toUpperCase() + n.slice(1), 'info')));
   (r.warnings || []).forEach(w => notes.appendChild(note(w, 'warn')));
   if (r.kind === 'sdr' && !r.dv) notes.appendChild(note('This file does not look like HDR. It will still be transcoded, but there is no HDR to preserve.', 'warn'));
   // summary for the closed section: what the file is, plus a marker if there are warnings
@@ -1400,7 +1453,7 @@ $('container').addEventListener('change', () => {
 $('targetNum').addEventListener('input', () => scheduleProbe(600));
 $('audio').addEventListener('change', () => { updateVisibility(); rulesChanged(); });
 ['audioLang', 'subLang'].forEach(id => $(id).addEventListener('change', rulesChanged));
-['dropComm', 'subMode', 'audioCh'].forEach(id => $(id).addEventListener('change', rulesChanged));
+['dropComm', 'subMode', 'audioCh', 'addCompat'].forEach(id => $(id).addEventListener('change', rulesChanged));
 $('codec').addEventListener('change', () => { updateVisibility(); scheduleProbe(200); });
 $('crf').addEventListener('input', () => { updateVisibility(); scheduleProbe(500); });
 $('bitrate').addEventListener('input', () => scheduleProbe(700));
@@ -1410,6 +1463,7 @@ document.querySelectorAll('input[name="mode"], input[name="quality"]').forEach(e
 $('lowPrio').addEventListener('change', () => { api('priority', { low: $('lowPrio').checked }); updateSummaries(); });
 // GPU decoding is remembered too, and applies to every file from the next one on.
 $('hwDec').addEventListener('change', () => { api('hwdecode', { on: $('hwDec').checked }); updateSummaries(); });
+$('workLocal').addEventListener('change', () => { api('worklocal', { on: $('workLocal').checked }); updateSummaries(); });
 // The temp folder is remembered between runs (an empty field means "next to the output file").
 $('tmp').addEventListener('change', () => api('setPref', { name: 'tmpDir', value: $('tmp').value.trim() }));
 
@@ -1553,6 +1607,109 @@ $('qAddFolder').onclick = async () => {
 $('qApply').onclick = () => applyToWaiting(Object.assign(settings(), { nameTag: nameTag() }));
 $('qClear').onclick = async () => { await api('queueClear', {}); poll(); };
 
+// ---------- library scan ----------
+let scanItems = [], scanTimer = null, scanSel = new Set();
+function fmtSize(b) {
+  if (b >= 1e12) return (b / 1e12).toFixed(2) + ' TB';
+  if (b >= 1e9) return (b / 1e9).toFixed(1) + ' GB';
+  return Math.round(b / 1e6) + ' MB';
+}
+function fillScanWith() {
+  const s = $('scanWith'), was = s.value;
+  s.innerHTML = '';
+  const cur = el('option', '', 'the current settings'); cur.value = ''; s.append(cur);
+  profiles.slice().sort((a, b) => a.name.localeCompare(b.name)).forEach(p => { const o = el('option', '', 'profile: ' + p.name); o.value = p.name; s.append(o); });
+  s.value = profiles.some(p => p.name === was) ? was : '';
+}
+// The settings for a scanned file: the current ones, or a profile's (with its name ending if it has one).
+function scanSettings(path, p) {
+  const st = settingsFor(path);
+  if (!p) return st;
+  Object.assign(st, p.settings, { profile: p.name });
+  if (!st.replaceOriginal) st.output = outFolderFor(path) + stem(path) + (p.useNameTag ? profileTag(p) : nameTag()) + $('container').value;
+  return st;
+}
+function scanVisible() {
+  const show = $('scanShow').value;
+  return scanItems.filter(it => show === 'all' || (show === 'worth' ? it.worth : (it.issues || []).length));
+}
+function renderScan() {
+  const list = $('scanList');
+  list.innerHTML = '';
+  const rows = scanVisible().sort((a, b) => (b.saving || 0) - (a.saving || 0));
+  rows.slice(0, 2000).forEach(it => {
+    const r = el('div', 'srow' + (it.worth ? ' worth' : ''));
+    const cb = el('input'); cb.type = 'checkbox'; cb.checked = scanSel.has(it.path); cb.disabled = !!it.err;
+    cb.onchange = () => { if (cb.checked) scanSel.add(it.path); else scanSel.delete(it.path); scanButtons(); };
+    const mid = el('div');
+    const nm = el('div', 'qname', it.name); nm.title = it.path; mid.append(nm);
+    if (it.err) mid.append(el('div', 'serr', it.err));
+    else {
+      mid.append(el('div', 'qsub', [it.video, it.kbps ? (it.kbps / 1000).toFixed(1) + ' Mbps' : '', it.audio].filter(Boolean).join(' · ')));
+      if (it.folder) mid.append(el('div', 'qsub', 'in ' + it.folder));
+      (it.issues || []).forEach(x => mid.append(el('div', 'sissue', '⚠ ' + x)));
+    }
+    const right = el('div', 'ssave');
+    if (it.estSize) {
+      right.append(el('div', '', it.saving > 0 ? '−' + fmtSize(it.saving) : 'no saving'));
+      right.append(el('div', 'qsub', fmtSize(it.size) + ' → ~' + fmtSize(it.estSize)));
+    } else if (it.size) right.append(el('div', 'qsub', fmtSize(it.size)));
+    r.append(cb, mid, right);
+    list.append(r);
+  });
+  if (rows.length > 2000) list.append(el('div', 'hint', (rows.length - 2000) + ' more not shown: choose "worth converting" or scan a smaller folder.'));
+}
+function scanButtons() {
+  $('scanAdd').disabled = !scanSel.size;
+  $('scanAdd').textContent = scanSel.size ? 'Add ' + scanSel.size + ' selected to queue' : 'Add selected to queue';
+}
+async function scanPoll() {
+  const r = await api('scanStatus', { since: scanItems.length });
+  if (!r || !r.ok) return;
+  if (r.items && r.items.length) { scanItems = scanItems.concat(r.items); renderScan(); }
+  const running = r.running;
+  $('scanProg').classList.toggle('hidden', !running && !r.found);
+  $('scanProg').textContent = running ? (r.listing ? 'Looking for videos… ' + r.found + ' found, ' : '') + r.done + ' of ' + r.found + ' read…'
+    : (r.found ? 'Read ' + r.done + ' of ' + r.found + ' video files in ' + r.dir + '.' : '');
+  if (scanItems.length || !running) {
+    $('scanResult').classList.toggle('hidden', !scanItems.length);
+    $('scanSumLine').textContent = scanItems.length + ' files, ' + r.size + ' · ' + r.worth + ' worth converting, saving about ' + r.saving +
+      ' · ' + r.trouble + ' with Plex trouble spots';
+    $('sumScan').textContent = scanItems.length ? r.worth + ' worth converting (about ' + r.saving + ')' : '';
+  }
+  $('scanGo').classList.toggle('hidden', running); $('scanStop').classList.toggle('hidden', !running);
+  if (running) scanTimer = setTimeout(scanPoll, 700); else scanTimer = null;
+  if (!running && !r.found && r.dir) $('scanProg').classList.remove('hidden'), $('scanProg').textContent = 'No video files were found in ' + r.dir + '.';
+}
+$('scanBrowse').onclick = async () => {
+  const r = await api('browse', { kind: 'folder', initial: $('scanDir').value });
+  if (!r.ok) { if (r.error) showError(r.error); return; }
+  if (r.path) $('scanDir').value = r.path;
+};
+$('scanGo').onclick = async () => {
+  const dir = $('scanDir').value.trim();
+  if (!dir) { showError('Choose the folder to scan.'); return; }
+  api('setPref', { name: 'scanDir', value: dir }); api('setPref', { name: 'scanSub', value: $('scanSub').checked });
+  const r = await api('scanStart', { dir, recursive: $('scanSub').checked, tag: nameTag() });
+  if (!r.ok) { showError(r.error); return; }
+  scanItems = []; scanSel = new Set(); renderScan(); scanButtons();
+  $('scanResult').classList.add('hidden');
+  if (scanTimer) clearTimeout(scanTimer);
+  scanPoll();
+};
+$('scanStop').onclick = () => api('scanStop', {});
+$('scanShow').onchange = renderScan;
+$('scanSelWorth').onclick = () => { scanItems.forEach(it => { if (it.worth) scanSel.add(it.path); }); renderScan(); scanButtons(); };
+$('scanSelNone').onclick = () => { scanSel = new Set(); renderScan(); scanButtons(); };
+$('scanAdd').onclick = async () => {
+  if (!batchOutReady()) return;
+  const p = profiles.find(x => x.name === $('scanWith').value) || null;
+  const paths = scanItems.filter(it => scanSel.has(it.path)).sort((a, b) => (b.saving || 0) - (a.saving || 0)).map(it => it.path);
+  const r = await addToQueue(paths.map(x => scanSettings(x, p)));
+  if (r && r.added) { scanSel = new Set(); renderScan(); scanButtons(); }
+};
+fillScanWith();
+
 async function askUser(text) {
   if (BRIDGE) { const r = await api('ask', { text }); return !!(r && r.yes); }
   return confirm(text);
@@ -1578,6 +1735,7 @@ function settingsText(st) {
     if (st.audioLang) parts.push('audio ' + st.audioLang);
     if (st.audio && st.audio !== 'copy') parts.push('audio → ' + st.audio.toUpperCase() + (st.audioChannels ? ' ' + (st.audioChannels === '5.1' ? 'max 5.1' : 'stereo') : '') + (st.audioBitrate ? ' ' + st.audioBitrate : ''));
     if (st.dropCommentary) parts.push('no commentary');
+    if (st.addCompatAudio) parts.push('+ compatible audio');
     if (st.subMode === 'none') parts.push('no subtitles');
     else if (st.subLang || st.subMode === 'forced') parts.push('subtitles ' + (st.subLang || 'all') + (st.subMode === 'forced' ? ' forced' : ''));
   }

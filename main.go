@@ -62,6 +62,8 @@ Choosing tracks (numbers as the window shows them: audio 1, 2, ...; subtitles 1,
   -audio-lang <list>   keep only audio in these languages, e.g. eng,jpn (tracks with no language
                        are kept; if nothing matches, the default track is kept)
   -drop-commentary     leave out commentary audio tracks
+  -add-compatible-audio  when no kept track is AC-3, E-AC-3 or AAC (only TrueHD or DTS, say), add an
+                       E-AC-3 copy of the main track for TVs and streamers; the original stays
   -audio-channels <5.1|stereo>  mix converted tracks down to at most 5.1, or to stereo (also per
                        track in -audio-tracks, e.g. 1:eac3:5.1 or 2:aac:192k:stereo; "orig" keeps them)
   -sub-lang <list>     keep only subtitles in these languages
@@ -76,6 +78,8 @@ Choosing tracks (numbers as the window shows them: audio 1, 2, ...; subtitles 1,
   -sample-start <time> where the test starts, e.g. 1:02:30 (default: 40%% into the video)
                        The same stretch of the original is kept next to the test, unchanged, for
                        comparing ("... (original clip).mkv"; -sample-original <file> to choose)
+  -work-local <folder> files on a network drive are copied to this folder (on this PC) first,
+                       converted there, and the result copied back
   -hw-decode           decode the source on the GPU, so the CPU only encodes (falls back to
                        the CPU if the GPU cannot decode the file)
   -copy-video          do not re-encode video at all (keeps any HDR/DV exactly)
@@ -132,6 +136,7 @@ func parseArgs() (*Config, bool) {
 	audioLang := fs.String("audio-lang", "", "")
 	subLang := fs.String("sub-lang", "", "")
 	fs.BoolVar(&cfg.DropCommentary, "drop-commentary", false, "")
+	fs.BoolVar(&cfg.AddCompatAudio, "add-compatible-audio", false, "")
 	fs.StringVar(&cfg.SubMode, "subs", "", "")
 	fs.StringVar(&cfg.AudioChannels, "audio-channels", "", "")
 	fs.BoolVar(&cfg.MetaOnly, "metadata-only", false, "")
@@ -155,6 +160,7 @@ func parseArgs() (*Config, bool) {
 	fs.BoolVar(&cfg.Sound, "sound", false, "")
 	fs.BoolVar(&cfg.LowPriority, "low-priority", false, "")
 	fs.BoolVar(&cfg.HWDecode, "hw-decode", false, "")
+	fs.StringVar(&cfg.WorkLocal, "work-local", "", "")
 	fs.StringVar(&cfg.Scale, "scale", "", "")
 	fs.StringVar(&cfg.Denoise, "denoise", "", "")
 	fs.IntVar(&cfg.SampleSecs, "sample", 0, "")
@@ -404,7 +410,7 @@ func need(name, override string) (string, error) {
 	return p, nil
 }
 
-func transcode(ctx context.Context, cfg *Config) error {
+func transcode(ctx context.Context, cfg *Config) (retErr error) {
 	if _, err := os.Stat(cfg.Input); err != nil {
 		return fmt.Errorf("input file: %w", err)
 	}
@@ -452,6 +458,19 @@ func transcode(ctx context.Context, cfg *Config) error {
 			return err
 		}
 	}
+	lw, err := startLocal(cfg)
+	if err != nil {
+		return err
+	}
+	if lw != nil {
+		defer func() {
+			if retErr != nil && lw.dir != "" { // keep any finished work
+				lw.keep = true
+				fmt.Fprintln(os.Stderr, "\nThe local working folder was KEPT, so finished work is not lost:\n  "+lw.dir)
+			}
+			lw.cleanup()
+		}()
+	}
 	if !cfg.CopyVideo {
 		if name := map[string]string{"x265": "libx265", "nvenc": "hevc_nvenc", "qsv": "hevc_qsv"}[cfg.Codec]; name != "" && !hasEncoder(ctx, ffmpeg, name) {
 			return fmt.Errorf("this ffmpeg build does not include the %s encoder; use a full ffmpeg build or pick another encoder", name)
@@ -488,6 +507,9 @@ func transcode(ctx context.Context, cfg *Config) error {
 	}
 	if plan.Quality != nil && plan.Size == nil {
 		fmt.Println("Quality guide:", plan.Quality.Text, "(rough rule of thumb)")
+	}
+	for _, n := range plan.Notes {
+		fmt.Println("Note:", n)
 	}
 	for _, w := range plan.Warnings {
 		fmt.Println("WARNING:", w)
@@ -570,6 +592,11 @@ func transcode(ctx context.Context, cfg *Config) error {
 	}
 	verify(ctx, cfg, plan)
 	reportTarget(cfg)
+	if lw != nil {
+		if err := lw.finish(cfg); err != nil {
+			return err
+		}
+	}
 	if cfg.replaceFinal != "" {
 		lines, err := replaceOriginal(ctx, ffprobe, cfg.Input, cfg.Output, cfg.replaceFinal)
 		if err != nil {

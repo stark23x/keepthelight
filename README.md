@@ -85,6 +85,24 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
 - **Space saved:** each finished file shows its size before and after ("18.7 GB → 9.2 GB · saved 9.5 GB (51%)"),
   the Queue heading adds up the run, and a single running total ("4.2 TB saved in total") is kept for this PC.
   No history is stored.
+- **Library scan** (its own section, under Queue): choose a folder (for example `\\PlexRaid01\Movies`), with or
+  without its subfolders, and Keep the Light reads every video in it (only the file information; nothing is changed).
+  Each file shows its video (codec, resolution, HDR10 / HLG / Dolby Vision profile), bitrate, audio and size, an
+  estimate of its size as HEVC and the space that would save, and the things likely to make Plex convert it while you
+  watch: no AC-3, E-AC-3 or AAC audio (TrueHD, DTS or FLAC only), Dolby Vision profile 7, forced picture subtitles
+  (PGS/VobSub, which Plex burns in), H.264 10-bit, VC-1 / MPEG-2, and very high bitrates. Show all files, those worth
+  converting (at least 300 MB and a quarter saved) or those with trouble spots; **Select worth converting**, then
+  **Add selected to queue** with the current settings or a profile. The estimate assumes x265 at very good quality; a
+  30-second test shows the real result. Files Keep the Light made (ending in the name tag) are left out.
+- **Add a compatible audio track when needed** (Audio rules): if a file has no AC-3, E-AC-3 or AAC track (TrueHD,
+  DTS or FLAC only), an E-AC-3 5.1 copy of the main track is added next to the original, so TVs and streamers that
+  cannot play the original get sound without Plex converting it. Files that already have one are left as they are.
+- **Work locally with network files** (under Advanced, remembered): a file on a network drive (`\\PlexRaid01\...`
+  or a mapped drive letter) is first copied to this PC (the temp folder, or Windows' temp folder if that is on the
+  network too), converted there, and the result copied back. Reading and writing over the network during a long
+  encode is avoided, and a network hiccup cannot break the encode. Needs free space for the file and its result;
+  without enough, the file is converted over the network as before, and the log says so. If a job fails, the local
+  copy is kept and the log says where.
 - **Decode on the GPU** (under Advanced): the graphics chip reads the source video, so the CPU only encodes.
   Speeds up x265, most with 4K sources. Before each file, Keep the Light test-decodes a few frames; if the GPU
   cannot decode it, that file is decoded on the CPU as before, and the log says which was used. Remembered.
@@ -133,6 +151,8 @@ private local web server. To choose that yourself, run `keepthelight_cli -server
     keepthelight_cli -audio-tracks 1,3:eac3 -sub-tracks 2:forced in.mkv   (choose tracks)
     keepthelight_cli -audio-lang eng -drop-commentary -subs forced in.mkv  (rules, for scripts)
     keepthelight_cli -audio-tracks 1,1:eac3:5.1 in.mkv   (keep the 7.1 track and add a 5.1 E-AC-3 copy)
+    keepthelight_cli -add-compatible-audio in.mkv   (add an E-AC-3 5.1 copy if there is no AC-3/E-AC-3/AAC track)
+    keepthelight_cli -work-local \\PlexRaid01\Movies\in.mkv   (copy to this PC, convert, copy back)
     keepthelight_cli -tag _4k in.mkv          (name the result in_4k.mkv; default _KTL)
     keepthelight_cli -metadata-only -title "My Film" -replace-original in.mkv   (metadata only, in place)
     keepthelight_cli -gui [input]              (opens the window)

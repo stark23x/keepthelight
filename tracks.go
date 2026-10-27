@@ -578,6 +578,9 @@ func selectTracks(cfg *Config, t *Tracks, mp4 bool) (audio []outAudio, subs []ou
 			def = 0
 		}
 		audio[def].Default = true
+		if cfg.AddCompatAudio {
+			audio, warns = addCompatibleAudio(cfg, audio, def, warns)
+		}
 	}
 
 	// subtitles
@@ -845,7 +848,9 @@ func chooseTracks(ctx context.Context, ffprobe string, cfg *Config, plan *Plan) 
 		return err
 	}
 	plan.Audio, plan.Subs, plan.Src = audio, subs, t
-	plan.Warnings = append(plan.Warnings, warns...)
+	w, notes := splitNotes(warns)
+	plan.Warnings = append(plan.Warnings, w...)
+	plan.Notes = append(plan.Notes, notes...)
 	if cfg.Meta != nil && cfg.Meta.Cover != "" && isMP4(cfg.Output) {
 		plan.Warnings = append(plan.Warnings, "a cover image can only be stored in MKV; it is left out of the MP4")
 	}
@@ -906,4 +911,50 @@ func subChoice(subs []outSub) map[string]any {
 // validChannels: "" (the general setting), "5.1", "stereo", and for one track also "orig".
 func validChannels(s string, perTrack bool) bool {
 	return s == "" || s == "5.1" || s == "stereo" || (perTrack && s == "orig")
+}
+
+// compatibleCodecs play on practically every TV, streamer and phone.
+var compatibleCodecs = map[string]bool{"ac3": true, "eac3": true, "aac": true}
+
+// addCompatibleAudio: when none of the kept tracks is in a format every player
+// can play (only TrueHD or DTS, say), an E-AC-3 copy of the main track is added
+// right after it. The original stays, for players that can play it.
+func addCompatibleAudio(cfg *Config, audio []outAudio, main int, warns []string) ([]outAudio, []string) {
+	for _, a := range audio {
+		c := a.Codec
+		if c == "copy" {
+			c = a.Src.Codec
+		}
+		if compatibleCodecs[c] {
+			return audio, warns // there is one already
+		}
+	}
+	src := audio[main].Src
+	if cfg.MetaOnly {
+		return audio, append(warns, "no compatible audio track is added: metadata only does not convert audio")
+	}
+	add := outAudio{Src: src, Codec: "eac3"}
+	if ch := outChannels("eac3", "", src.Channels); src.Channels > 0 && ch < src.Channels {
+		add.Channels, add.Filter = ch, downmix(src, ch, "eac3")
+	}
+	ch := src.Channels
+	if add.Channels > 0 {
+		ch = add.Channels
+	}
+	add.Bitrate = autoBitrate("eac3", ch)
+	add.Title = strings.TrimSpace("E-AC-3 " + outLayout(add) + " (compatible copy)")
+	out := append(append(append([]outAudio{}, audio[:main+1]...), add), audio[main+1:]...)
+	return out, append(warns, fmt.Sprintf("note: adds an %s copy of audio track %d (%s), for TVs and streamers that cannot play it", add.Title[:len(add.Title)-len(" (compatible copy)")], src.N, codecName(src)))
+}
+
+// splitNotes separates information ("note: ...") from warnings.
+func splitNotes(warns []string) (w, notes []string) {
+	for _, s := range warns {
+		if strings.HasPrefix(s, "note: ") {
+			notes = append(notes, strings.TrimPrefix(s, "note: "))
+		} else {
+			w = append(w, s)
+		}
+	}
+	return w, notes
 }

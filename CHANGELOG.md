@@ -18,6 +18,20 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.16.0 - 2026-10-26
+
+- **Library scan: what's worth converting?** A new section reads every video in a folder (and its subfolders, if
+  you like), without changing anything, and lists each file's video, bitrate, audio and size, with an estimate of
+  the space converting it to HEVC would save. It points out Plex trouble spots: no AC-3, E-AC-3 or AAC audio, Dolby
+  Vision profile 7, forced picture subtitles, H.264 10-bit, VC-1 / MPEG-2 and very high bitrates. Pick files (or
+  **Select worth converting**) and add them to the queue with the current settings or a profile. Reading runs a
+  few files at a time and can be stopped; results appear as they come in.
+- **"Add a compatible audio track when needed"** (Audio rules, saved in profiles; `-add-compatible-audio`): files
+  with only TrueHD, DTS or FLAC audio get an E-AC-3 5.1 copy of the main track next to the original.
+- **Work locally with network files** (Advanced; `-work-local`): network files are copied to this PC, converted
+  there and the result copied back, with progress shown as "Copying". Falls back to working over the network when
+  there is not enough free space.
+
 ## 1.15.0 - 2026-10-26
 
 - **Full-GPU path for NVENC and QuickSync.** With NVENC (NVIDIA) or QuickSync (Intel), each file is now decoded,

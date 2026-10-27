@@ -71,11 +71,13 @@ type guiServer struct {
 	closing    bool     // the window is closing
 	lowPrio    bool     // run transcodes at low priority (a remembered setting)
 	hwDec      bool     // decode on the GPU (a remembered setting, used from the next file on)
+	workLocal  bool     // copy network files to this PC to convert them (a remembered setting)
 	savedTotal int64    // space saved by Keep the Light so far, on this PC (bytes)
 	inbox      []string // files sent by a later start of Keep the Light, for the page
 	opened     int      // how many times that happened (tests)
 	raise      func()   // brings the window to the front (window mode)
 	jobSeq     int
+	scan       scanState // the library scan (its own lock)
 
 	prefsMu   sync.Mutex
 	prefsPath string // settings file (empty = the normal place); set by tests
@@ -97,6 +99,7 @@ type settings struct {
 	AudioDefault, SubDefault   int
 	AudioLang, SubLang         string // rules: languages to keep, e.g. "eng, jpn" (empty = all)
 	DropCommentary             bool
+	AddCompatAudio             bool      // rule: add an E-AC-3 copy when no track plays everywhere
 	AudioChannels              string    // rules: channels for converted tracks: "" (as the source), "5.1", "stereo"
 	SubMode                    string    // rules: "" all matching, "forced", "none"
 	Meta                       *MetaEdit // metadata changes for this file (null = none)
@@ -209,6 +212,7 @@ func (s *settings) toConfig() (*Config, error) {
 		cfg.Output = replacedName(cfg.Input, strings.ToLower(filepath.Ext(s.Output)))
 	}
 	cfg.AudioLangs, cfg.SubLangs, cfg.DropCommentary = parseLangs(s.AudioLang), parseLangs(s.SubLang), s.DropCommentary
+	cfg.AddCompatAudio = s.AddCompatAudio
 	if !validChannels(s.AudioChannels, false) {
 		return nil, fmt.Errorf("unknown channels option")
 	}
@@ -275,6 +279,9 @@ func (cfg *Config) cliArgs() []string {
 	if cfg.HWDecode {
 		a = append(a, "-hw-decode")
 	}
+	if cfg.WorkLocal != "" {
+		a = append(a, "-work-local", cfg.WorkLocal)
+	}
 	if cfg.Scale != "" {
 		a = append(a, "-scale", cfg.Scale)
 	}
@@ -314,6 +321,9 @@ func (cfg *Config) cliArgs() []string {
 	}
 	if cfg.DropCommentary {
 		a = append(a, "-drop-commentary")
+	}
+	if cfg.AddCompatAudio {
+		a = append(a, "-add-compatible-audio")
 	}
 	if cfg.AudioChannels != "" {
 		a = append(a, "-audio-channels", cfg.AudioChannels)
@@ -774,6 +784,29 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		raw, _ := json.Marshal(b.Low)
 		_ = g.savePref("lowPriority", raw)
 		return okResult()
+	case "scanStart":
+		var b struct {
+			Dir, Tag  string
+			Recursive bool
+		}
+		_ = json.Unmarshal(body, &b)
+		return g.scanStart(strings.TrimSpace(b.Dir), b.Recursive, b.Tag)
+	case "scanStop":
+		g.scanStop()
+		return okResult()
+	case "scanStatus":
+		var b struct{ Since int }
+		_ = json.Unmarshal(body, &b)
+		return g.scanStatus(b.Since)
+	case "worklocal": // working locally on/off; used from the next file that starts
+		var b struct{ On bool }
+		_ = json.Unmarshal(body, &b)
+		g.mu.Lock()
+		g.workLocal = b.On
+		g.mu.Unlock()
+		raw, _ := json.Marshal(b.On)
+		_ = g.savePref("workLocal", raw)
+		return okResult()
 	case "hwdecode": // GPU decoding on/off; used from the next file that starts
 		var b struct{ On bool }
 		_ = json.Unmarshal(body, &b)
@@ -992,7 +1025,9 @@ func (g *guiServer) probe(ctx context.Context, s settings) map[string]any {
 			return resp
 		}
 		plan.Audio, plan.Subs = audio, subs
-		plan.Warnings = append(plan.Warnings, warns...)
+		w, notes := splitNotes(warns)
+		plan.Warnings = append(plan.Warnings, w...)
+		resp["notesInfo"] = notes
 		resp["audioTracks"], resp["subTracks"] = trackList(t.Audio, true), trackList(t.Subs, false)
 		resp["audioChoice"], resp["subChoice"] = audioChoice(audio), subChoice(subs)
 		resp["meta"] = metaInfo(t)
@@ -1075,7 +1110,7 @@ func (g *guiServer) readOutput(j *job, r io.Reader) {
 			if m := reStage.FindStringSubmatch(line); m != nil {
 				j.stage = "Step " + m[1] + " of " + m[2] + ": " + m[3]
 				j.prog.stageLine(line, now)
-			} else if strings.HasPrefix(line, "Encoding") {
+			} else if strings.HasPrefix(line, "Encoding") || strings.HasPrefix(line, "Copying") {
 				j.stage = line
 				j.prog.stageLine(line, now)
 			}

@@ -19,3 +19,5 @@ func diskFree(dir string) (uint64, error) {
 func hasRecycleBin(string) bool { return false }
 
 func recycle(string) error { return errors.New("no Recycle Bin") }
+
+func isNetworkPathOS(string) bool { return false }

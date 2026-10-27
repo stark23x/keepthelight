@@ -717,6 +717,12 @@ func (g *guiServer) launchJob(cfg *Config, duration float64) (*job, error) {
 	run.Output = partialName(final)
 	g.mu.Lock()
 	run.LowPriority, run.HWDecode = g.lowPrio, g.hwDec
+	if g.workLocal { // the temp folder, if it is on this PC; else Windows' own temp folder
+		run.WorkLocal = os.TempDir()
+		if run.Tmp != "" && !isNetworkPath(run.Tmp) {
+			run.WorkLocal = run.Tmp
+		}
+	}
 	g.mu.Unlock()
 	_ = os.Remove(run.Output) // left over from an interrupted run
 
@@ -1041,6 +1047,12 @@ func (g *guiServer) restoreQueue() {
 	if b, ok := g.loadPrefs()["lowPriority"]; ok && json.Unmarshal(b, &low) == nil {
 		g.mu.Lock()
 		g.lowPrio = low
+		g.mu.Unlock()
+	}
+	var wl bool
+	if b, ok := g.loadPrefs()["workLocal"]; ok && json.Unmarshal(b, &wl) == nil {
+		g.mu.Lock()
+		g.workLocal = wl
 		g.mu.Unlock()
 	}
 	var total int64

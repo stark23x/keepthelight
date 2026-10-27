@@ -14,6 +14,7 @@ type Config struct {
 	SampleSecs                                   int     // >0: encode only a test of this many seconds
 	SampleStart                                  float64 // where the test starts (seconds; <0 = automatic)
 	SampleOriginal                               string  // where the same stretch of the original is kept, for comparing ("" = automatic)
+	WorkLocal                                    string  // a folder on this PC: network files are copied here, converted, and copied back
 	Input, Output                                string
 	CRF                                          int
 	Preset, Codec, Bitrate                       string
@@ -22,6 +23,7 @@ type Config struct {
 	AudioDefault, SubDefault                     int        // track number to mark as default; 0 = as in the source; SubDefault -1 = none
 	AudioLangs, SubLangs                         []string   // rules: languages to keep (empty = all)
 	DropCommentary                               bool       // rule: leave out commentary audio tracks
+	AddCompatAudio                               bool       // rule: add an E-AC-3 copy when no track plays everywhere
 	AudioChannels                                string     // converted audio: "" keeps the channels, "5.1" or "stereo" mixes down
 	Meta                                         *MetaEdit  // metadata changes (nil = none)
 	MetaOnly                                     bool       // copy every stream unchanged, only the metadata changes
@@ -53,12 +55,13 @@ type Plan struct {
 	RPUMode      int    // dovi_tool -m value (0 = leave RPU as is)
 	UseHDR10Plus bool
 	Warnings     []string
+	Notes        []string // information, not warnings
 	Audio        []outAudio
 	Subs         []outSub
 	Size         *SizePlan
 	Src          *Tracks // the source's tracks, tags, chapters and covers
 	Quality      *QualityGuide
-	ScaleW       int     // >0: resize the video to ScaleW x ScaleH
+	ScaleW       int // >0: resize the video to ScaleW x ScaleH
 	ScaleH       int
 	SrcW, SrcH   int
 }

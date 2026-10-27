@@ -82,3 +82,22 @@ func recycle(path string) error {
 	}
 	return nil
 }
+
+// isNetworkPathOS: a UNC path, or a drive letter mapped to a network share.
+func isNetworkPathOS(path string) bool {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	vol := filepath.VolumeName(abs)
+	if strings.HasPrefix(vol, `\\`) {
+		return true
+	}
+	if len(vol) != 2 {
+		return false
+	}
+	root, _ := syscall.UTF16PtrFromString(vol + `\`)
+	const driveRemote = 4
+	t, _, _ := procGetDriveType.Call(uintptr(unsafe.Pointer(root)))
+	return t == driveRemote
+}
