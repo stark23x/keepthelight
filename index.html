@@ -237,12 +237,6 @@
   .testgrp { display: inline-flex; gap: 6px; align-items: center; }
   .testgrp input { width: 110px; padding: 7px 8px; }
   .dock pre#log { max-height: 28vh; }
-  @media (min-width: 1400px) {
-    .wrap { max-width: 1460px; }
-    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 16px; align-items: start; }
-    .dock { position: sticky; top: 16px; bottom: auto; border-radius: 10px; box-shadow: none; margin-top: 0; }
-    .dock pre#log { max-height: calc(100vh - 330px); }
-  }
 
   /* About */
   dialog#about { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 0;
@@ -1763,7 +1757,6 @@ document.addEventListener('click', e => {
 });
 $('setClose').onclick = () => $('setDlg').close();
 $('setDlg').addEventListener('click', e => { if (e.target === $('setDlg')) $('setDlg').close(); }); // a click outside closes it
-if (window.matchMedia('(min-width: 1400px)').matches) $('logBox').open = true; // wide window: the log has room beside the settings
 // ---------- TMDB lookup (Metadata) ----------
 function tmdbKeyUI() { $('tNoKey').classList.toggle('hidden', !!$('tmdbKey').value.trim()); }
 function tmdbEpUI() { $('tEpWrap').classList.toggle('hidden', $('tKind').value !== 'tv'); }

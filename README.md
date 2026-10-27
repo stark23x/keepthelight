@@ -41,8 +41,7 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
 - **Time left:** about 30 seconds into the encode, the title bar and progress line show an estimate of the
   time remaining. It is rough: speed varies through a film, and a hardware-encoder retry restarts it.
 - **Layout:** three tabs: **Convert** (the file and its settings), **Queue** and **Library scan**. Start, Add to queue,
-  Test 30 s and the progress bar stay in view at the bottom of the window (on a wide window, in a column on the right,
-  with the log). The Queue tab shows how many files are waiting. Settings for this PC (temp folder, priority, GPU
+  Test 30 s and the progress bar stay in view at the bottom of the window. The Queue tab shows how many files are waiting. Settings for this PC (temp folder, priority, GPU
   decoding, working locally, TMDB key, sounds) are under **⚙ Settings** at the top; profiles never include them.
   What the input file is (HDR10, Dolby Vision, resolution, and what will be kept) shows right under it. The Audio and
   Subtitles rules for new files and the queue are in a box of their own under each file's tracks. A notice about

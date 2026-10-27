@@ -18,6 +18,12 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.18.1 - 2026-10-27
+
+- Start, Test 30 s and the progress bar now stay at the bottom of the window at every width. On wide windows they
+  were in a column on the right, which covered part of the "Save changes to the queue" banner while changing a queued
+  file.
+
 ## 1.18.0 - 2026-10-27
 
 - **New layout.** Tabs for **Convert**, **Queue** and **Library scan**, so the settings for a file start right below
