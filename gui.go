@@ -67,14 +67,15 @@ type guiServer struct {
 	ask      func(msg string) bool // asks a yes/no question (window mode)
 	now      func() time.Time      // clock for the time estimate (nil = time.Now)
 
-	q       batch    // the queue; guarded by mu
-	closing bool     // the window is closing
-	lowPrio bool     // run transcodes at low priority (a remembered setting)
-	hwDec   bool     // decode on the GPU (a remembered setting, used from the next file on)
-	inbox   []string // files sent by a later start of Keep the Light, for the page
-	opened  int      // how many times that happened (tests)
-	raise   func()   // brings the window to the front (window mode)
-	jobSeq  int
+	q          batch    // the queue; guarded by mu
+	closing    bool     // the window is closing
+	lowPrio    bool     // run transcodes at low priority (a remembered setting)
+	hwDec      bool     // decode on the GPU (a remembered setting, used from the next file on)
+	savedTotal int64    // space saved by Keep the Light so far, on this PC (bytes)
+	inbox      []string // files sent by a later start of Keep the Light, for the page
+	opened     int      // how many times that happened (tests)
+	raise      func()   // brings the window to the front (window mode)
+	jobSeq     int
 
 	prefsMu   sync.Mutex
 	prefsPath string // settings file (empty = the normal place); set by tests
@@ -972,6 +973,14 @@ func (g *guiServer) probe(ctx context.Context, s settings) map[string]any {
 	if err != nil {
 		resp["blocker"] = err.Error()
 		return resp
+	}
+	if (cfg.Codec == "nvenc" || cfg.Codec == "qsv") && !cfg.CopyVideo { // a GPU encoder this PC does not have
+		if ffmpeg, err := findTool("ffmpeg", ""); err == nil {
+			if problem := encoderProblem(ctx, ffmpeg, cfg.Codec); problem != "" {
+				resp["blocker"] = problem
+				return resp
+			}
+		}
 	}
 	if t, err := probeTracks(ctx, ffprobe, s.Input); err != nil {
 		resp["blocker"] = "Could not read the audio and subtitle tracks: " + err.Error()

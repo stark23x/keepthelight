@@ -40,6 +40,7 @@ type Config struct {
 	hwaccel                                      []string       // input options for GPU decoding (set at start-up)
 	cuesFront                                    bool           // this ffmpeg can put an MKV's index at the front (set at start-up)
 	hqDenoise                                    *denoiseChoice // "high quality" noise reduction as chosen at start-up
+	gpu                                          *gpuPath       // the full-GPU path, when it works for this file
 	cleanup                                      []string       // files to remove when the job ends (a test's sample)
 	sample                                       string         // a test's cut of the original
 	replaceFinal                                 string         // command line -replace-original: the name the result finally gets
@@ -219,12 +220,20 @@ func buildVideoArgs(cfg *Config, p *Probe, plan *Plan, hdr10plusJSON string) ([]
 	if f := cfg.denoiseFilter(); f != "" { // after resizing: fewer pixels to clean, and resizing already smooths a little
 		filters = append(filters, f)
 	}
+	if cfg.gpu != nil && (cfg.Codec == "nvenc" || cfg.Codec == "qsv") {
+		filters = []string{cfg.gpu.filter(plan)} // resize and 10-bit on the graphics card
+	}
 	if len(filters) > 0 {
 		args = append(args, "-vf", strings.Join(filters, ","))
 	}
+	pixFmt := []string{"-pix_fmt", "p010le"}
+	if cfg.gpu != nil {
+		pixFmt = nil // the frames are already 10-bit, in GPU memory
+	}
 	switch cfg.Codec {
 	case "nvenc":
-		args = append(args, "-c:v", "hevc_nvenc", "-preset", nvPreset(cfg.Preset), "-tune", "hq", "-profile:v", "main10", "-pix_fmt", "p010le")
+		args = append(args, "-c:v", "hevc_nvenc", "-preset", nvPreset(cfg.Preset), "-tune", "hq", "-profile:v", "main10")
+		args = append(args, pixFmt...)
 		if cfg.Bitrate != "" {
 			args = append(args, "-rc", "vbr", "-b:v", cfg.Bitrate)
 		} else {
@@ -234,7 +243,8 @@ func buildVideoArgs(cfg *Config, p *Probe, plan *Plan, hdr10plusJSON string) ([]
 			warns = append(warns, "NVENC takes HDR10 static metadata from the decoded frames; check the verification line at the end")
 		}
 	case "qsv":
-		args = append(args, "-c:v", "hevc_qsv", "-preset", qsvPreset(cfg.Preset), "-profile:v", "main10", "-pix_fmt", "p010le")
+		args = append(args, "-c:v", "hevc_qsv", "-preset", qsvPreset(cfg.Preset), "-profile:v", "main10")
+		args = append(args, pixFmt...)
 		if cfg.Bitrate != "" {
 			args = append(args, "-b:v", cfg.Bitrate)
 		} else {

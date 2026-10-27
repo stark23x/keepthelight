@@ -438,6 +438,10 @@ func transcode(ctx context.Context, cfg *Config) error {
 		}
 	}
 
+	var origSize int64 // for "space saved"
+	if st, err := os.Stat(cfg.Input); err == nil {
+		origSize = st.Size()
+	}
 	defer func() { // a test's sample
 		for _, f := range cfg.cleanup {
 			_ = os.Remove(f)
@@ -495,7 +499,17 @@ func transcode(ctx context.Context, cfg *Config) error {
 		}
 	}
 	r := &runner{ctx: ctx, dry: cfg.DryRun, verbose: cfg.Verbose}
-	if cfg.HWDecode && !cfg.CopyVideo {
+	if (cfg.Codec == "nvenc" || cfg.Codec == "qsv") && !cfg.CopyVideo && !cfg.DryRun {
+		if problem := encoderProblem(ctx, ffmpeg, cfg.Codec); problem != "" {
+			return fmt.Errorf("%s", problem)
+		}
+		g, msg := chooseGPUPath(ctx, cfg, plan)
+		cfg.gpu = g
+		if msg != "" {
+			fmt.Println(msg)
+		}
+	}
+	if cfg.HWDecode && !cfg.CopyVideo && cfg.gpu == nil {
 		switch {
 		case cfg.DryRun:
 			cfg.hwaccel = hwaccelArgs()
@@ -579,6 +593,11 @@ func transcode(ctx context.Context, cfg *Config) error {
 		}
 	}
 	keepOriginalClip(cfg)
+	if cfg.sample == "" && origSize > 0 {
+		if st, err := os.Stat(cfg.Output); err == nil {
+			fmt.Println("Size:", savedText(origSize, st.Size()))
+		}
+	}
 	fmt.Println("\nDone:", cfg.Output)
 	return nil
 }

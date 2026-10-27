@@ -18,6 +18,21 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.15.0 - 2026-10-26
+
+- **Full-GPU path for NVENC and QuickSync.** With NVENC (NVIDIA) or QuickSync (Intel), each file is now decoded,
+  resized and encoded entirely on the graphics card, without frames going back and forth to the CPU: faster,
+  especially for 4K, and the CPU stays free (on the Plex server, for Plex). It is automatic: KTL tries it on a few
+  frames of each file and uses the normal way if it does not work (an old driver, an unusual source format). The
+  log says which ("Full-GPU path: on, NVIDIA (CUDA)"). Files with noise reduction go the normal way, because
+  noise reduction runs on the CPU so that it looks the same with every encoder. x265 is unchanged.
+- **"Not available on this PC" warning.** If NVENC or QuickSync cannot work on this PC (NVENC without an NVIDIA card,
+  QuickSync without Intel graphics, or a missing driver), the window says so as soon as it is chosen, with the
+  reason, instead of the job failing when it starts. Useful when profiles move between PCs.
+- **Space saved.** Each finished file shows its size before and after, for example "18.7 GB → 9.2 GB · saved 9.5 GB
+  (51%)" (or how much bigger it got). The Queue heading adds up the run, and keeps a single running total for this
+  PC ("4.2 TB saved in total"). No history is kept. The command-line program prints the same "Size:" line.
+
 ## 1.14.0 - 2026-10-26
 
 - **Quality guide** under the quality setting, for Constant quality and Target bitrate (Target file size shows it in

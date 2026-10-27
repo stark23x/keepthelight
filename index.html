@@ -1651,6 +1651,8 @@ function renderQueue(q) {
   if (q.running && q.total > 1) bits.push('file ' + q.index + ' of ' + q.total);
   if (waiting) bits.push(waiting + ' waiting');
   ['done', 'failed', 'skipped', 'problem'].forEach(k => { if (c[k]) bits.push(c[k] + ' ' + (k === 'problem' ? "can't transcode" : k)); });
+  if (q.savedRun) bits.push((q.savedRun > 0 ? 'saved ' + q.savedRunText : q.savedRunText.slice(1) + ' bigger') + ' this run');
+  if (q.savedTotal > 0) bits.push(q.savedTotalText + ' saved in total');
   $('sumQueue').textContent = bits.length ? bits.join('  ·  ') : 'empty';
   if (q.running) restoredNotice = false;
   $('queueHint').classList.toggle('hidden', q.items.length > 0 && !restoredNotice);

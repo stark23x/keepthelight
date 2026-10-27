@@ -64,13 +64,14 @@ func (it *queueItem) finished() bool {
 func (it *queueItem) pending() bool { return it.Status == stWaiting || it.Status == stChecking }
 
 type batch struct {
-	items   []*queueItem
-	nextID  int
-	running bool // the runner is working through the queue
-	stop    bool // stop after the current file
-	only    int  // >0: run only this file (a test), not the rest of the queue
-	index   int  // position of the current file in this run (1-based)
-	total   int  // files in this run
+	items    []*queueItem
+	nextID   int
+	running  bool  // the runner is working through the queue
+	stop     bool  // stop after the current file
+	only     int   // >0: run only this file (a test), not the rest of the queue
+	savedRun int64 // space saved by the files finished in this run (bytes; can be negative)
+	index    int   // position of the current file in this run (1-based)
+	total    int   // files in this run
 
 	after      string    // "", "sleep" or "shutdown": what to do when the queue is finished
 	powerAt    time.Time // when the countdown for "after" ends (zero = no countdown)
@@ -543,6 +544,9 @@ func (g *guiServer) startQueue() error {
 		n = 1 // a test on its own
 	}
 	g.q.running, g.q.stop, g.q.index, g.q.total = true, false, 0, n
+	if g.q.only == 0 {
+		g.q.savedRun = 0 // a new run
+	}
 	go g.runQueue()
 	return nil
 }
@@ -605,6 +609,10 @@ func (g *guiServer) runQueue() {
 		g.mu.Unlock()
 		g.saveQueue()
 
+		var inSize int64 // for "space saved": the original's size before anything happens to it
+		if st, err := os.Stat(cfg.Input); err == nil {
+			inSize = st.Size()
+		}
 		j, err := g.launchJob(&cfg, duration)
 		if err != nil {
 			g.mu.Lock()
@@ -628,6 +636,14 @@ func (g *guiServer) runQueue() {
 			for _, l := range j.lines { // a test's measured quality
 				if strings.HasPrefix(l, "Test quality:") {
 					it.Note = l
+				}
+			}
+			if cfg.SampleSecs == 0 && inSize > 0 { // space saved (not for tests)
+				if st, err := os.Stat(it.Output); err == nil {
+					saved := inSize - st.Size()
+					it.Note = savedText(inSize, st.Size())
+					g.q.savedRun += saved
+					g.addSavedTotalLocked(saved)
 				}
 			}
 			finished++
@@ -830,7 +846,8 @@ func (g *guiServer) queueStatusLocked() map[string]any {
 		items = append(items, *it)
 	}
 	res := map[string]any{"items": items, "counts": counts, "running": g.q.running, "index": g.q.index,
-		"total": g.q.total, "after": g.q.after}
+		"total": g.q.total, "after": g.q.after, "savedRun": g.q.savedRun, "savedRunText": signedBytes(g.q.savedRun),
+		"savedTotal": g.savedTotal, "savedTotalText": signedBytes(g.savedTotal)}
 	if !g.q.powerAt.IsZero() {
 		res["powerIn"] = int(time.Until(g.q.powerAt).Seconds() + 0.5)
 	}
@@ -1026,6 +1043,12 @@ func (g *guiServer) restoreQueue() {
 		g.lowPrio = low
 		g.mu.Unlock()
 	}
+	var total int64
+	if b, ok := g.loadPrefs()["spaceSaved"]; ok && json.Unmarshal(b, &total) == nil {
+		g.mu.Lock()
+		g.savedTotal = total
+		g.mu.Unlock()
+	}
 	var hw bool
 	if b, ok := g.loadPrefs()["hwDecode"]; ok && json.Unmarshal(b, &hw) == nil {
 		g.mu.Lock()
@@ -1162,4 +1185,33 @@ func (g *guiServer) spaceCheck(form json.RawMessage) map[string]any {
 	}
 	res["total"], res["drives"], res["enough"], res["replace"], res["files"] = formatBytes(total), list, ok, replace, files
 	return res
+}
+
+// ---- space saved ----
+
+// savedText: "18.7 GB → 9.2 GB · saved 9.5 GB (51%)", or how much bigger it got.
+func savedText(in, out int64) string {
+	s := formatBytes(in) + " → " + formatBytes(out)
+	switch d := in - out; {
+	case d > 0:
+		return fmt.Sprintf("%s · saved %s (%d%%)", s, formatBytes(d), int(float64(d)*100/float64(in)+0.5))
+	case d < 0:
+		return fmt.Sprintf("%s · %s bigger than the original", s, formatBytes(-d))
+	}
+	return s + " · the same size"
+}
+
+func signedBytes(b int64) string {
+	if b < 0 {
+		return "-" + formatBytes(-b)
+	}
+	return formatBytes(b)
+}
+
+// addSavedTotalLocked adds to the running total of space saved (one number in
+// the settings, no history). Caller holds g.mu.
+func (g *guiServer) addSavedTotalLocked(d int64) {
+	g.savedTotal += d
+	raw, _ := json.Marshal(g.savedTotal)
+	_ = g.savePref("spaceSaved", raw) // its own lock: safe while g.mu is held
 }

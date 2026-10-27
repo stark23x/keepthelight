@@ -189,6 +189,9 @@ func formatClock(s float64) string {
 
 // inputPrefix: options before the source input (GPU filter device, GPU decoding).
 func (cfg *Config) inputPrefix() []string {
+	if cfg.gpu != nil {
+		return cfg.gpu.Input // decoded straight into GPU memory
+	}
 	var a []string
 	if cfg.Denoise == "hq" && cfg.hqDenoise != nil {
 		a = append(a, cfg.hqDenoise.Global...)

@@ -76,6 +76,15 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   measured against that original: VMAF (0-100, a score that judges like a viewer) when the FFmpeg build includes
   it, otherwise SSIM. The score is shown in the queue list and the log; noise reduction lowers it, because removed
   grain counts as a difference.
+- **Full-GPU path for NVENC and QuickSync** (automatic): with an NVIDIA card (NVENC) or Intel graphics (QuickSync),
+  each file is decoded, resized and encoded on the graphics card, without frames going back to the CPU. KTL
+  tries it on a few frames of each file first and uses the normal way if it does not work; the log says which.
+  Noise reduction runs on the CPU (so it looks the same with every encoder), so files with noise reduction go the
+  normal way. If the chosen GPU encoder cannot work on this PC at all (NVENC without an NVIDIA card, QuickSync
+  without Intel graphics), the window says so before you start.
+- **Space saved:** each finished file shows its size before and after ("18.7 GB → 9.2 GB · saved 9.5 GB (51%)"),
+  the Queue heading adds up the run, and a single running total ("4.2 TB saved in total") is kept for this PC.
+  No history is stored.
 - **Decode on the GPU** (under Advanced): the graphics chip reads the source video, so the CPU only encodes.
   Speeds up x265, most with 4K sources. Before each file, Keep the Light test-decodes a few frames; if the GPU
   cannot decode it, that file is decoded on the CPU as before, and the log says which was used. Remembered.
