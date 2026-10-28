@@ -428,6 +428,7 @@
         <div><label for="subToSRT">Convert ASS and PGS to SRT</label>
           <select id="subToSRT"><option value="">no, keep them as they are</option><option value="replace">yes, replacing them</option><option value="add">yes, next to the originals</option></select></div>
       </div>
+      <div id="ruleTess" class="hidden"></div>
     </div></details>
   </details>
 
@@ -627,6 +628,7 @@ __ABOUT__
 const T = new URLSearchParams(location.search).get('t');
 const INITIAL = __INITIAL_FILE__;
 const $ = id => document.getElementById(id);
+let lastTools = null; // what checkTools found, for the warnings next to the subtitle choices
 const radio = name => document.querySelector('input[name="' + name + '"]:checked').value;
 let info = null, polling = null, since = 0, jobActive = false, probeSeq = 0;
 let curJob = 0, queue = { items: [], counts: {}, running: false }, jobBoxDismissed = false, restoredNotice = false;
@@ -901,6 +903,8 @@ function renderTracks() {
         kept && !noMP4 ? radioLabel('sdef', t.subDefault === src.n, 'default', () => { t.subDefault = src.n; tracksChanged(); }) : el('span'));
       sl.append(row);
     });
+    if (lastTools && !lastTools.tesseract && t.subs.some(k => k.srt && (info.subTracks.find(x => x.n === k.n) || {}).srtKind === 'ocr') && !metaMode())
+      sl.append(tesseractNote('PGS subtitles set to SRT are read with Tesseract OCR, which is not installed on this PC, so this file cannot start yet.'));
     const none = el('div', 'trow nodef');
     none.append(el('span', 'hint', 'Players show the default subtitle automatically; forced subtitles appear even when subtitles are off.'),
       radioLabel('sdef', t.subDefault <= 0, 'no default subtitle', () => { t.subDefault = -1; tracksChanged(); }));
@@ -1432,6 +1436,12 @@ function updateSummaries() {
   $('sumARules').textContent = [$('audioLang').value.trim() || 'all languages', opt($('audio')).replace(' (no re-encode)', '').toLowerCase(),
     $('audio').value !== 'copy' && $('audioCh').value && opt($('audioCh')).replace(/ \(.*\)/, ''), $('dropComm').checked && 'no commentary',
     $('addCompat').checked && '+ compatible track'].filter(Boolean).join('  ·  ');
+  const rt = $('ruleTess'), needT = !!$('subToSRT').value && lastTools && !lastTools.tesseract;
+  if (needT !== !rt.classList.contains('hidden')) {
+    rt.innerHTML = '';
+    if (needT) rt.append(tesseractNote('PGS subtitles in files added to the queue will be read with Tesseract OCR, which is not installed on this PC; those files will not start.', 'choose "no" here'));
+    rt.classList.toggle('hidden', !needT);
+  }
   $('sumSRules').textContent = [$('subLang').value.trim() || 'all languages', opt($('subMode')),
     $('subToSRT').value && 'ASS/PGS to SRT' + ($('subToSRT').value === 'add' ? ' (copies)' : '')].filter(Boolean).join('  ·  ');
 }
@@ -2162,11 +2172,22 @@ const FFMPEG_URL = 'https://www.gyan.dev/ffmpeg/builds/#release-builds';
 const GPAC_URL = 'https://gpac.io/downloads/';
 const VCREDIST_URL = 'https://aka.ms/vs/17/release/vc_redist.x64.exe';
 const TESSERACT_URL = 'https://github.com/UB-Mannheim/tesseract/wiki';
+// A warning about missing Tesseract, with the way to get it and to look again once installed.
+function tesseractNote(text, instead) {
+  const n = el('div', 'note bad tools', text + ' Install it (free) and press Check again, or ' + (instead || 'set those subtitles to "as is"') + '.');
+  const act = el('div', 'tool-actions'), again = el('button', '', 'Check again');
+  again.onclick = async () => { await checkTools(); if ($('input').value.trim()) probe(); };
+  act.append(linkButton('Get Tesseract', TESSERACT_URL), again); n.append(act);
+  return n;
+}
 function linkButton(text, href) { const a = document.createElement('a'); a.href = href; a.textContent = text; return a; }
 let toolsHidden = '';
 $('toolsUnhide').onclick = () => { toolsHidden = ''; api('setPref', { name: 'toolsHidden', value: '' }); checkTools(); };
 async function checkTools() {
   const t = await api('tools');
+  lastTools = t;
+  if (info) renderTracks();
+  updateSummaries();
   const box = $('toolsNote');
   box.innerHTML = ''; box.className = 'note tools hidden';
   const miss = ['ffmpeg', 'ffprobe'].filter(k => !t[k]);
@@ -2185,6 +2206,10 @@ async function checkTools() {
   if ((!t.dovi_tool && !problems.dovi_tool) || (!t.hdr10plus_tool && !problems.hdr10plus_tool)) {
     msgs.push([!t.dovi_tool && !problems.dovi_tool && 'dovi_tool.exe', !t.hdr10plus_tool && !problems.hdr10plus_tool && 'hdr10plus_tool.exe'].filter(Boolean).join(' and ') +
       ' should be in the tools folder (they come with Keep the Light). Unzip the download again if they are missing.');
+  }
+  if (!t.tesseract && !problems.tesseract) {
+    msgs.push('Converting PGS (picture) subtitles to SRT needs Tesseract OCR: install it (free) with its normal installer and Keep the Light will find it. Everything else works without it.');
+    links.push(linkButton('Get Tesseract', TESSERACT_URL));
   }
   if ((t.dovi_tool || t.hdr10plus_tool) && !t.vcruntime) {
     msgs.push('dovi_tool and hdr10plus_tool need the Microsoft Visual C++ Runtime, which is not installed on this PC.');

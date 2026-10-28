@@ -18,6 +18,15 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.19.1 - 2026-10-27
+
+- **Clearer warnings when Tesseract OCR is missing.** Before, the only warning was under the input file, out of view
+  while choosing subtitles. Now:
+  - the tools notice at the top says it is needed for converting PGS subtitles, with a **Get Tesseract** button
+    (everything else works without it);
+  - the Subtitles section warns right under the tracks as soon as a PGS track is set to SRT, and under the rule
+    when **Convert ASS and PGS to SRT** is on, each with **Get Tesseract** and **Check again**.
+
 ## 1.19.0 - 2026-10-27
 
 - **Subtitles to SRT.** ASS/SSA and PGS subtitle tracks can be converted to plain SRT, which every Plex player can
