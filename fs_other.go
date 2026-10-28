@@ -21,3 +21,6 @@ func hasRecycleBin(string) bool { return false }
 func recycle(string) error { return errors.New("no Recycle Bin") }
 
 func isNetworkPathOS(string) bool { return false }
+
+// isLockErrorOS: files are not locked against deleting or renaming here.
+func isLockErrorOS(err error) bool { return false }

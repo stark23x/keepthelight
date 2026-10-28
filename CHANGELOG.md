@@ -18,6 +18,19 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.19.2 - 2026-10-28
+
+- **Files in use by another program no longer fail a job.** Backup programs (Backblaze, OneDrive), antivirus
+  scanners and indexers briefly open new files, and while they do Windows refuses to delete, rename or move them
+  ("The process cannot access the file because it is being used by another process").
+  - Keep the Light now retries those operations for up to 30 seconds, which is usually more than enough.
+  - Deleting a temporary file never fails a job any more: if a file is still in use, the job finishes normally,
+    the log says so, and the next job removes it. Only Keep the Light's own temporary files are removed this way.
+  - Fixed: with the temp folder on another drive than the output, a target-size job failed at the very end when
+    the temporary attempt could not be deleted, although the result had already been copied into place.
+  - Tip: exclude the temp folder from backup programs; its files are large and gone minutes later.
+- Fixed a test in the test suite that could fail when the PC was busy (no change to the program).
+
 ## 1.19.1 - 2026-10-27
 
 - **Clearer warnings when Tesseract OCR is missing.** Before, the only warning was under the input file, out of view

@@ -84,7 +84,11 @@ func TestTestRunsAlone(t *testing.T) {
 	if r := g.startTest(raw); r["ok"] != true {
 		t.Fatalf("%v", r)
 	}
-	waitFor(t, "the test", func() bool { g.mu.Lock(); defer g.mu.Unlock(); return !g.q.running })
+	waitFor(t, "the test", func() bool { // finished (not just "not started yet")
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		return !g.q.running && len(g.q.items) > 0 && g.q.items[0].Status != stWaiting && g.q.items[0].Status != stChecking
+	})
 	s := statuses(g)
 	if s[0] != "film.mkv="+stDone || s[1] != "waiting.mkv="+stWaiting || !fileExists(filepath.Join(dir, "film_KTL (30 s test).mkv")) || len(s) != 2 {
 		t.Fatalf("%v", s)

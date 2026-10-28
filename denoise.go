@@ -139,7 +139,7 @@ func cutSample(r *runner, cfg *Config, start float64, dir string) (string, error
 	err = r.run(cfg.Ffmpeg, "-hide_banner", "-v", "error", "-y", "-ss", strconv.FormatFloat(start, 'f', 3, 64), "-i", cfg.Input,
 		"-t", strconv.Itoa(cfg.SampleSecs), "-map", "0:v", "-map", "0:a?", "-map", "0:s?", "-map", "0:t?", "-c", "copy", name)
 	if err != nil {
-		os.Remove(name)
+		_ = removeFile(name)
 		return "", err
 	}
 	return name, nil
@@ -167,8 +167,8 @@ func keepOriginalClip(cfg *Config) {
 	if dst == "" {
 		dst = originalClipName(cfg.Output, cfg.SampleSecs)
 	}
-	_ = os.Remove(dst) // the previous test's
-	if err := os.Rename(cfg.sample, dst); err != nil {
+	_ = removeFile(dst) // the previous test's
+	if err := renameFile(cfg.sample, dst); err != nil {
 		fmt.Println("WARNING: could not keep the original clip for comparing:", err)
 		return
 	}

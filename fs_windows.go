@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -100,4 +101,19 @@ func isNetworkPathOS(path string) bool {
 	const driveRemote = 4
 	t, _, _ := procGetDriveType.Call(uintptr(unsafe.Pointer(root)))
 	return t == driveRemote
+}
+
+// isLockErrorOS: the file is open in another program (sharing or lock
+// violation), or access was refused, which Windows also reports for a file
+// that is being deleted or scanned.
+func isLockErrorOS(err error) bool {
+	var en syscall.Errno
+	if !errors.As(err, &en) {
+		return false
+	}
+	switch en {
+	case 32, 33, 5: // ERROR_SHARING_VIOLATION, ERROR_LOCK_VIOLATION, ERROR_ACCESS_DENIED
+		return true
+	}
+	return false
 }

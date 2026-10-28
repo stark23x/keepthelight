@@ -308,7 +308,7 @@ func replaceOriginal(ctx context.Context, ffprobe, original, newFile, final stri
 	if err != nil {
 		return nil, fmt.Errorf("the original was NOT replaced, because it could not be moved (%v). The new file is kept as %s", err, newFile)
 	}
-	if err := os.Rename(newFile, final); err != nil {
+	if err := renameFile(newFile, final); err != nil {
 		return nil, fmt.Errorf("the original was %s, but the new file could not be renamed to %s: %v. It is %s", where, final, err, newFile)
 	}
 	return []string{"The original was " + where + ".", "Saved as " + final}, nil
@@ -327,7 +327,7 @@ func disposeOriginal(path string) (string, error) {
 	for i := 2; fileExists(kept); i++ {
 		kept = fmt.Sprintf("%s (original %d)%s", strings.TrimSuffix(path, ext), i, ext)
 	}
-	if err := os.Rename(path, kept); err != nil {
+	if err := renameFile(path, kept); err != nil {
 		return "", err
 	}
 	return "renamed to " + filepath.Base(kept) + " (this drive has no Recycle Bin, so it was not deleted)", nil

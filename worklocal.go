@@ -50,6 +50,7 @@ func startLocal(cfg *Config) (*localWork, error) {
 			cfg.WorkLocal, formatBytes(need), formatBytes(int64(free)))
 		return nil, nil
 	}
+	cleanLeftovers(cfg.WorkLocal) // what earlier jobs could not delete
 	dir, err := os.MkdirTemp(cfg.WorkLocal, ".keepthelight-local-")
 	if err != nil {
 		return nil, fmt.Errorf("cannot create a folder for working locally: %w", err)
@@ -58,7 +59,7 @@ func startLocal(cfg *Config) (*localWork, error) {
 	if inNet {
 		local := filepath.Join(dir, filepath.Base(cfg.Input))
 		if err := copyWithProgress(cfg.Input, local, "Copying the source to this PC"); err != nil {
-			os.RemoveAll(dir)
+			removeTemp(dir)
 			return nil, err
 		}
 		cfg.Input = local
@@ -88,7 +89,7 @@ func (lw *localWork) finish(cfg *Config) error {
 
 func (lw *localWork) cleanup() {
 	if !lw.keep {
-		_ = os.RemoveAll(lw.dir)
+		removeTemp(lw.dir)
 	}
 }
 
@@ -119,7 +120,7 @@ func copyWithProgress(src, dst, label string) error {
 		if n > 0 {
 			if _, werr := out.Write(buf[:n]); werr != nil {
 				out.Close()
-				os.Remove(dst)
+				_ = removeFile(dst)
 				return werr
 			}
 			done += int64(n)
@@ -134,12 +135,12 @@ func copyWithProgress(src, dst, label string) error {
 		}
 		if rerr != nil {
 			out.Close()
-			os.Remove(dst)
+			_ = removeFile(dst)
 			return rerr
 		}
 	}
 	if err := out.Close(); err != nil {
-		os.Remove(dst)
+		_ = removeFile(dst)
 		return err
 	}
 	return nil

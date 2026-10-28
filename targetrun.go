@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"os"
 )
 
@@ -21,29 +20,14 @@ func fileSizeFor(r *runner, path string, dry int64) (int64, error) {
 	return st.Size(), nil
 }
 
+// moveFile moves a finished file into place: a rename on the same drive, a
+// copy on another one (where a source still in use is deleted later).
 func moveFile(src, dst string) error {
-	_ = os.Remove(dst)
-	if err := os.Rename(src, dst); err == nil {
+	_ = removeFile(dst)
+	if err := renameFile(src, dst); err == nil {
 		return nil
 	}
-	// different drive: copy instead
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
-		return err
-	}
-	if err := out.Close(); err != nil {
-		return err
-	}
-	return os.Remove(src)
+	return copyThenRemove(src, dst) // different drive
 }
 
 // finishAttempts keeps the best attempt (moving it to dst) and deletes the rest.
@@ -53,7 +37,7 @@ func finishAttempts(r *runner, best attempt, all []attempt, dst string) error {
 	}
 	for _, a := range all {
 		if a.Path != best.Path {
-			_ = os.Remove(a.Path)
+			removeTemp(a.Path)
 		}
 	}
 	if len(all) > 1 {

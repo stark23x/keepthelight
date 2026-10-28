@@ -462,7 +462,7 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 	}
 	defer func() { // a test's sample
 		for _, f := range cfg.cleanup {
-			_ = os.Remove(f)
+			removeTemp(f)
 		}
 	}()
 	if cfg.SampleSecs > 0 {
@@ -570,6 +570,9 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 	if tmpBase == "" {
 		tmpBase = filepath.Dir(cfg.Output)
 	}
+	if !cfg.DryRun {
+		cleanLeftovers(tmpBase) // what earlier jobs could not delete
+	}
 	needTmp := plan.UseDV || plan.UseHDR10Plus || plan.Size != nil || metaNeedsFiles(cfg, plan) || plan.needsOCR()
 	tmp := filepath.Join(tmpBase, ".keepthelight-tmp")
 	if needTmp && !cfg.DryRun {
@@ -584,7 +587,7 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 			case !succeeded:
 				fmt.Fprintln(os.Stderr, "\nIntermediate files were KEPT so finished work is not lost:\n  "+tmp)
 			case !cfg.Keep:
-				os.RemoveAll(tmp)
+				removeTemp(tmp)
 			}
 		}()
 		markOK = func() { succeeded = true }
@@ -831,7 +834,7 @@ func runDV(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 				return 0, "", err
 			}
 			if !r.dry {
-				_ = os.Remove(b)
+				removeTemp(b)
 			}
 			sz, err := fileSizeFor(r, inj, tp.Target-tp.NonVideo())
 			return sz + tp.NonVideo(), inj, err

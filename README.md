@@ -134,6 +134,9 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   complete.
 - **Temp folder** (⚙ Settings): Dolby Vision and two-pass jobs write large temporary files, next to the
   output file unless you choose a folder here. The choice is remembered.
+  Backup programs such as Backblaze can be told to skip it (its files are large and gone minutes later). Files
+  another program has open for a moment are waited for (up to 30 seconds), and a temporary file that is still in
+  use is removed by the next job instead of failing this one.
 - **About** (top right): version, contact information and licences. Its text is in `about.html` in the source.
 
 The window uses the Microsoft Edge WebView2 Runtime, which is part of Windows 11 and installed on nearly all

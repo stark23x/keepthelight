@@ -724,7 +724,7 @@ func (g *guiServer) launchJob(cfg *Config, duration float64) (*job, error) {
 		}
 	}
 	g.mu.Unlock()
-	_ = os.Remove(run.Output) // left over from an interrupted run
+	_ = removeFile(run.Output) // left over from an interrupted run
 
 	g.mu.Lock()
 	g.jobSeq++
@@ -776,7 +776,7 @@ func (g *guiServer) launchJob(cfg *Config, duration float64) (*job, error) {
 				} else {
 					lines, finishErr = replaceOriginal(context.Background(), ffprobe, cfg.Input, j.partial, j.output)
 				}
-			} else if err := os.Rename(j.partial, j.output); err != nil {
+			} else if err := renameFile(j.partial, j.output); err != nil {
 				finishErr = fmt.Errorf("could not rename the finished file to %s: %v", j.output, err)
 			} else {
 				lines = []string{"Saved as " + j.output}
@@ -790,7 +790,7 @@ func (g *guiServer) launchJob(cfg *Config, duration float64) (*job, error) {
 		switch {
 		case canceled:
 			j.stage = "Canceled"
-			_ = os.Remove(j.partial)
+			_ = removeFile(j.partial)
 		case code == 0 && finishErr != nil:
 			j.exitCode, j.stage = 1, "Failed"
 			j.lines = append(j.lines, "ERROR: "+finishErr.Error())
