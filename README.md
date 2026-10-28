@@ -23,6 +23,7 @@ Two free programs have to be added once:
 |---|---|---|
 | FFmpeg | everything | Download `ffmpeg-release-essentials.zip` from [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) (any build with libx265 works) and copy `ffmpeg.exe` and `ffprobe.exe` from its `bin` folder into `tools`. |
 | GPAC (MP4Box) | Dolby Vision only | Install it from [gpac.io](https://gpac.io/downloads/) with its normal installer. Keep the Light finds it in `Program Files\GPAC` or on PATH. |
+| Tesseract OCR | converting PGS subtitles to SRT only | Install it from [UB Mannheim's page](https://github.com/UB-Mannheim/tesseract/wiki) with its normal installer (English is included; tick other languages in the installer if you need them). Keep the Light finds it in `Program Files\Tesseract-OCR` or on PATH. |
 
 If something is missing, the window says what and has buttons for the download pages and the tools folder. dovi_tool
 and hdr10plus_tool need the Microsoft Visual C++ Runtime, which most PCs already have; if it is missing, the window
@@ -159,6 +160,8 @@ private local web server. To choose that yourself, run `keepthelight_cli -server
     keepthelight_cli -audio-tracks 1,1:eac3:5.1 in.mkv   (keep the 7.1 track and add a 5.1 E-AC-3 copy)
     keepthelight_cli -add-compatible-audio in.mkv   (add an E-AC-3 5.1 copy if there is no AC-3/E-AC-3/AAC track)
     keepthelight_cli -work-local \\PlexRaid01\Movies\in.mkv   (copy to this PC, convert, copy back)
+    keepthelight_cli -sub-tracks 1:srt,2:srt+ in.mkv   (track 1 to SRT; track 2 kept plus an SRT copy)
+    keepthelight_cli -subs-to-srt replace in.mkv  (every ASS/SSA and PGS track to SRT)
     keepthelight_cli -tag _4k in.mkv          (name the result in_4k.mkv; default _KTL)
     keepthelight_cli -metadata-only -title "My Film" -replace-original in.mkv   (metadata only, in place)
     keepthelight_cli -gui [input]              (opens the window)
@@ -220,7 +223,18 @@ subtitles and container from the target to get a video bitrate, then:
 - **Choosing tracks:** the Audio and Subtitles sections list every track of the file. Each audio track can be
   copied, converted (E-AC-3, AC-3, AAC, Opus, FLAC) or dropped; each subtitle track kept or dropped, with its
   forced flag. One audio track and (optionally) one subtitle track are marked as the default. **Set all tracks
-  to…** (audio) and **Keep all** (subtitles) change every track at once.
+  to…** changes every track at once.
+- **Subtitles to SRT:** ASS/SSA (styled text) and PGS (Blu-ray picture subtitles) tracks can be converted to plain
+  SRT, which every Plex player shows without Plex burning them into the picture. Per track: **as is**, **→ SRT**
+  (replaces it) or **as is + SRT** (an SRT copy next to it, named "… (SRT)"); for the queue, the rule **Convert
+  ASS and PGS to SRT**. Timings, language, default and forced flags are kept.
+  - ASS/SSA: converted by FFmpeg, instantly. Fonts, colours, positions and effects are lost; plain dialogue
+    converts cleanly, heavily styled tracks (karaoke, signs) may show doubled lines.
+  - PGS: the pictures are read with **Tesseract OCR** (free, installed separately; see Setup), in the track's
+    language when Tesseract has it, otherwise English. A film takes from seconds to a couple of minutes. Clean
+    Blu-ray subtitles come out very accurately, but skim the result once: OCR can mistake l / I / 1, and
+    italics are not marked.
+  - In MP4, which cannot hold PGS, a PGS track can now be kept as text; ASS becomes plain text there anyway.
 - **Rules** (remembered) give the starting choice for each file and decide the tracks for the queue, where every
   file is different: languages to keep (for example `eng, jpn`), leave out commentary tracks, and all / forced
   only / no subtitles. Tracks with no language set are kept; if no audio track matches, the file's default

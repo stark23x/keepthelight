@@ -56,7 +56,8 @@ Choosing tracks (numbers as the window shows them: audio 1, 2, ...; subtitles 1,
   -audio-tracks <list> keep these audio tracks, each copied or converted:
                        1,2:eac3,3:aac:192k,4:eac3:5.1   (no format = the -audio setting), all, none
   -audio-default <n>   mark audio track n as the default
-  -sub-tracks <list>   keep these subtitle tracks: 1,3:forced (":forced" sets the forced flag), all, none
+  -sub-tracks <list>   keep these subtitle tracks: 1,3:forced (":forced" sets the forced flag), all, none;
+                       ":srt" converts an ASS/SSA or PGS track to SRT, ":srt+" adds an SRT copy next to it
   -sub-default <n>     mark subtitle track n as the default, or "none"
  Rules, used when tracks are not listed (for example in scripts over many files):
   -audio-lang <list>   keep only audio in these languages, e.g. eng,jpn (tracks with no language
@@ -68,6 +69,8 @@ Choosing tracks (numbers as the window shows them: audio 1, 2, ...; subtitles 1,
                        track in -audio-tracks, e.g. 1:eac3:5.1 or 2:aac:192k:stereo; "orig" keeps them)
   -sub-lang <list>     keep only subtitles in these languages
   -subs <all|forced|none>  which subtitles to keep (default all)
+  -subs-to-srt <replace|add>  convert ASS/SSA and PGS subtitles to SRT (PGS needs Tesseract OCR),
+                       replacing them or added next to them
   -dv <auto|drop>      Dolby Vision: auto keeps it (default), drop = plain HDR10
   -scale <size>        shrink the video to fit 2160p, 1440p, 1080p or 720p, keeping its shape
                        (3840x1600 -> 1920x800 at 1080p) and its HDR10 / HDR10+ / Dolby Vision
@@ -107,12 +110,13 @@ Metadata (with any job):
   -sound               play a sound at the end (the window's choices: Notify when done, Critical
                        stop when it failed)
   -pause               wait for Enter before exiting
-  -ffmpeg -ffprobe -dovi-tool -mp4box -hdr10plus-tool <path>   tool locations
+  -ffmpeg -ffprobe -dovi-tool -mp4box -hdr10plus-tool -tesseract <path>   tool locations
 
 Required tools (put them next to this exe, in a "tools" folder, or on PATH):
   ffmpeg + ffprobe              always
   dovi_tool + MP4Box            Dolby Vision sources
   hdr10plus_tool                optional, keeps HDR10+ dynamic metadata
+  tesseract (Tesseract OCR)     only to convert PGS picture subtitles to SRT
 `
 
 func parseArgs() (*Config, bool) {
@@ -138,6 +142,8 @@ func parseArgs() (*Config, bool) {
 	fs.BoolVar(&cfg.DropCommentary, "drop-commentary", false, "")
 	fs.BoolVar(&cfg.AddCompatAudio, "add-compatible-audio", false, "")
 	fs.StringVar(&cfg.SubMode, "subs", "", "")
+	fs.StringVar(&cfg.SubsToSRT, "subs-to-srt", "", "")
+	fs.StringVar(&cfg.Tesseract, "tesseract", "", "")
 	fs.StringVar(&cfg.AudioChannels, "audio-channels", "", "")
 	fs.BoolVar(&cfg.MetaOnly, "metadata-only", false, "")
 	fs.BoolVar(&cfg.ReplaceOriginal, "replace-original", false, "")
@@ -304,6 +310,12 @@ func parseArgs() (*Config, bool) {
 		cfg.SubMode = ""
 	default:
 		fmt.Fprintln(os.Stderr, "error: -subs must be all, forced or none")
+		return cfg, false
+	}
+	switch cfg.SubsToSRT = strings.ToLower(cfg.SubsToSRT); cfg.SubsToSRT {
+	case "", "replace", "add":
+	default:
+		fmt.Fprintln(os.Stderr, "error: -subs-to-srt must be replace or add")
 		return cfg, false
 	}
 	if *targetSize != "" {
@@ -558,7 +570,7 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 	if tmpBase == "" {
 		tmpBase = filepath.Dir(cfg.Output)
 	}
-	needTmp := plan.UseDV || plan.UseHDR10Plus || plan.Size != nil || metaNeedsFiles(cfg, plan)
+	needTmp := plan.UseDV || plan.UseHDR10Plus || plan.Size != nil || metaNeedsFiles(cfg, plan) || plan.needsOCR()
 	tmp := filepath.Join(tmpBase, ".keepthelight-tmp")
 	if needTmp && !cfg.DryRun {
 		d, err := os.MkdirTemp(tmpBase, ".keepthelight-")
@@ -578,6 +590,9 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 		markOK = func() { succeeded = true }
 	}
 
+	if err := prepareOCR(r, cfg, plan, tmp); err != nil {
+		return err
+	}
 	if plan.UseDV {
 		err = runDV(r, cfg, p, plan, tmp)
 	} else {
@@ -662,6 +677,7 @@ func runSimple(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 		args = append(args, "-i", cfg.Input)
 		if pass != 1 {
 			args = append(args, meta.Inputs...)
+			args = append(args, ocrInputs(plan.Subs, 1+countInputs(meta.Inputs))...)
 		}
 		args = append(args, "-map", "0:v:0")
 		if pass > 0 {
@@ -849,6 +865,7 @@ func runDV(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 	}
 	margs := []string{"-hide_banner", "-y", "-i", dvmp4, "-i", cfg.Input}
 	margs = append(margs, meta.Inputs...)
+	margs = append(margs, ocrInputs(plan.Subs, 2+countInputs(meta.Inputs))...)
 	margs = append(margs, "-map", "0:v:0")
 	margs = append(margs, audioArgs(plan.Audio, 1)...)
 	margs = append(margs, subtitleArgs(plan.Subs, 1)...)

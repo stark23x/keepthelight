@@ -100,6 +100,7 @@ type settings struct {
 	AudioLang, SubLang         string // rules: languages to keep, e.g. "eng, jpn" (empty = all)
 	DropCommentary             bool
 	AddCompatAudio             bool      // rule: add an E-AC-3 copy when no track plays everywhere
+	SubToSRT                   string    // rule: convert ASS/SSA and PGS subtitles to SRT: "", "replace" or "add"
 	AudioChannels              string    // rules: channels for converted tracks: "" (as the source), "5.1", "stereo"
 	SubMode                    string    // rules: "" all matching, "forced", "none"
 	Meta                       *MetaEdit // metadata changes for this file (null = none)
@@ -213,6 +214,12 @@ func (s *settings) toConfig() (*Config, error) {
 	}
 	cfg.AudioLangs, cfg.SubLangs, cfg.DropCommentary = parseLangs(s.AudioLang), parseLangs(s.SubLang), s.DropCommentary
 	cfg.AddCompatAudio = s.AddCompatAudio
+	switch s.SubToSRT {
+	case "", "replace", "add":
+		cfg.SubsToSRT = s.SubToSRT
+	default:
+		return nil, fmt.Errorf("unknown subtitle conversion option")
+	}
 	if !validChannels(s.AudioChannels, false) {
 		return nil, fmt.Errorf("unknown channels option")
 	}
@@ -243,7 +250,10 @@ func (s *settings) toConfig() (*Config, error) {
 			if t.N < 1 {
 				return nil, fmt.Errorf("bad subtitle track choice")
 			}
-			cfg.SubSel = append(cfg.SubSel, trackSel{N: t.N, Forced: t.Forced})
+			if t.SRT != "" && t.SRT != "replace" && t.SRT != "add" {
+				return nil, fmt.Errorf("bad subtitle conversion choice")
+			}
+			cfg.SubSel = append(cfg.SubSel, trackSel{N: t.N, Forced: t.Forced, SRT: t.SRT})
 		}
 	}
 	if a != "copy" && s.AudioBitrate != "" {
@@ -330,6 +340,9 @@ func (cfg *Config) cliArgs() []string {
 	}
 	if cfg.SubMode != "" {
 		a = append(a, "-subs", cfg.SubMode)
+	}
+	if cfg.SubsToSRT != "" {
+		a = append(a, "-subs-to-srt", cfg.SubsToSRT)
 	}
 	if cfg.CopyVideo {
 		a = append(a, "-copy-video")
@@ -955,7 +968,7 @@ func (g *guiServer) tools() map[string]any {
 	startChecks.Clear() // "Check again" after installing GPAC or the runtime: test the tools afresh
 	res, problems := map[string]any{}, map[string]string{}
 	for _, t := range []struct{ key, exe string }{
-		{"ffmpeg", "ffmpeg"}, {"ffprobe", "ffprobe"}, {"dovi_tool", "dovi_tool"}, {"mp4box", "MP4Box"}, {"hdr10plus_tool", "hdr10plus_tool"},
+		{"ffmpeg", "ffmpeg"}, {"ffprobe", "ffprobe"}, {"dovi_tool", "dovi_tool"}, {"mp4box", "MP4Box"}, {"hdr10plus_tool", "hdr10plus_tool"}, {"tesseract", "tesseract"},
 	} {
 		_, err := findTool(t.exe, "")
 		res[t.key] = err == nil
@@ -1049,6 +1062,14 @@ func (g *guiServer) probe(ctx context.Context, s settings) map[string]any {
 			}
 		}
 	}
+	if plan.needsOCR() { // PGS to SRT: Tesseract reads the pictures
+		if _, err := findTool("tesseract", ""); err != nil {
+			resp["blocker"] = "Converting picture subtitles (PGS) to SRT needs Tesseract OCR, which is not installed on this PC. " +
+				"Install it (free, with its normal installer) and Keep the Light will find it, or set those subtitles to \"as is\"."
+			resp["needTesseract"] = true
+			return resp
+		}
+	}
 	resp["mode"] = describeMode(cfg, plan)
 	resp["modeText"] = friendlyMode(cfg, plan)
 	if plan.Quality != nil {
@@ -1113,7 +1134,7 @@ func (g *guiServer) readOutput(j *job, r io.Reader) {
 			if m := reStage.FindStringSubmatch(line); m != nil {
 				j.stage = "Step " + m[1] + " of " + m[2] + ": " + m[3]
 				j.prog.stageLine(line, now)
-			} else if strings.HasPrefix(line, "Encoding") || strings.HasPrefix(line, "Copying") {
+			} else if strings.HasPrefix(line, "Encoding") || strings.HasPrefix(line, "Copying") || strings.HasPrefix(line, "Reading subtitles") {
 				j.stage = line
 				j.prog.stageLine(line, now)
 			}

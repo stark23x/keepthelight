@@ -117,7 +117,8 @@
   .tdesc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tnum { color: var(--muted); margin-right: 6px; }
   .trow label.check { margin: 0; white-space: nowrap; }
-  .trow.sub { grid-template-columns: 90px 1fr auto auto; }
+  .trow.sub { grid-template-columns: 90px 1fr auto auto auto; }
+  .trow select.tsrt { width: auto; padding: 4px 8px; }
   .trow.nodef { grid-template-columns: 1fr auto; background: transparent; border-style: dashed; }
   .rules { border-top: 1px solid var(--line); padding-top: 12px; }
   textarea { width: 100%; box-sizing: border-box; resize: vertical; font: inherit; background: var(--panel2); color: var(--text);
@@ -424,6 +425,8 @@
         <div><label for="subLang">Languages to keep</label><input type="text" id="subLang" spellcheck="false" placeholder="all, or for example eng"></div>
         <div><label for="subMode">Keep</label>
           <select id="subMode"><option value="">all subtitles in those languages</option><option value="forced">only forced subtitles</option><option value="none">no subtitles</option></select></div>
+        <div><label for="subToSRT">Convert ASS and PGS to SRT</label>
+          <select id="subToSRT"><option value="">no, keep them as they are</option><option value="replace">yes, replacing them</option><option value="add">yes, next to the originals</option></select></div>
       </div>
     </div></details>
   </details>
@@ -666,7 +669,7 @@ function settings() {
     dv: $('dv').value, masterDisplay: $('master').value.trim(), maxCLL: $('cll').value.trim(), tmp: $('tmp').value.trim(),
     targetSize: $('targetNum').value.trim().replace(',', '.') + $('targetUnit').value, retries: +$('retries').value,
     scale: $('scale').value, denoise: $('denoise').value,
-    audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, audioChannels: $('audioCh').value, addCompatAudio: $('addCompat').checked, subLang: $('subLang').value.trim(), subMode: $('subMode').value,
+    audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, audioChannels: $('audioCh').value, addCompatAudio: $('addCompat').checked, subLang: $('subLang').value.trim(), subMode: $('subMode').value, subToSRT: $('subToSRT').value,
     ...trackSettings(),
     meta: metaEdits(), replaceOriginal: replacing(), profile: $('profile').value
   };
@@ -745,7 +748,7 @@ function trackSettings() {
   const t = tracksForForm();
   if (!t) return { audioTracks: null, subTracks: null, audioDefault: 0, subDefault: 0 };
   return { audioTracks: t.audio.map(a => ({ n: a.n, codec: a.codec, channels: a.codec === 'copy' ? '' : (a.channels || 'orig') })), audioDefault: t.audioDefault,
-    subTracks: t.subs.map(x => ({ n: x.n, forced: x.forced })), subDefault: t.subDefault };
+    subTracks: t.subs.map(x => ({ n: x.n, forced: x.forced, srt: x.srt || undefined })), subDefault: t.subDefault };
 }
 const RULES_ONLY = { audioTracks: null, subTracks: null, audioDefault: 0, subDefault: 0 };
 
@@ -753,7 +756,7 @@ const RULES_ONLY = { audioTracks: null, subTracks: null, audioDefault: 0, subDef
 function tracksFromProbe(r, input) {
   const ac = r.audioChoice || { tracks: [], default: 0 }, sc = r.subChoice || { tracks: [], default: -1 };
   return { input, audio: ac.tracks.map(a => ({ n: a.n, codec: a.codec, channels: a.channels || 'orig' })), audioDefault: ac.default,
-    subs: sc.tracks.map(x => ({ n: x.n, forced: !!x.forced })), subDefault: sc.default };
+    subs: sc.tracks.map(x => ({ n: x.n, forced: !!x.forced, srt: x.srt || '' })), subDefault: sc.default };
 }
 
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
@@ -848,34 +851,52 @@ function renderTracks() {
 
   if (info.subTracks.length) {
     // "Set all tracks to": keep or drop every subtitle track at once (as for audio)
-    const keepable = info.subTracks.filter(x => !(mp4 && !x.mp4ok));
+    const keepable = info.subTracks.filter(x => !(mp4 && !x.mp4ok && x.srtKind !== 'ocr'));
+    const ruleSRT = src => src.srtKind && !metaMode() ? $('subToSRT').value : '';
     const head = el('div', 'thead'), all = el('select', 'tall');
-    [['', 'Set all tracks to…'], ['keep', 'Keep all'], ['drop', 'Drop all']].forEach(([v, text]) => { const o = el('option', '', text); o.value = v; all.append(o); });
+    [['', 'Set all tracks to…'], ['keep', 'Keep all'], ['drop', 'Drop all'], ['srt', 'Convert all ASS/PGS to SRT'], ['asis', 'Keep all as they are (no SRT)']].forEach(([v, text]) => { const o = el('option', '', text); o.value = v; all.append(o); });
     if (!keepable.length) all.options[1].disabled = true;
     all.onchange = () => {
       const v = all.value; all.value = '';
       if (v === 'keep') {
-        t.subs = keepable.map(x => ({ n: x.n, forced: x.forced })); // each with the forced flag it has in the file
+        t.subs = keepable.map(x => { const old = t.subs.find(k => k.n === x.n); return { n: x.n, forced: x.forced, srt: old ? old.srt : ruleSRT(x) }; }); // each with the forced flag it has in the file
         if (t.subDefault > 0 && !t.subs.some(k => k.n === t.subDefault)) t.subDefault = -1;
       } else if (v === 'drop') { t.subs = []; t.subDefault = -1; }
-      else return;
+      else if (v === 'srt' || v === 'asis') {
+        t.subs.forEach(k => { const src = info.subTracks.find(x => x.n === k.n); if (src && src.srtKind) k.srt = v === 'srt' ? 'replace' : ''; });
+      } else return;
       tracksChanged();
     };
     head.append(all, el('span', 'hint', 'tracks in this file'));
     sl.append(head);
     info.subTracks.forEach(src => {
       const kept = t.subs.find(x => x.n === src.n);
-      const noMP4 = mp4 && !src.mp4ok;
+      const ocrMP4 = mp4 && !src.mp4ok && src.srtKind === 'ocr' && !metaMode(); // PGS in MP4: only as text
+      const noMP4 = mp4 && !src.mp4ok && !ocrMP4;
+      if (kept && ocrMP4) kept.srt = 'replace';
       const row = el('div', 'trow sub' + (kept && !noMP4 ? '' : ' dropped'));
       const keep = checkLabel(!!kept && !noMP4, 'keep', e => {
         const i = t.subs.findIndex(x => x.n === src.n);
-        if (e.target.checked && i < 0) { t.subs.push({ n: src.n, forced: src.forced }); t.subs.sort((x, y) => x.n - y.n); }
+        if (e.target.checked && i < 0) { t.subs.push({ n: src.n, forced: src.forced, srt: ocrMP4 ? 'replace' : ruleSRT(src) }); t.subs.sort((x, y) => x.n - y.n); }
         if (!e.target.checked && i >= 0) { t.subs.splice(i, 1); if (t.subDefault === src.n) t.subDefault = -1; }
         tracksChanged();
       });
       if (noMP4) { keep.querySelector('input').disabled = true; keep.title = 'Picture subtitles (PGS, VobSub) cannot be stored in MP4. Choose MKV to keep them.'; }
       const d = el('div', 'tdesc'); d.append(el('span', 'tnum', String(src.n)), document.createTextNode(src.desc + (noMP4 ? ' · not possible in MP4' : ''))); d.title = src.desc;
-      row.append(keep, d,
+      // ASS/SSA (styled text) and PGS (pictures) can become plain SRT
+      let conv = el('span');
+      if (kept && !noMP4 && src.srtKind && !metaMode()) {
+        if (mp4) conv = el('span', 'hint', src.srtKind === 'ocr' ? 'as text (OCR)' : 'as plain text');
+        else {
+          conv = el('select', 'tsrt');
+          [['', 'as is'], ['replace', '→ SRT'], ['add', 'as is + SRT']].forEach(([v, text]) => { const o = el('option', '', text); o.value = v; conv.append(o); });
+          conv.value = kept.srt || '';
+          conv.title = src.srtKind === 'ocr' ? 'PGS subtitles are pictures: converting reads them with Tesseract OCR (free, installed separately). Skim the result once.'
+            : 'ASS/SSA styling (fonts, colours, positions) is lost in SRT; plain dialogue converts cleanly.';
+          conv.onchange = () => { kept.srt = conv.value; tracksChanged(); };
+        }
+      }
+      row.append(keep, d, conv,
         kept && !noMP4 ? checkLabel(kept.forced, 'forced', e => { kept.forced = e.target.checked; tracksChanged(); }) : el('span'),
         kept && !noMP4 ? radioLabel('sdef', t.subDefault === src.n, 'default', () => { t.subDefault = src.n; tracksChanged(); }) : el('span'));
       sl.append(row);
@@ -892,7 +913,7 @@ function tracksChanged() { renderTracks(); renderMeta(); updateSummaries(); sche
 function rulesChanged() {
   tracks = null;
   api('setPref', { name: 'trackRules', value: { audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, audioChannels: $('audioCh').value, addCompatAudio: $('addCompat').checked,
-    subLang: $('subLang').value.trim(), subMode: $('subMode').value } });
+    subLang: $('subLang').value.trim(), subMode: $('subMode').value, subToSRT: $('subToSRT').value } });
   updateSummaries(); scheduleProbe(150);
 }
 
@@ -928,8 +949,9 @@ function subSummary() {
   }
   if (!info.subTracks.length) return 'none in this file';
   const mp4 = $('container').value === '.mp4';
-  const n = t.subs.filter(x => !(mp4 && !(info.subTracks.find(s => s.n === x.n) || {}).mp4ok)).length;
-  return 'keeping ' + n + ' of ' + info.subTracks.length;
+  const okIn = x => { const s = info.subTracks.find(y => y.n === x.n) || {}; return !mp4 || s.mp4ok || (s.srtKind === 'ocr' && !metaMode()); };
+  const n = t.subs.filter(okIn).length, nc = t.subs.filter(x => okIn(x) && x.srt).length;
+  return 'keeping ' + n + ' of ' + info.subTracks.length + (nc ? '  ·  ' + nc + ' to SRT' : '');
 }
 
 // ---------- metadata ----------
@@ -998,7 +1020,7 @@ function renderMeta() {
   if (t) {
     t.audio.forEach(a => rows.push(['a', a.n, info.audioTracks.find(x => x.n === a.n)]));
     const mp4 = $('container').value === '.mp4';
-    t.subs.forEach(x => { const src = info.subTracks.find(y => y.n === x.n); if (!(mp4 && !src.mp4ok)) rows.push(['s', x.n, src]); });
+    t.subs.forEach(x => { const src = info.subTracks.find(y => y.n === x.n); if (!(mp4 && !src.mp4ok && !(src.srtKind === 'ocr' && !metaMode()))) rows.push(['s', x.n, src]); });
   }
   if (!rows.length) box.append(el('div', 'hint', 'No audio or subtitle tracks are kept.'));
   rows.forEach(([kind, n, src]) => {
@@ -1086,7 +1108,7 @@ async function confirmNewFiles(form) {
 // A profile is a named set of the settings below the Files section. It can
 // name converted files after itself ("Film_Plex 4K.mkv").
 const PROFILE_KEYS = ['mode', 'codec', 'preset', 'scale', 'denoise', 'dv', 'quality', 'crf', 'bitrate', 'targetSize', 'retries',
-  'audio', 'audioBitrate', 'audioChannels', 'audioLang', 'dropCommentary', 'addCompatAudio', 'subLang', 'subMode', 'masterDisplay', 'maxCLL'];
+  'audio', 'audioBitrate', 'audioChannels', 'audioLang', 'dropCommentary', 'addCompatAudio', 'subLang', 'subMode', 'subToSRT', 'masterDisplay', 'maxCLL'];
 let profiles = []; // [{ name, useNameTag, settings }]
 function activeProfile() { const n = $('profile').value; return n ? profiles.find(p => p.name === n) || null : null; }
 function profileTag(p) { return '_' + cleanTagText(p.name.trim().replace(/\s+/g, ' ')); }
@@ -1144,11 +1166,12 @@ function applyFields(st, keys) {
   if (has('addCompatAudio')) $('addCompat').checked = !!st.addCompatAudio;
   if (has('subLang')) $('subLang').value = st.subLang;
   if (has('subMode')) $('subMode').value = st.subMode;
+  if (has('subToSRT')) $('subToSRT').value = st.subToSRT || '';
   if (has('masterDisplay')) $('master').value = st.masterDisplay;
   if (has('maxCLL')) $('cll').value = st.maxCLL;
 }
 // settings added after a profile was saved: their defaults, so older profiles still apply cleanly
-const PROFILE_DEFAULTS = { denoise: '', addCompatAudio: false };
+const PROFILE_DEFAULTS = { denoise: '', addCompatAudio: false, subToSRT: '' };
 function withDefaults(st) { return Object.assign({}, PROFILE_DEFAULTS, st); }
 function applyProfile(p) {
   if (p) applyFields(withDefaults(p.settings), PROFILE_KEYS);
@@ -1315,7 +1338,7 @@ $('editCancel').onclick = () => endEdit(false);
 // The tracks and metadata a queued file was given, put back into the form's state.
 function tracksFromSettings(st, input) {
   return { input, audio: st.audioTracks.map(a => ({ n: a.n, codec: a.codec || 'copy', channels: a.channels || 'orig' })), audioDefault: st.audioDefault || 0,
-    subs: (st.subTracks || []).map(x => ({ n: x.n, forced: !!x.forced })), subDefault: st.subDefault === undefined ? -1 : st.subDefault };
+    subs: (st.subTracks || []).map(x => ({ n: x.n, forced: !!x.forced, srt: x.srt || '' })), subDefault: st.subDefault === undefined ? -1 : st.subDefault };
 }
 function applyMetaEdits(m, e) {
   if (!e) return;
@@ -1409,7 +1432,8 @@ function updateSummaries() {
   $('sumARules').textContent = [$('audioLang').value.trim() || 'all languages', opt($('audio')).replace(' (no re-encode)', '').toLowerCase(),
     $('audio').value !== 'copy' && $('audioCh').value && opt($('audioCh')).replace(/ \(.*\)/, ''), $('dropComm').checked && 'no commentary',
     $('addCompat').checked && '+ compatible track'].filter(Boolean).join('  ·  ');
-  $('sumSRules').textContent = [$('subLang').value.trim() || 'all languages', opt($('subMode'))].join('  ·  ');
+  $('sumSRules').textContent = [$('subLang').value.trim() || 'all languages', opt($('subMode')),
+    $('subToSRT').value && 'ASS/PGS to SRT' + ($('subToSRT').value === 'add' ? ' (copies)' : '')].filter(Boolean).join('  ·  ');
 }
 
 // Which sections are open is remembered between runs. Only the user's own
@@ -1455,6 +1479,7 @@ async function restorePrefs() {
     $('audioLang').value = tr.audioLang || ''; $('dropComm').checked = !!tr.dropCommentary; $('addCompat').checked = !!tr.addCompatAudio;
     $('audioCh').value = ['', '5.1', 'stereo'].includes(tr.audioChannels) ? tr.audioChannels : '';
     $('subLang').value = tr.subLang || ''; $('subMode').value = ['', 'forced', 'none'].includes(tr.subMode) ? tr.subMode : '';
+    $('subToSRT').value = ['', 'replace', 'add'].includes(tr.subToSRT) ? tr.subToSRT : '';
   }
   const bo = r.prefs.batchOut;
   if (bo && bo.dir) $('qOutDir').value = bo.dir; // the last folder, ready if "in this folder" is chosen again
@@ -1502,7 +1527,16 @@ function showInfo(r) {
   if (r.cll) bits.push('MaxCLL/FALL ' + r.cll);
   bits.push(r.hasMastering ? 'mastering display metadata found' : 'no mastering display metadata');
   $('meta').textContent = bits.join('  ·  ');
-  if (r.blocker) notes.appendChild(note(r.blocker, 'bad'));
+  if (r.blocker) {
+    const nb = note(r.blocker, 'bad');
+    if (r.needTesseract) { // a way to get it, and to look again once installed
+      const act = el('div', 'tool-actions');
+      const get = linkButton('Get Tesseract', TESSERACT_URL);
+      const again = el('button', '', 'Check again'); again.onclick = () => probe();
+      act.append(get, again); nb.append(act); nb.classList.add('tools');
+    }
+    notes.appendChild(nb);
+  }
   else if (r.modeText || r.mode) notes.appendChild(note(r.modeText || r.mode, 'info'));
   if (r.sizeText) notes.appendChild(note(r.sizeText + (r.sizeExact ? '' : ' (audio size estimated)'), 'info'));
   (r.notesInfo || []).forEach(n => notes.appendChild(note(n.charAt(0).toUpperCase() + n.slice(1), 'info')));
@@ -1581,7 +1615,7 @@ $('container').addEventListener('change', () => {
 $('targetNum').addEventListener('input', () => scheduleProbe(600));
 $('audio').addEventListener('change', () => { updateVisibility(); rulesChanged(); });
 ['audioLang', 'subLang'].forEach(id => $(id).addEventListener('change', rulesChanged));
-['dropComm', 'subMode', 'audioCh', 'addCompat'].forEach(id => $(id).addEventListener('change', rulesChanged));
+['dropComm', 'subMode', 'subToSRT', 'audioCh', 'addCompat'].forEach(id => $(id).addEventListener('change', rulesChanged));
 $('codec').addEventListener('change', () => { updateVisibility(); scheduleProbe(200); });
 $('crf').addEventListener('input', () => { updateVisibility(); scheduleProbe(500); });
 $('bitrate').addEventListener('input', () => scheduleProbe(700));
@@ -1959,6 +1993,7 @@ function settingsText(st) {
     if (st.addCompatAudio) parts.push('+ compatible audio');
     if (st.subMode === 'none') parts.push('no subtitles');
     else if (st.subLang || st.subMode === 'forced') parts.push('subtitles ' + (st.subLang || 'all') + (st.subMode === 'forced' ? ' forced' : ''));
+    if (st.subToSRT && st.subMode !== 'none') parts.push('subtitles → SRT');
   }
   parts.push(ext);
   return parts.join(' · ');
@@ -2126,6 +2161,7 @@ async function poll() {
 const FFMPEG_URL = 'https://www.gyan.dev/ffmpeg/builds/#release-builds';
 const GPAC_URL = 'https://gpac.io/downloads/';
 const VCREDIST_URL = 'https://aka.ms/vs/17/release/vc_redist.x64.exe';
+const TESSERACT_URL = 'https://github.com/UB-Mannheim/tesseract/wiki';
 function linkButton(text, href) { const a = document.createElement('a'); a.href = href; a.textContent = text; return a; }
 let toolsHidden = '';
 $('toolsUnhide').onclick = () => { toolsHidden = ''; api('setPref', { name: 'toolsHidden', value: '' }); checkTools(); };

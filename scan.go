@@ -166,7 +166,14 @@ func analyse(it *scanItem, data []byte) {
 			}
 		case "subtitle":
 			if s.Disp["forced"] == 1 && bitmapSubs[s.Codec] {
-				it.Issues = appendOnce(it.Issues, "Forced picture subtitles (PGS/VobSub): Plex burns them into the picture, which forces a video conversion")
+				msg := "Forced picture subtitles (PGS/VobSub): Plex burns them into the picture, which forces a video conversion"
+				if s.Codec == "hdmv_pgs_subtitle" {
+					msg += " (converting them to SRT fixes this)"
+				}
+				it.Issues = appendOnce(it.Issues, msg)
+			}
+			if (s.Codec == "ass" || s.Codec == "ssa") && (s.Disp["forced"] == 1 || s.Disp["default"] == 1) {
+				it.Issues = appendOnce(it.Issues, "Styled subtitles (ASS/SSA) shown by default: many Plex players cannot draw them, so Plex burns them in and converts the video (converting them to SRT fixes this)")
 			}
 		}
 	}

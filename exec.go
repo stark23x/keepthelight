@@ -61,6 +61,17 @@ func toolCandidates(name string) []string {
 		}
 	}
 	add(exec.LookPath(name))
+	// Tesseract is not shipped either: its installer puts it in Program Files (or the user's own programs).
+	if strings.EqualFold(name, "tesseract") {
+		for _, env := range []string{"ProgramW6432", "ProgramFiles", "ProgramFiles(x86)"} {
+			if base := os.Getenv(env); base != "" {
+				add(exec.LookPath(filepath.Join(base, "Tesseract-OCR", "tesseract")))
+			}
+		}
+		if base := os.Getenv("LOCALAPPDATA"); base != "" {
+			add(exec.LookPath(filepath.Join(base, "Programs", "Tesseract-OCR", "tesseract")))
+		}
+	}
 	// MP4Box is not shipped with Keep the Light: use an installed GPAC.
 	if strings.EqualFold(name, "MP4Box") {
 		for _, env := range []string{"ProgramW6432", "ProgramFiles", "ProgramFiles(x86)"} {
@@ -82,7 +93,7 @@ var toolStartProblem = func(path string) string {
 		return v.(string)
 	}
 	arg := "-version"
-	if b := strings.ToLower(filepath.Base(path)); strings.HasPrefix(b, "dovi_tool") || strings.HasPrefix(b, "hdr10plus_tool") {
+	if b := strings.ToLower(filepath.Base(path)); strings.HasPrefix(b, "dovi_tool") || strings.HasPrefix(b, "hdr10plus_tool") || strings.HasPrefix(b, "tesseract") {
 		arg = "--version"
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

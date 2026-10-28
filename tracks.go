@@ -59,6 +59,7 @@ type trackSel struct {
 	Bitrate  string `json:"bitrate,omitempty"`
 	Channels string `json:"channels,omitempty"` // converted audio: "orig", "5.1" or "stereo"; "" = the general setting
 	Forced   bool   `json:"forced,omitempty"`
+	SRT      string `json:"srt,omitempty"` // subtitles: "replace" (convert to SRT) or "add" (an SRT copy next to it)
 }
 
 type outAudio struct {
@@ -77,6 +78,11 @@ type outSub struct {
 	Default, Forced bool
 	Codec           string // ffmpeg subtitle codec for the output container ("copy", "srt", "mov_text")
 	Meta            *TrackMeta
+	ToSRT           bool   // converted to text (ASS/SSA by FFmpeg, PGS by OCR)
+	Added           bool   // an SRT copy next to the original track
+	Title           string // replaces the source title (the copy's "… (SRT)")
+	SRTFile         string // PGS read by OCR: the SRT file (set when the job runs)
+	input           int    // ... and its input number in the final command
 }
 
 // ---------- probing ----------
@@ -584,6 +590,7 @@ func selectTracks(cfg *Config, t *Tracks, mp4 bool) (audio []outAudio, subs []ou
 	}
 
 	// subtitles
+	var srtMode []string // per chosen track: "", "replace" or "add"
 	if cfg.SubSel != nil {
 		seen := map[int]bool{}
 		for _, s := range cfg.SubSel {
@@ -593,17 +600,25 @@ func selectTracks(cfg *Config, t *Tracks, mp4 bool) (audio []outAudio, subs []ou
 			if !seen[s.N] {
 				seen[s.N] = true
 				subs = append(subs, outSub{Src: t.Subs[s.N-1], Forced: s.Forced})
+				srtMode = append(srtMode, s.SRT)
 			}
 		}
 	} else if cfg.SubMode != "none" {
 		for _, s := range t.Subs {
 			if langMatch(cfg.SubLangs, s.Lang) && (cfg.SubMode != "forced" || s.Forced()) {
 				subs = append(subs, outSub{Src: s, Forced: s.Forced()})
+				srtMode = append(srtMode, cfg.SubsToSRT)
 			}
 		}
 	}
+	subs, warns = convertSubs(cfg, subs, srtMode, mp4, cfg.SubSel != nil, warns)
 	kept := subs[:0]
 	for _, s := range subs {
+		if s.ToSRT {
+			s.Codec = map[bool]string{true: "mov_text", false: "srt"}[mp4]
+			kept = append(kept, s)
+			continue
+		}
 		codec, ok, w := subCodec(s.Src, mp4)
 		if w != "" {
 			warns = append(warns, w)
@@ -618,7 +633,7 @@ func selectTracks(cfg *Config, t *Tracks, mp4 bool) (audio []outAudio, subs []ou
 	case cfg.SubDefault > 0:
 		found := false
 		for i := range subs {
-			if subs[i].Src.N == cfg.SubDefault {
+			if subs[i].Src.N == cfg.SubDefault && !subs[i].Added {
 				subs[i].Default, found = true, true
 			}
 		}
@@ -627,7 +642,7 @@ func selectTracks(cfg *Config, t *Tracks, mp4 bool) (audio []outAudio, subs []ou
 		}
 	case cfg.SubDefault == 0:
 		for i := range subs {
-			if subs[i].Src.Default() {
+			if subs[i].Src.Default() && !subs[i].Added {
 				subs[i].Default = true
 				break
 			}
@@ -642,6 +657,68 @@ func selectTracks(cfg *Config, t *Tracks, mp4 bool) (audio []outAudio, subs []ou
 		subs[i].Meta = cfg.Meta.track("s", subs[i].Src.N)
 	}
 	return audio, subs, warns, nil
+}
+
+// srtKind says how a subtitle track can become SRT: "text" (ASS/SSA, by
+// FFmpeg), "ocr" (PGS, read by Tesseract) or "" (not needed or not possible).
+func srtKind(codec string) string {
+	switch strings.ToLower(codec) {
+	case "ass", "ssa":
+		return "text"
+	case "hdmv_pgs_subtitle":
+		return "ocr"
+	}
+	return ""
+}
+
+// convertSubs applies "convert to SRT": the track itself becomes SRT
+// ("replace"), or an SRT copy follows it ("add"). In MP4, where ASS turns into
+// plain text anyway and PGS cannot be kept, a copy would only repeat it, so
+// "add" converts the track itself there.
+func convertSubs(cfg *Config, subs []outSub, modes []string, mp4, explicit bool, warns []string) ([]outSub, []string) {
+	out := make([]outSub, 0, len(subs))
+	for i, s := range subs {
+		m := ""
+		if i < len(modes) {
+			m = modes[i]
+		}
+		kind := srtKind(s.Src.Codec)
+		switch {
+		case m == "":
+		case cfg.MetaOnly:
+			if explicit {
+				warns = append(warns, fmt.Sprintf("subtitle track %d: metadata only copies every track as it is, so it is not converted to SRT", s.Src.N))
+			}
+			m = ""
+		case kind == "":
+			if explicit && !textSubs[strings.ToLower(s.Src.Codec)] {
+				warns = append(warns, fmt.Sprintf("subtitle track %d (%s) cannot be converted to SRT (only ASS/SSA and PGS can); it is kept as it is", s.Src.N, codecName(s.Src)))
+			}
+			m = ""
+		case mp4:
+			m = "replace"
+		}
+		switch m {
+		case "replace":
+			s.ToSRT = true
+			out = append(out, s)
+		case "add":
+			out = append(out, s)
+			c := s
+			c.ToSRT, c.Added, c.Default = true, true, false
+			c.Title = "SRT"
+			if s.Src.Title != "" {
+				c.Title = s.Src.Title + " (SRT)"
+			}
+			out = append(out, c)
+		default:
+			out = append(out, s)
+		}
+		if m != "" && kind == "ocr" {
+			warns = append(warns, fmt.Sprintf("note: subtitle track %d (PGS pictures) is read as text with Tesseract OCR", s.Src.N))
+		}
+	}
+	return out, warns
 }
 
 // subCodec picks how a subtitle track is written to the output container.
@@ -718,8 +795,21 @@ func audioArgs(audio []outAudio, in int) []string {
 func subtitleArgs(subs []outSub, in int) []string {
 	var a []string
 	for n, s := range subs {
-		a = append(a, "-map", fmt.Sprintf("%d:s:%d", in, s.Src.N-1), fmt.Sprintf("-c:s:%d", n), s.Codec,
+		from := fmt.Sprintf("%d:s:%d", in, s.Src.N-1)
+		if s.needsOCR() {
+			from = fmt.Sprintf("%d:s:0", s.input) // the SRT read from the pictures
+		}
+		a = append(a, "-map", from, fmt.Sprintf("-c:s:%d", n), s.Codec,
 			fmt.Sprintf("-disposition:s:%d", n), disposition(withFlags(s.Src.Disp, s.Meta), s.Default, s.Forced, true))
+		if s.needsOCR() { // a separate file has no language or name: the original's
+			a = append(a, fmt.Sprintf("-metadata:s:s:%d", n), "language="+orUnd(s.Src.Lang))
+			if s.Src.Title != "" && s.Title == "" {
+				a = append(a, fmt.Sprintf("-metadata:s:s:%d", n), "title="+s.Src.Title)
+			}
+		}
+		if s.Title != "" {
+			a = append(a, fmt.Sprintf("-metadata:s:s:%d", n), "title="+s.Title)
+		}
 		a = append(a, trackMetaArgs(s.Meta, fmt.Sprintf("s:%d", n))...)
 	}
 	return a
@@ -783,10 +873,23 @@ func parseSubSel(s string) ([]trackSel, error) {
 	for _, item := range strings.Split(s, ",") {
 		f := strings.Split(strings.TrimSpace(item), ":")
 		n, err := strconv.Atoi(f[0])
-		if err != nil || n < 1 || len(f) > 2 || (len(f) == 2 && f[1] != "forced") {
-			return nil, fmt.Errorf("bad subtitle track %q (use numbers like 1,3:forced)", item)
+		if err != nil || n < 1 || len(f) > 3 {
+			return nil, fmt.Errorf("bad subtitle track %q (use numbers like 1,3:forced,4:srt)", item)
 		}
-		sel = append(sel, trackSel{N: n, Forced: len(f) == 2})
+		t := trackSel{N: n}
+		for _, x := range f[1:] {
+			switch {
+			case x == "forced" && !t.Forced:
+				t.Forced = true
+			case x == "srt" && t.SRT == "":
+				t.SRT = "replace"
+			case x == "srt+" && t.SRT == "":
+				t.SRT = "add"
+			default:
+				return nil, fmt.Errorf("bad subtitle track %q (after the number: forced, srt or srt+)", item)
+			}
+		}
+		sel = append(sel, t)
 	}
 	return sel, nil
 }
@@ -832,6 +935,12 @@ func subSelString(sel []trackSel) string {
 		if t.Forced {
 			s += ":forced"
 		}
+		switch t.SRT {
+		case "replace":
+			s += ":srt"
+		case "add":
+			s += ":srt+"
+		}
 		p = append(p, s)
 	}
 	return strings.Join(p, ",")
@@ -869,6 +978,7 @@ func trackList(ts []srcTrack, audio bool) []map[string]any {
 			m["mp4ok"] = mp4Audio(t.Codec)
 		} else {
 			m["mp4ok"] = textSubs[strings.ToLower(t.Codec)]
+			m["srtKind"] = srtKind(t.Codec)
 		}
 		out = append(out, m)
 	}
@@ -899,8 +1009,17 @@ func audioChoice(audio []outAudio) map[string]any {
 
 func subChoice(subs []outSub) map[string]any {
 	sel, def := []map[string]any{}, -1
-	for _, s := range subs {
-		sel = append(sel, map[string]any{"n": s.Src.N, "forced": s.Forced})
+	for i, s := range subs {
+		if s.Added {
+			continue
+		}
+		m := map[string]any{"n": s.Src.N, "forced": s.Forced}
+		if s.ToSRT {
+			m["srt"] = "replace"
+		} else if i+1 < len(subs) && subs[i+1].Added && subs[i+1].Src.N == s.Src.N {
+			m["srt"] = "add"
+		}
+		sel = append(sel, m)
 		if s.Default {
 			def = s.Src.N
 		}
@@ -957,4 +1076,11 @@ func splitNotes(warns []string) (w, notes []string) {
 		}
 	}
 	return w, notes
+}
+
+func orUnd(lang string) string {
+	if lang == "" {
+		return "und"
+	}
+	return lang
 }

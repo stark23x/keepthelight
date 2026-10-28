@@ -29,6 +29,8 @@ type Config struct {
 	MetaOnly                                     bool       // copy every stream unchanged, only the metadata changes
 	ReplaceOriginal                              bool       // metadata only: the result takes the original's place
 	SubMode                                      string     // rule: "" (all matching), "forced" (forced only) or "none"
+	SubsToSRT                                    string     // rule: ASS/SSA and PGS subtitles to SRT: "", "replace" or "add"
+	Tesseract                                    string     // where tesseract.exe is ("" = look for it)
 	DV                                           string     // auto | drop
 	CopyVideo                                    bool
 	MasterDisplay, MaxCLL                        string

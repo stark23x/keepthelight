@@ -18,6 +18,22 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.19.0 - 2026-10-27
+
+- **Subtitles to SRT.** ASS/SSA and PGS subtitle tracks can be converted to plain SRT, which every Plex player can
+  show without Plex burning them into the picture (and converting the video). Each such track has **as is**,
+  **→ SRT** (replace) or **as is + SRT** (an SRT copy next to it); the Subtitles rules have **Convert ASS and PGS to
+  SRT** for new files and the queue (saved in profiles); **Set all tracks to…** can convert them all. Timings,
+  language, default and forced flags carry over.
+  - ASS/SSA is converted by FFmpeg (styling is lost).
+  - PGS (picture) subtitles are read with **Tesseract OCR**, installed separately (free). Keep the Light copies the
+    track out, reads the pictures and their timings itself, and has Tesseract read the text, in the track's
+    language when installed. The window says if Tesseract is missing, with a link to get it. The log reports how
+    many lines were read.
+  - In MP4, PGS tracks can now be kept, as text.
+- Library scan: forced PGS subtitles and ASS subtitles shown by default point to the SRT conversion.
+- `keepthelight_cli.exe`: `-sub-tracks 1:srt,2:srt+`, `-subs-to-srt replace|add`, `-tesseract <path>`.
+
 ## 1.18.1 - 2026-10-27
 
 - Start, Test 30 s and the progress bar now stay at the bottom of the window at every width. On wide windows they

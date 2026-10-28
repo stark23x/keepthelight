@@ -55,7 +55,7 @@ func TestCallDispatch(t *testing.T) {
 	if m := callJSON(t, g, "start", map[string]any{"input": missing, "codec": "h264"}); m["error"] != "Unknown encoder" {
 		t.Errorf("start with a bad encoder: %v", m)
 	}
-	if m := callJSON(t, g, "tools", nil); len(m) != 7 || m["vcruntime"] == nil || m["problems"] == nil {
+	if m := callJSON(t, g, "tools", nil); len(m) != 8 || m["vcruntime"] == nil || m["problems"] == nil {
 		t.Errorf("tools: %v", m)
 	}
 	var got string
