@@ -18,6 +18,14 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.20.1 - 2026-10-28
+
+- **Built with the current Go version.** Releases are now built on GitHub with the latest Go, which includes fixes
+  for security problems found in Go's own web and certificate code (`net/http`, `crypto/x509`) in the older Go
+  version 1.20.0 was built with. The check of Go's vulnerability database passes. No change to how Keep the Light
+  works.
+- The tools folder's README mentions Tesseract OCR (for PGS subtitles to SRT).
+
 ## 1.20.0 - 2026-10-28
 
 - **Same tracks for others.** A queued file with its own track choices has a **Same tracks for others** button: the

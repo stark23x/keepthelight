@@ -7,6 +7,8 @@ Keep the Light runs these helper programs:
   dovi_tool.exe             included - Dolby Vision
   hdr10plus_tool.exe        included - keeps HDR10+ metadata
   MP4Box (GPAC)             NOT INCLUDED - needed for Dolby Vision only (see below)
+  Tesseract OCR             NOT INCLUDED - only to convert PGS subtitles to SRT: install it from
+                            https://github.com/UB-Mannheim/tesseract/wiki (Keep the Light finds it)
 
 Getting FFmpeg
 --------------

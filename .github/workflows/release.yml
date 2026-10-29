@@ -1,0 +1,108 @@
+# Builds a release of Keep the Light with the current Go version: tests, the
+# vulnerability check, both programs, the bundled tools (downloaded from their
+# author's releases and checked against their published SHA-256), the program
+# and source zips, and SHA-256 checksums. Pushing a version tag ("1.20.1")
+# creates a draft release with these files; publish it on GitHub when ready.
+name: release
+
+on:
+  push:
+    tags: ["[0-9]+.[0-9]+.[0-9]+"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      DOVI_TOOL: "2.3.4"
+      DOVI_SHA256: 0d9733d311dfe49f9dca0c350f7e6d978182673d333c6f07f7365daf9e6c81eb
+      HDR10PLUS_TOOL: "1.7.2"
+      HDR10PLUS_SHA256: 82b2d560073941b14c6511a431f429e33e134e5caefb60d7e8f6f6e6da8e16ba
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          check-latest: true
+
+      - name: Version
+        id: v
+        run: |
+          V=$(tr -d ' \r\n' < VERSION)
+          if [ "${GITHUB_REF_TYPE}" = tag ] && [ "${GITHUB_REF_NAME}" != "$V" ]; then
+            echo "The tag ${GITHUB_REF_NAME} does not match VERSION ($V)"; exit 1
+          fi
+          grep -q "^## $V " CHANGELOG.md || { echo "CHANGELOG.md has no entry for $V"; exit 1; }
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          go version
+
+      - name: Vet and test
+        run: |
+          go vet ./...
+          GOOS=windows go vet ./...
+          go test -count=1 ./...
+
+      - name: Vulnerability check (Windows build)
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          GOOS=windows "$(go env GOPATH)/bin/govulncheck" ./...
+
+      - name: Build
+        env:
+          GOOS: windows
+          GOARCH: amd64
+        run: |
+          go build -trimpath -ldflags "-s -w -H windowsgui" -o "Keep the Light.exe" .
+          go build -trimpath -tags cli -ldflags "-s -w" -o keepthelight_cli.exe .
+
+      - name: Bundled tools
+        run: |
+          mkdir -p dl && cd dl
+          curl -fsSL -o dovi.zip "https://github.com/quietvoid/dovi_tool/releases/download/${DOVI_TOOL}/dovi_tool-${DOVI_TOOL}-x86_64-pc-windows-msvc.zip"
+          curl -fsSL -o hdr10plus.zip "https://github.com/quietvoid/hdr10plus_tool/releases/download/${HDR10PLUS_TOOL}/hdr10plus_tool-${HDR10PLUS_TOOL}-x86_64-pc-windows-msvc.zip"
+          echo "${DOVI_SHA256}  dovi.zip" | sha256sum -c -
+          echo "${HDR10PLUS_SHA256}  hdr10plus.zip" | sha256sum -c -
+          unzip -o -q dovi.zip && unzip -o -q hdr10plus.zip
+          find . -iname 'dovi_tool.exe' -o -iname 'hdr10plus_tool.exe' | xargs ls -la
+
+      - name: Package
+        id: pkg
+        run: |
+          V=${{ steps.v.outputs.version }}
+          P="Keep the Light"
+          mkdir -p "pkg/$P/tools/licenses"
+          cp "Keep the Light.exe" keepthelight_cli.exe README.md CHANGELOG.md THIRD_PARTY_NOTICES.txt "pkg/$P/"
+          cp dist/tools/README.txt "pkg/$P/tools/"
+          cp dist/tools/licenses/* "pkg/$P/tools/licenses/"
+          find dl -iname 'dovi_tool.exe' -exec cp {} "pkg/$P/tools/" \;
+          find dl -iname 'hdr10plus_tool.exe' -exec cp {} "pkg/$P/tools/" \;
+          (cd pkg && zip -q -r -X "../KeepTheLight-$V-win64.zip" "$P")
+          git archive --format=zip -o "keepthelight-src-$V.zip" HEAD
+          sha256sum "KeepTheLight-$V-win64.zip" "keepthelight-src-$V.zip" > "SHA256SUMS-$V.txt"
+          cat "SHA256SUMS-$V.txt"
+          NOTES=.github/release-notes/$V.md
+          if [ -f "$NOTES" ]; then cp "$NOTES" notes.md; else awk -v v="## $V " 'index($0,v)==1{p=1;next} /^## /{p=0} p' CHANGELOG.md > notes.md; fi
+          { echo; echo "Built with $(go version | cut -d' ' -f3)."; echo; echo '## SHA-256 checksums'; echo '```'; cat "SHA256SUMS-$V.txt"; echo '```'; } >> notes.md
+          unzip -l "KeepTheLight-$V-win64.zip"
+
+      - name: Draft release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=${{ steps.v.outputs.version }}
+          gh release create "$V" --draft --title "$V" --notes-file notes.md \
+            "KeepTheLight-$V-win64.zip" "keepthelight-src-$V.zip" "SHA256SUMS-$V.txt"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: keepthelight-${{ steps.v.outputs.version }}
+          path: |
+            KeepTheLight-*-win64.zip
+            keepthelight-src-*.zip
+            SHA256SUMS-*.txt
+            notes.md
