@@ -332,7 +332,8 @@ func ocrLang(ctx context.Context, tess, trackLang string) (lang, warn string) {
 	if tesseractHasLang(ctx, tess, l) {
 		return l, ""
 	}
-	return "eng", fmt.Sprintf("Tesseract has no %q language data installed, so English is used (add the language in Tesseract's installer)", l)
+	return "eng", fmt.Sprintf("Tesseract has no %s language data, so it reads these subtitles as English, which can garble accents and other letters. "+
+		"To add it, run Tesseract's installer again and tick the language under \"Additional language data\" (%s)", langName(trackLang), l)
 }
 
 // ocrEvents reads the text of every event with one Tesseract run (a list of

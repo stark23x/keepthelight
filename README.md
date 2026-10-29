@@ -114,17 +114,26 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   Speeds up x265, most with 4K sources. Before each file, Keep the Light test-decodes a few frames; if the GPU
   cannot decode it, that file is decoded on the CPU as before, and the log says which was used. Remembered.
 - **Profiles** (above Video): save the settings below the Files section under a name of your own, and pick them again
-  later from the dropdown. A profile holds the Video settings, the Audio and Subtitles rules and the Advanced
-  overrides, and can name converted files after itself (`Film_Plex 4K.mkv` instead of `Film_KTL.mkv`; type another
+  later from the dropdown. A profile holds the Video settings, the format (MKV or MP4), the Audio and Subtitles
+  rules, track naming and the Advanced overrides, and can name converted files after itself (`Film_Plex 4K.mkv` instead of `Film_KTL.mkv`; type another
   ending in "Add to the name" to use it for now, ↺ brings the profile's back). "changed"
   next to the dropdown means the form no longer matches the profile; **Update** saves it. **Export…** / **Import…**
   save profiles to a .json file and read them back (a backup, or another PC). Not included: files and folders,
   one file's own tracks and metadata, PC settings (temp folder, priority, GPU decoding, sounds), and "Replace the
-  original".
+  original". The command-line program can use a profile too: `keepthelight_cli -profile "Plex 4K" film.mkv`
+  (other options on the command line override it).
 - **Changing one queued file:** **Edit** on a waiting file opens it in the window with its real tracks, chapters and
   metadata; **Save changes to the queue** puts it back with those changes (for this file only), **Cancel** leaves it
-  as it was. While it is being changed it waits; the queue goes on with the other files. **Apply a profile to waiting
-  files** (Queue) and **Use current settings for waiting files** ask whether files with their own changes keep them.
+  as it was; either way the window goes back to the Queue tab, at that file. While it is being changed it waits; the
+  queue goes on with the other files. **Apply a profile to waiting files** (Queue) and **Use current settings for
+  waiting files** ask whether files with their own changes keep them.
+- **Same tracks for others** (on a queued file with its own track choices): gives the other waiting files the same
+  audio and subtitle choices, by track position (which tracks are kept, converted or dropped, the default and forced
+  flags, SRT conversion). Only files whose tracks match (same number of tracks, languages and formats) are changed;
+  the others are listed and left as they were. Handy for a season: set up one episode with Edit, then apply it to
+  the rest.
+- **Clear the queue** removes every file from the queue (after asking); a file being transcoded goes on. **Clear
+  finished** removes only the finished ones.
 - **Sound when finished** (⚙ Settings, remembered): when a transcode or the whole queue is done, Keep the Light
   plays a sound (Notify by default) and flashes its taskbar button; a different sound (Critical stop) means a file
   failed. Choose any Windows sound, a sound from Windows' Media folder (Alarm 1-10 and so on), your own .wav, or none.
@@ -165,6 +174,8 @@ private local web server. To choose that yourself, run `keepthelight_cli -server
     keepthelight_cli -work-local \\PlexRaid01\Movies\in.mkv   (copy to this PC, convert, copy back)
     keepthelight_cli -sub-tracks 1:srt,2:srt+ in.mkv   (track 1 to SRT; track 2 kept plus an SRT copy)
     keepthelight_cli -subs-to-srt replace in.mkv  (every ASS/SSA and PGS track to SRT)
+    keepthelight_cli -profile "Plex 4K" in.mkv   (a profile saved in the window; other options override it)
+    keepthelight_cli -audio-one-per-language best -sub-drop-names Signs -name-tracks in.mkv
     keepthelight_cli -tag _4k in.mkv          (name the result in_4k.mkv; default _KTL)
     keepthelight_cli -metadata-only -title "My Film" -replace-original in.mkv   (metadata only, in place)
     keepthelight_cli -gui [input]              (opens the window)
@@ -207,8 +218,14 @@ subtitles and container from the target to get a video bitrate, then:
   The search starts from the file's name ("Dune.Part.Two.2024.2160p.REMUX.mkv" becomes "Dune Part Two", 2024;
   "The.Bear.S02E03…" becomes The Bear, season 2, episode 3; "movie.mkv" in a "Heat (1995)" folder uses the folder);
   correct it and search again if needed. Pick a result with **Use**; the fields stay editable, and nothing is written
-  until the job runs. English for now; for single files (and a queued file opened with Edit). Needs your own free
-  TMDB API key (or API read access token), entered once in ⚙ Settings: create a TMDB account, then Settings → API.
+  until the job runs. Needs your own free TMDB API key (or API read access token), entered once in ⚙ Settings:
+  create a TMDB account, then Settings → API. The key is kept in Windows' Credential Manager (for your Windows
+  account), not in the settings file. The language of titles and descriptions is chosen in ⚙ Settings.
+- **TMDB for the queue:** **Look up metadata on TMDB** (Queue tab), or the check box next to **Add selected to
+  queue** in the library scan, looks up each waiting file. Only a clear match is used (one result, or one whose title
+  and year match the file's name); it fills in the title, date, description and cover, and the queue list shows what
+  was found. Anything else is marked "needs a match": open it with Edit and pick the right result. Files whose title
+  was already changed are skipped.
   This product uses the TMDB API but is not endorsed or certified by TMDB.
 - **Metadata only** (under Video) copies every kept stream unchanged into a new file with the new metadata: no
   re-encoding, so the quality is identical, and it takes about as long as copying the file. Audio tracks can be kept
@@ -227,6 +244,9 @@ subtitles and container from the target to get a video bitrate, then:
   copied, converted (E-AC-3, AC-3, AAC, Opus, FLAC) or dropped; each subtitle track kept or dropped, with its
   forced flag. One audio track and (optionally) one subtitle track are marked as the default. **Set all tracks
   to…** changes every track at once.
+- **Name untitled tracks** (Metadata, remembered, also for the queue and in profiles): tracks without a name get
+  one from what they are as written: "English AC-3 5.1", "English TrueHD Atmos 7.1", "English SRT Forced". Names
+  already set are kept; the Metadata section shows the planned names.
 - **Subtitles to SRT:** ASS/SSA (styled text) and PGS (Blu-ray picture subtitles) tracks can be converted to plain
   SRT, which every Plex player shows without Plex burning them into the picture. Per track: **as is**, **→ SRT**
   (replaces it) or **as is + SRT** (an SRT copy next to it, named "… (SRT)"); for the queue, the rule **Convert
@@ -239,8 +259,10 @@ subtitles and container from the target to get a video bitrate, then:
     italics are not marked.
   - In MP4, which cannot hold PGS, a PGS track can now be kept as text; ASS becomes plain text there anyway.
 - **Rules** (remembered) give the starting choice for each file and decide the tracks for the queue, where every
-  file is different: languages to keep (for example `eng, jpn`), leave out commentary tracks, and all / forced
-  only / no subtitles. Tracks with no language set are kept; if no audio track matches, the file's default
+  file is different: languages to keep (for example `eng, jpn`), leave out commentary tracks, **one track per
+  language** (the best quality, or the most compatible: AC-3, E-AC-3 or AAC; commentary tracks are not counted), and
+  all / forced only / no subtitles, and subtitles **by name**: keep only, or drop, tracks whose name contains given
+  words ("SDH, Signs"; "SDH", "forced" and "commentary" also match the tracks' flags). Tracks with no language set are kept; if no audio track matches, the file's default
   track is kept, so nothing ends up silent. A file added from the form with **Add to queue** keeps exactly the
   tracks ticked for it; **Use current settings for waiting files** applies the rules.
 - Converted tracks get a bitrate that suits the format and channels unless one is set. AC-3 and E-AC-3 hold at

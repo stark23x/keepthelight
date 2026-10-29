@@ -15,7 +15,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
+	"unicode"
 )
 
 // ---------- metadata from TMDB (The Movie Database) ----------
@@ -31,7 +33,20 @@ var (
 	tmdbClient = &http.Client{Timeout: 20 * time.Second}
 )
 
-const tmdbLang = "en-US"
+// tmdbLanguage is the language TMDB answers in (a setting; English when unset).
+var tmdbLang atomic.Value
+
+func tmdbLanguage() string {
+	if v, _ := tmdbLang.Load().(string); v != "" {
+		return v
+	}
+	return "en-US"
+}
+
+// tmdbLanguages are the choices offered (TMDB has more; these cover most libraries).
+var tmdbLanguages = map[string]bool{"en-US": true, "en-GB": true, "es-ES": true, "es-MX": true, "fr-FR": true, "fr-CA": true, "de-DE": true,
+	"it-IT": true, "pt-BR": true, "pt-PT": true, "nl-NL": true, "sv-SE": true, "da-DK": true, "nb-NO": true, "fi-FI": true, "pl-PL": true,
+	"ru-RU": true, "ja-JP": true, "ko-KR": true, "zh-CN": true, "zh-TW": true}
 
 type tmdbResult struct {
 	ID       int    `json:"id"`
@@ -51,7 +66,7 @@ func tmdbGet(ctx context.Context, key, path string, q url.Values, out any) error
 	if q == nil {
 		q = url.Values{}
 	}
-	q.Set("language", tmdbLang)
+	q.Set("language", tmdbLanguage())
 	bearer := strings.HasPrefix(key, "eyJ") // a v4 read access token (a JWT); otherwise a v3 API key
 	if !bearer {
 		q.Set("api_key", key)
@@ -383,10 +398,40 @@ func guessName(stem, tag string) tmdbGuess {
 
 // ---------- the window's requests ----------
 
+// The key is kept in Windows' Credential Manager (an older one in the settings
+// file is moved there the first time it is read).
+const tmdbCredName = "Keep the Light/TMDB API key"
+
 func (g *guiServer) tmdbKey() string {
+	if k, err := readSecret(tmdbCredName); err == nil && k != "" {
+		return strings.TrimSpace(k)
+	}
 	var k string
 	_ = json.Unmarshal(g.loadPrefs()["tmdbKey"], &k)
-	return strings.TrimSpace(k)
+	if k = strings.TrimSpace(k); k != "" && secretStoreOK() {
+		if writeSecret(tmdbCredName, k) == nil {
+			_ = g.savePref("tmdbKey", json.RawMessage(`""`))
+		}
+	}
+	return k
+}
+
+func (g *guiServer) setTMDBKey(k string) error {
+	k = strings.TrimSpace(k)
+	if secretStoreOK() {
+		var err error
+		if k == "" {
+			err = deleteSecret(tmdbCredName)
+		} else {
+			err = writeSecret(tmdbCredName, k)
+		}
+		if err != nil {
+			return err
+		}
+		return g.savePref("tmdbKey", json.RawMessage(`""`)) // never in the settings file
+	}
+	b, _ := json.Marshal(k)
+	return g.savePref("tmdbKey", b)
 }
 
 func (g *guiServer) tmdbCall(ctx context.Context, name string, body []byte) map[string]any {
@@ -415,6 +460,21 @@ func (g *guiServer) tmdbCall(ctx context.Context, name string, body []byte) map[
 			return failResult(err.Error())
 		}
 		return map[string]any{"ok": true, "fill": f}
+	case "tmdbKeySet":
+		if err := g.setTMDBKey(b.Key); err != nil {
+			return failResult("could not store the key: " + err.Error())
+		}
+		return okResult()
+	case "tmdbLang":
+		var l struct{ Lang string }
+		_ = json.Unmarshal(body, &l)
+		if !tmdbLanguages[l.Lang] {
+			return failResult("unknown language")
+		}
+		tmdbLang.Store(l.Lang)
+		raw, _ := json.Marshal(l.Lang)
+		_ = g.savePref("tmdbLang", raw)
+		return okResult()
 	case "tmdbTestKey":
 		var r struct{}
 		if err := tmdbGet(ctx, b.Key, "/configuration", nil, &r); err != nil {
@@ -423,4 +483,181 @@ func (g *guiServer) tmdbCall(ctx context.Context, name string, body []byte) map[
 		return okResult()
 	}
 	return failResult("unknown request")
+}
+
+// ---------- the queue: matching without asking ----------
+
+// normTitle compares titles loosely: letters and digits only, lower case
+// ("Spider-Man: No Way Home" = "spider man no way home").
+func normTitle(s string) string {
+	var b strings.Builder
+	space := false
+	for _, r := range strings.ToLower(s) {
+		switch {
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			if space && b.Len() > 0 {
+				b.WriteByte(' ')
+			}
+			b.WriteRune(r)
+			space = false
+		case r == '&':
+			if b.Len() > 0 {
+				b.WriteString(" and")
+			}
+			space = true
+		default:
+			space = true
+		}
+	}
+	return strings.TrimPrefix(b.String(), "the ")
+}
+
+// tmdbAutoMatch picks the one clear result for a search, or none: a single
+// result, or a single one whose title equals the search (and year, if known).
+func tmdbAutoMatch(res []tmdbResult, g tmdbGuess) *tmdbResult {
+	if len(res) == 1 && (g.Year == "" || res[0].Year == g.Year || res[0].Year == "") {
+		return &res[0]
+	}
+	var hit *tmdbResult
+	n := 0
+	for i := range res {
+		r := &res[i]
+		if normTitle(r.Title) == normTitle(g.Query) && (g.Year == "" || r.Year == g.Year) {
+			if n++; n == 1 {
+				hit = r
+			}
+		}
+	}
+	if n == 1 {
+		return hit
+	}
+	return nil
+}
+
+// queueTMDB looks up waiting files on TMDB, in the background. A clear match
+// fills in the title, date, description and cover (as an Edit would); anything
+// else is marked "needs a match", to be chosen with Edit. Files whose title was
+// already changed are left alone.
+func (g *guiServer) queueTMDB(ids []int) map[string]any {
+	key := g.tmdbKey()
+	if key == "" {
+		return failResult("Add your free TMDB API key in Settings (⚙) first.")
+	}
+	want := map[int]bool{}
+	for _, id := range ids {
+		want[id] = true
+	}
+	g.mu.Lock()
+	var todo []int
+	for _, it := range g.q.items {
+		if (len(ids) == 0 || want[it.ID]) && (it.pending() || it.Status == stProblem) && !it.Editing {
+			if it.s.Meta != nil && it.s.Meta.Tags["title"] != "" {
+				continue
+			}
+			todo = append(todo, it.ID)
+			setRawField(it, "tmdbNote", "TMDB: looking up…")
+		}
+	}
+	g.mu.Unlock()
+	if len(todo) == 0 {
+		return failResult("No waiting files to look up (files with a title of their own are skipped).")
+	}
+	go func() {
+		dir := filepath.Join(appDataDir(), "covers")
+		cleanCovers(dir)
+		for _, id := range todo {
+			g.mu.Lock()
+			it := g.findItemLocked(id)
+			var input string
+			if it != nil && !it.Editing && (it.pending() || it.Status == stProblem) {
+				input = it.Input
+			}
+			g.mu.Unlock()
+			if input == "" {
+				continue
+			}
+			note, meta := tmdbLookupFile(key, input, dir)
+			g.mu.Lock()
+			if it := g.findItemLocked(id); it != nil && it.Input == input && !it.Editing && (it.pending() || it.Status == stProblem) {
+				if meta != nil {
+					m := it.s.Meta
+					if m == nil {
+						m = &MetaEdit{}
+					}
+					if m.Tags == nil {
+						m.Tags = map[string]string{}
+					}
+					for k, v := range meta.Tags {
+						m.Tags[k] = v
+					}
+					if meta.Cover != "" {
+						m.Cover, m.RemoveCover = meta.Cover, false
+					}
+					setRawField(it, "meta", m)
+				}
+				setRawField(it, "tmdbNote", note)
+				var s settings
+				if json.Unmarshal(it.Raw, &s) == nil {
+					if cfg, err := validateSettings(s); err == nil {
+						it.s, it.cfg = s, cfg
+						it.Status, it.Note, it.checked = stChecking, "", false
+					}
+				}
+			}
+			g.mu.Unlock()
+			g.kickChecker()
+		}
+		g.saveQueue()
+	}()
+	return map[string]any{"ok": true, "files": len(todo)}
+}
+
+// tmdbLookupFile finds one file on TMDB without asking: the note for the queue
+// list, and the metadata when there was one clear match.
+func tmdbLookupFile(key, input, coverDir string) (string, *MetaEdit) {
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	gs := guessSearch(input, "")
+	if gs.Query == "" {
+		return "TMDB: needs a match (no title in the file name; use Edit)", nil
+	}
+	res, err := tmdbSearch(ctx, key, gs.Kind, gs.Query, gs.Year)
+	if err == nil && len(res) == 0 && gs.Year != "" { // the year in a name is sometimes off by one
+		res, err = tmdbSearch(ctx, key, gs.Kind, gs.Query, "")
+	}
+	if err != nil {
+		return "TMDB: " + err.Error(), nil
+	}
+	hit := tmdbAutoMatch(res, gs)
+	if hit == nil {
+		if len(res) == 0 {
+			return "TMDB: nothing found for \"" + gs.Query + "\" (use Edit to search)", nil
+		}
+		return fmt.Sprintf("TMDB: needs a match (%d possible results for \"%s\"; use Edit to choose)", len(res), gs.Query), nil
+	}
+	f, err := tmdbDetails(ctx, key, hit.Kind, hit.ID, gs.Season, gs.Episode, coverDir)
+	if err != nil {
+		return "TMDB: " + err.Error(), nil
+	}
+	m := &MetaEdit{Tags: map[string]string{}, Cover: f.Cover}
+	for k, v := range map[string]string{"title": f.Title, "date": f.Date, "description": f.Description} {
+		if v != "" { // nothing from TMDB: the file's own stays
+			m.Tags[k] = v
+		}
+	}
+	what := f.Title
+	if hit.Year != "" && gs.Kind == "movie" {
+		what += " (" + hit.Year + ")"
+	}
+	return "TMDB: " + what + " (check it with Edit)", m
+}
+
+// setRawField changes one value in a queued file's settings as the page sees them.
+func setRawField(it *queueItem, k string, v any) {
+	var m map[string]any
+	if json.Unmarshal(it.Raw, &m) != nil || m == nil {
+		m = map[string]any{}
+	}
+	m[k] = v
+	it.Raw, _ = json.Marshal(m)
 }

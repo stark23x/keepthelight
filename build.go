@@ -30,6 +30,10 @@ type Config struct {
 	ReplaceOriginal                              bool       // metadata only: the result takes the original's place
 	SubMode                                      string     // rule: "" (all matching), "forced" (forced only) or "none"
 	SubsToSRT                                    string     // rule: ASS/SSA and PGS subtitles to SRT: "", "replace" or "add"
+	AudioOnePerLang                              string     // rule: one audio track per language: "", "best" or "compatible"
+	SubNameMode                                  string     // rule: "" or subtitles whose name contains SubNameWords: "keep" (only those) or "drop"
+	SubNameWords                                 []string   // lower case
+	NameTracks                                   bool       // name untitled tracks from what they are ("English AC-3 5.1")
 	Tesseract                                    string     // where tesseract.exe is ("" = look for it)
 	DV                                           string     // auto | drop
 	CopyVideo                                    bool

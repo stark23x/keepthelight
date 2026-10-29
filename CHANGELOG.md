@@ -18,6 +18,31 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.20.0 - 2026-10-28
+
+- **Same tracks for others.** A queued file with its own track choices has a **Same tracks for others** button: the
+  other waiting files get the same audio and subtitle choices (by track position, including SRT conversion and the
+  default and forced flags). Only files with the same track layout are changed; the rest are listed. Set up one
+  episode with Edit, then apply it to the season.
+- **Smarter rules:** **one audio track per language** (the best quality, or the most compatible), and subtitles
+  **by name** (keep only, or drop, tracks whose name contains given words). Saved in profiles.
+  `-audio-one-per-language best|compatible`, `-sub-keep-names`, `-sub-drop-names`.
+- **Name untitled tracks** from what they are ("English AC-3 5.1", "English SRT Forced"); names already set are
+  kept. In the Metadata section, remembered, used for the queue, saved in profiles. `-name-tracks`.
+- **Clear the queue** button (asks first; a file being transcoded goes on).
+- **Back to the Queue tab** after Save changes or Cancel when changing a queued file, at that file.
+- **TMDB for the queue and the library scan:** **Look up metadata on TMDB** (Queue tab) and a check box next to
+  **Add selected to queue** (library scan). A clear match fills in the title, date, description and cover; anything
+  else is marked "needs a match", to be chosen with Edit.
+- **TMDB language** for titles and descriptions (⚙ Settings): 21 languages.
+- **The TMDB key is kept in Windows' Credential Manager**, not in the settings file (moved there automatically).
+- **Profiles keep the format** (MKV or MP4), also when applied to waiting files or used for the library scan.
+- **`-profile <name>`** for the command-line program: uses a profile saved in the window; other options override it.
+- **Tesseract language hint:** when a PGS track's language is not installed in Tesseract, the window says so before
+  starting, with how to add it.
+- Security: every release now comes with SHA-256 checksums (`SHA256SUMS.txt`), and the source repository checks the
+  Go code and libraries against Go's vulnerability database on every change (GitHub Actions).
+
 ## 1.19.2 - 2026-10-28
 
 - **Files in use by another program no longer fail a job.** Backup programs (Backblaze, OneDrive), antivirus

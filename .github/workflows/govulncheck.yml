@@ -1,0 +1,29 @@
+# Checks Keep the Light's code and its Go libraries against Go's database of
+# known vulnerabilities, on every push and once a week. Results are on the
+# repository's Actions tab.
+name: govulncheck
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  govulncheck:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+      - name: govulncheck (Windows build)
+        shell: bash
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...

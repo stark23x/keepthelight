@@ -140,6 +140,7 @@
   .qsub { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .qnote { font-size: 12px; margin-top: 2px; }
   .qstat { font-size: 12.5px; font-weight: 600; white-space: nowrap; color: var(--muted); }
+  .qrow.flash { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent2); transition: box-shadow .4s; }
   .qrow.st-running { border-color: var(--accent2); } .qrow.st-running .qstat { color: var(--accent); }
   .qrow.st-done .qstat { color: var(--ok); }
   .qrow.st-failed .qstat, .qrow.st-problem .qstat, .qrow.st-problem .qnote, .qrow.st-failed .qnote { color: var(--bad); }
@@ -412,6 +413,10 @@
       <label class="check" style="margin-top:10px"><input type="checkbox" id="dropComm"> <span>Leave out commentary tracks</span></label>
       <label class="check" style="margin-top:6px"><input type="checkbox" id="addCompat"> <span><b>Add a compatible audio track when needed</b> – an E-AC-3 copy of the
         main track when there is only TrueHD, DTS or FLAC, so Plex does not have to convert the sound. The original stays.</span></label>
+      <div style="margin-top:10px; max-width:420px"><label for="audioOne">One track per language</label>
+        <select id="audioOne"><option value="">no, keep every matching track</option><option value="best">yes, the best quality (e.g. TrueHD over AC-3)</option>
+          <option value="compatible">yes, the most compatible (AC-3, E-AC-3 or AAC)</option></select>
+        <div class="hint">For files with the same language twice. Commentary tracks are not counted.</div></div>
       <div class="hint">Tracks with no language set are kept. If no track matches, the file's default track is kept, so nothing ends up silent.</div>
     </div></details>
   </details>
@@ -428,12 +433,20 @@
         <div><label for="subToSRT">Convert ASS and PGS to SRT</label>
           <select id="subToSRT"><option value="">no, keep them as they are</option><option value="replace">yes, replacing them</option><option value="add">yes, next to the originals</option></select></div>
       </div>
+      <div class="row" style="margin-top:10px; flex-wrap:wrap">
+        <div><label for="subNameMode">By name</label>
+          <select id="subNameMode" style="width:auto"><option value="">any name</option><option value="keep">keep only names containing</option><option value="drop">drop names containing</option></select></div>
+        <div class="grow" style="min-width:200px"><label for="subNameWords">&nbsp;</label><input type="text" id="subNameWords" spellcheck="false" placeholder="for example SDH, Signs (comma between words)"></div>
+      </div>
+      <div class="hint">"SDH", "forced" and "commentary" also match the tracks' flags.</div>
       <div id="ruleTess" class="hidden"></div>
     </div></details>
   </details>
 
 <details class="card sect" id="secMeta" data-key="metadata">
     <summary><h2 class="sect-title">Metadata</h2><span class="sum" id="sumMeta"></span></summary>
+    <label class="check" style="margin-bottom:12px"><input type="checkbox" id="nameTracks"> <span><b>Name untitled tracks</b> from what they are, for example
+      "English AC-3 5.1" or "English SRT Forced". Names already set are kept. Also used for the queue; remembered.</span></label>
     <div id="metaNoFile" class="hint">Choose a file to see and change its metadata.</div>
     <div id="metaBody" class="hidden">
       <div class="tmdb">
@@ -492,7 +505,9 @@
       <button id="qAddFolder">Add folder…</button>
       <button id="qApply" class="hidden" title="Give every file that has not started the settings shown below">Use current settings for waiting files</button>
       <select id="qProfile" class="hidden" style="width:auto" title="Give every file that has not started the settings of a profile"><option value="">Apply a profile to waiting files…</option></select>
+      <button id="qTMDB" class="hidden" title="Find each waiting file on TMDB: a clear match fills in its title, date, description and cover; others are marked to choose with Edit">Look up metadata on TMDB</button>
       <button id="qClear" class="hidden">Clear finished</button>
+      <button id="qClearAll" class="hidden" title="Remove every file from the queue (a file being transcoded goes on)">Clear the queue</button>
     </div>
   </div>
       </section>
@@ -523,6 +538,7 @@
       <div class="actions" style="margin-top:10px">
         <div><label for="scanWith">Settings for the queue</label><select id="scanWith" style="width:auto"></select></div>
         <button id="scanAdd" class="primary" disabled style="align-self:flex-end">Add selected to queue</button>
+        <label class="check" style="align-self:flex-end; margin-bottom:8px"><input type="checkbox" id="scanTMDB"> <span>and look up their metadata on TMDB</span></label>
       </div>
     </div>
   </div>
@@ -580,8 +596,19 @@
         <button id="tmdbShow" title="Show or hide the key">Show</button><button id="tmdbCheck">Check</button></div>
       <div id="tmdbNote" class="note hidden"></div>
       <div class="hint">Free for personal use: create an account at TMDB, then Settings → API
-        (<a href="https://www.themoviedb.org/settings/api">themoviedb.org/settings/api</a>) and copy either key. It is kept in Keep the Light's
-        settings on this PC only, not in profiles or exports.</div>
+        (<a href="https://www.themoviedb.org/settings/api">themoviedb.org/settings/api</a>) and copy either key. It is kept in Windows'
+        Credential Manager, for your Windows account on this PC only; not in the settings file, profiles or exports.</div>
+      <div style="margin-top:10px; max-width:320px"><label for="tmdbLangSel">Language of titles and descriptions</label>
+        <select id="tmdbLangSel">
+          <option value="en-US">English (US)</option><option value="en-GB">English (UK)</option><option value="es-ES">Spanish (Spain)</option>
+          <option value="es-MX">Spanish (Latin America)</option><option value="fr-FR">French</option><option value="fr-CA">French (Canada)</option>
+          <option value="de-DE">German</option><option value="it-IT">Italian</option><option value="pt-BR">Portuguese (Brazil)</option>
+          <option value="pt-PT">Portuguese (Portugal)</option><option value="nl-NL">Dutch</option><option value="sv-SE">Swedish</option>
+          <option value="da-DK">Danish</option><option value="nb-NO">Norwegian</option><option value="fi-FI">Finnish</option>
+          <option value="pl-PL">Polish</option><option value="ru-RU">Russian</option><option value="ja-JP">Japanese</option>
+          <option value="ko-KR">Korean</option><option value="zh-CN">Chinese (simplified)</option><option value="zh-TW">Chinese (traditional)</option>
+        </select>
+        <div class="hint">When TMDB has no translation, it gives the original.</div></div>
       <div class="rules-title" style="margin-top:16px">When a transcode or the queue has finished <span>– remembered</span></div>
       <div class="grid">
         <div><label for="sndDone">Sound when all files are done</label>
@@ -665,13 +692,14 @@ function showError(msg) {
 
 function settings() {
   return {
-    input: $('input').value.trim(), output: $('output').value.trim(), mode: radio('mode'),
+    input: $('input').value.trim(), output: $('output').value.trim(), format: $('container').value, mode: radio('mode'),
     codec: $('codec').value, quality: radio('quality'), crf: +$('crf').value, bitrate: $('bitrate').value.trim(),
     preset: $('preset').value, audio: $('audio').value, audioBitrate: $('abitrate').value.trim(),
     dv: $('dv').value, masterDisplay: $('master').value.trim(), maxCLL: $('cll').value.trim(), tmp: $('tmp').value.trim(),
     targetSize: $('targetNum').value.trim().replace(',', '.') + $('targetUnit').value, retries: +$('retries').value,
     scale: $('scale').value, denoise: $('denoise').value,
     audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, audioChannels: $('audioCh').value, addCompatAudio: $('addCompat').checked, subLang: $('subLang').value.trim(), subMode: $('subMode').value, subToSRT: $('subToSRT').value,
+    audioOnePerLang: $('audioOne').value, subNameMode: $('subNameMode').value, subNameWords: $('subNameWords').value.trim(), nameTracks: $('nameTracks').checked,
     ...trackSettings(),
     meta: metaEdits(), replaceOriginal: replacing(), profile: $('profile').value
   };
@@ -917,7 +945,8 @@ function tracksChanged() { renderTracks(); renderMeta(); updateSummaries(); sche
 function rulesChanged() {
   tracks = null;
   api('setPref', { name: 'trackRules', value: { audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, audioChannels: $('audioCh').value, addCompatAudio: $('addCompat').checked,
-    subLang: $('subLang').value.trim(), subMode: $('subMode').value, subToSRT: $('subToSRT').value } });
+    subLang: $('subLang').value.trim(), subMode: $('subMode').value, subToSRT: $('subToSRT').value, audioOnePerLang: $('audioOne').value,
+    subNameMode: $('subNameMode').value, subNameWords: $('subNameWords').value.trim(), nameTracks: $('nameTracks').checked } });
   updateSummaries(); scheduleProbe(150);
 }
 
@@ -1030,7 +1059,9 @@ function renderMeta() {
   rows.forEach(([kind, n, src]) => {
     const v = m.tracks[kind + n], row = el('div', 'mrow');
     const lab = el('div', 'mlabel', (kind === 'a' ? 'Audio ' : 'Subtitle ') + n + ' · ' + src.desc); lab.title = src.desc;
-    const ti = el('input'); ti.type = 'text'; ti.value = v.title; ti.placeholder = 'no name'; ti.spellcheck = false;
+    const ti = el('input'); ti.type = 'text'; ti.value = v.title; ti.spellcheck = false;
+    const ch = info && (kind === 'a' ? info.audioChoice : info.subChoice), planned = ch && ch.tracks.find(x => x.n === n);
+    ti.placeholder = planned && planned.name && !src.title ? 'will be named: ' + planned.name : 'no name';
     ti.oninput = () => { v.title = ti.value; updateSummaries(); };
     const la = el('input'); la.type = 'text'; la.value = v.lang; la.placeholder = 'language'; la.spellcheck = false; la.title = 'Language, for example eng, jpn, fre';
     la.oninput = () => { v.lang = la.value; updateSummaries(); };
@@ -1112,7 +1143,7 @@ async function confirmNewFiles(form) {
 // A profile is a named set of the settings below the Files section. It can
 // name converted files after itself ("Film_Plex 4K.mkv").
 const PROFILE_KEYS = ['mode', 'codec', 'preset', 'scale', 'denoise', 'dv', 'quality', 'crf', 'bitrate', 'targetSize', 'retries',
-  'audio', 'audioBitrate', 'audioChannels', 'audioLang', 'dropCommentary', 'addCompatAudio', 'subLang', 'subMode', 'subToSRT', 'masterDisplay', 'maxCLL'];
+  'audio', 'audioBitrate', 'audioChannels', 'audioLang', 'dropCommentary', 'addCompatAudio', 'subLang', 'subMode', 'subToSRT', 'audioOnePerLang', 'subNameMode', 'subNameWords', 'nameTracks', 'masterDisplay', 'maxCLL', 'format'];
 let profiles = []; // [{ name, useNameTag, settings }]
 function activeProfile() { const n = $('profile').value; return n ? profiles.find(p => p.name === n) || null : null; }
 function profileTag(p) { return '_' + cleanTagText(p.name.trim().replace(/\s+/g, ' ')); }
@@ -1171,11 +1202,18 @@ function applyFields(st, keys) {
   if (has('subLang')) $('subLang').value = st.subLang;
   if (has('subMode')) $('subMode').value = st.subMode;
   if (has('subToSRT')) $('subToSRT').value = st.subToSRT || '';
+  if (has('audioOnePerLang')) $('audioOne').value = st.audioOnePerLang || '';
+  if (has('subNameMode')) $('subNameMode').value = st.subNameMode || '';
+  if (has('subNameWords')) $('subNameWords').value = st.subNameWords || '';
+  if (has('nameTracks')) $('nameTracks').checked = !!st.nameTracks;
   if (has('masterDisplay')) $('master').value = st.masterDisplay;
   if (has('maxCLL')) $('cll').value = st.maxCLL;
+  if (has('format') && ['.mkv', '.mp4'].includes(st.format)) $('container').value = st.format;
 }
+// a profile's format (MKV or MP4) for an output name
+function withFormat(out, p) { return p && p.settings && ['.mkv', '.mp4'].includes(p.settings.format) ? out.replace(/\.[A-Za-z0-9]+$/, '') + p.settings.format : out; }
 // settings added after a profile was saved: their defaults, so older profiles still apply cleanly
-const PROFILE_DEFAULTS = { denoise: '', addCompatAudio: false, subToSRT: '' };
+const PROFILE_DEFAULTS = { denoise: '', addCompatAudio: false, subToSRT: '', audioOnePerLang: '', subNameMode: '', subNameWords: '', nameTracks: false };
 function withDefaults(st) { return Object.assign({}, PROFILE_DEFAULTS, st); }
 function applyProfile(p) {
   if (p) applyFields(withDefaults(p.settings), PROFILE_KEYS);
@@ -1285,7 +1323,9 @@ $('qProfile').addEventListener('change', async () => {
   $('qProfile').value = '';
   if (!p) return;
   const own = $('nameTag').dataset.own !== undefined ? $('nameTag').dataset.own : $('nameTag').value;
-  await applyToWaiting(Object.assign(settings(), p.settings, { profile: p.name, nameTag: p.useNameTag ? profileTag(p) : cleanTagText(own) }));
+  const st = Object.assign(settings(), p.settings, { profile: p.name, nameTag: p.useNameTag ? profileTag(p) : cleanTagText(own) });
+  st.output = withFormat(st.output || ('x' + $('container').value), p);
+  await applyToWaiting(st);
 });
 
 // ---------- changing one queued file ----------
@@ -1323,13 +1363,18 @@ async function endEdit(save) {
     const r = await api('queueEditSave', { id: editing.id, settings: settings() });
     if (!r.ok) { showError(r.error); return; }
   } else await api('queueEditCancel', { id: editing.id });
-  const snap = editing.snapshot;
+  const snap = editing.snapshot, editedId = editing.id;
   editing = null; pendingLoad = null;
   $('editBanner').classList.add('hidden'); $('input').readOnly = false; $('browseIn').disabled = false;
   loadForm(snap.st, { profile: snap.profile });
   $('container').value = snap.container;
   tracks = snap.tracks; metaState = snap.meta;
-  updateVisibility(); renderMeta(); updateStart(); probe(); poll();
+  updateVisibility(); renderMeta(); updateStart(); probe();
+  // back to the queue, at the file that was changed
+  showTab('queue');
+  await poll();
+  const row = $('queueList').querySelector('[data-id="' + editedId + '"]');
+  if (row) { row.scrollIntoView({ block: 'nearest' }); row.classList.add('flash'); setTimeout(() => row.classList.remove('flash'), 1600); }
 }
 $('testBtn').onclick = async () => {
   jobBoxDismissed = false;
@@ -1428,14 +1473,15 @@ function updateSummaries() {
   $('sumAudio').textContent = audioSummary();
   if (typeof profileUI === 'function' && profiles) profileUI();
   const nm = metaChangeCount();
-  $('sumMeta').textContent = !metaFor() ? '' : nm ? nm + (nm === 1 ? ' change' : ' changes') : 'no changes';
+  $('sumMeta').textContent = [!metaFor() ? '' : nm ? nm + (nm === 1 ? ' change' : ' changes') : 'no changes',
+    $('nameTracks').checked && 'untitled tracks named'].filter(Boolean).join('  ·  ');
   $('sumSubs').textContent = subSummary();
   const adv = [$('master').value.trim() && 'master display', $('cll').value.trim() && 'MaxCLL/FALL'].filter(Boolean);
   $('sumAdv').textContent = adv.length ? 'override: ' + adv.join(', ') : 'none';
   const opt = s => s.options[s.selectedIndex].text;
   $('sumARules').textContent = [$('audioLang').value.trim() || 'all languages', opt($('audio')).replace(' (no re-encode)', '').toLowerCase(),
     $('audio').value !== 'copy' && $('audioCh').value && opt($('audioCh')).replace(/ \(.*\)/, ''), $('dropComm').checked && 'no commentary',
-    $('addCompat').checked && '+ compatible track'].filter(Boolean).join('  ·  ');
+    $('addCompat').checked && '+ compatible track', $('audioOne').value && 'one per language (' + ($('audioOne').value === 'best' ? 'best' : 'compatible') + ')'].filter(Boolean).join('  ·  ');
   const rt = $('ruleTess'), needT = !!$('subToSRT').value && lastTools && !lastTools.tesseract;
   if (needT !== !rt.classList.contains('hidden')) {
     rt.innerHTML = '';
@@ -1443,7 +1489,8 @@ function updateSummaries() {
     rt.classList.toggle('hidden', !needT);
   }
   $('sumSRules').textContent = [$('subLang').value.trim() || 'all languages', opt($('subMode')),
-    $('subToSRT').value && 'ASS/PGS to SRT' + ($('subToSRT').value === 'add' ? ' (copies)' : '')].filter(Boolean).join('  ·  ');
+    $('subToSRT').value && 'ASS/PGS to SRT' + ($('subToSRT').value === 'add' ? ' (copies)' : ''),
+    $('subNameMode').value && $('subNameWords').value.trim() && ($('subNameMode').value === 'keep' ? 'only' : 'not') + ' "' + $('subNameWords').value.trim() + '"'].filter(Boolean).join('  ·  ');
 }
 
 // Which sections are open is remembered between runs. Only the user's own
@@ -1462,7 +1509,9 @@ async function restorePrefs() {
   const state = r.prefs.sections;
   if (state) sections.forEach(d => { if (typeof state[d.dataset.key] === 'boolean') d.open = state[d.dataset.key]; });
   if (typeof r.prefs.toolsHidden === 'string') toolsHidden = r.prefs.toolsHidden;
-  if (typeof r.prefs.tmdbKey === 'string') $('tmdbKey').value = r.prefs.tmdbKey;
+  $('tmdbKey').value = r.tmdbKey || (typeof r.prefs.tmdbKey === 'string' ? r.prefs.tmdbKey : '');
+  if (r.tmdbLang) $('tmdbLangSel').value = r.tmdbLang;
+  if (typeof r.prefs.scanTMDB === 'boolean') $('scanTMDB').checked = r.prefs.scanTMDB;
   tmdbKeyUI();
   if (typeof r.prefs.scanDir === 'string') $('scanDir').value = r.prefs.scanDir;
   if (typeof r.prefs.scanSub === 'boolean') $('scanSub').checked = r.prefs.scanSub;
@@ -1490,6 +1539,9 @@ async function restorePrefs() {
     $('audioCh').value = ['', '5.1', 'stereo'].includes(tr.audioChannels) ? tr.audioChannels : '';
     $('subLang').value = tr.subLang || ''; $('subMode').value = ['', 'forced', 'none'].includes(tr.subMode) ? tr.subMode : '';
     $('subToSRT').value = ['', 'replace', 'add'].includes(tr.subToSRT) ? tr.subToSRT : '';
+    $('audioOne').value = ['', 'best', 'compatible'].includes(tr.audioOnePerLang) ? tr.audioOnePerLang : '';
+    $('subNameMode').value = ['', 'keep', 'drop'].includes(tr.subNameMode) ? tr.subNameMode : '';
+    $('subNameWords').value = tr.subNameWords || ''; $('nameTracks').checked = !!tr.nameTracks;
   }
   const bo = r.prefs.batchOut;
   if (bo && bo.dir) $('qOutDir').value = bo.dir; // the last folder, ready if "in this folder" is chosen again
@@ -1625,7 +1677,7 @@ $('container').addEventListener('change', () => {
 $('targetNum').addEventListener('input', () => scheduleProbe(600));
 $('audio').addEventListener('change', () => { updateVisibility(); rulesChanged(); });
 ['audioLang', 'subLang'].forEach(id => $(id).addEventListener('change', rulesChanged));
-['dropComm', 'subMode', 'subToSRT', 'audioCh', 'addCompat'].forEach(id => $(id).addEventListener('change', rulesChanged));
+['dropComm', 'subMode', 'subToSRT', 'audioCh', 'addCompat', 'audioOne', 'subNameMode', 'subNameWords', 'nameTracks'].forEach(id => $(id).addEventListener('change', rulesChanged));
 $('codec').addEventListener('change', () => { updateVisibility(); scheduleProbe(200); });
 $('crf').addEventListener('input', () => { updateVisibility(); scheduleProbe(500); });
 $('bitrate').addEventListener('input', () => scheduleProbe(700));
@@ -1779,6 +1831,18 @@ $('qAddFolder').onclick = async () => {
 };
 $('qApply').onclick = () => applyToWaiting(Object.assign(settings(), { nameTag: nameTag() }));
 $('qClear').onclick = async () => { await api('queueClear', {}); poll(); };
+$('qClearAll').onclick = async () => {
+  const run = queue.items.filter(it => it.status === 'running').length, n = queue.items.length - run;
+  if (!n) return;
+  const own = queue.items.filter(it => it.status !== 'running' && !['done', 'failed', 'skipped', 'canceled'].includes(it.status) && it.settings &&
+    (it.settings.audioTracks || it.settings.subTracks || it.settings.meta)).length;
+  let q = 'Remove ' + (n === 1 ? 'the 1 file' : 'all ' + n + ' files') + ' from the queue?';
+  if (own) q += '\n\n' + own + (own === 1 ? ' of them has its' : ' of them have their') + ' own track or metadata changes, which will be lost.';
+  if (run) q += '\n\nThe file being transcoded now goes on (Stop queue cancels it).';
+  if (!await askUser(q)) return;
+  if (editing && queue.items.some(it => it.id === editing.id)) await endEdit(false);
+  await api('queueClearAll', {}); poll();
+};
 
 
 
@@ -1862,9 +1926,16 @@ $('tKind').onchange = tmdbEpUI;
 $('tSearch').onclick = tmdbSearch;
 ['tQuery', 'tYear', 'tSeason', 'tEpisode'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); tmdbSearch(); } }));
 $('tmdbKey').addEventListener('change', () => {
-  api('setPref', { name: 'tmdbKey', value: $('tmdbKey').value.trim() });
+  api('tmdbKeySet', { key: $('tmdbKey').value.trim() }).then(r => { if (!r.ok) showError(r.error); });
   $('tmdbNote').classList.add('hidden'); tmdbKeyUI();
 });
+$('tmdbLangSel').onchange = () => api('tmdbLang', { lang: $('tmdbLangSel').value });
+$('scanTMDB').onchange = () => api('setPref', { name: 'scanTMDB', value: $('scanTMDB').checked });
+$('qTMDB').onclick = async () => {
+  if (!$('tmdbKey').value.trim()) { showError('Add your free TMDB API key in Settings (⚙) first.'); return; }
+  const r = await api('queueTMDB', { ids: [] });
+  if (!r.ok) showError(r.error); poll();
+};
 $('tmdbShow').onclick = () => { const k = $('tmdbKey'); k.type = k.type === 'password' ? 'text' : 'password'; $('tmdbShow').textContent = k.type === 'password' ? 'Show' : 'Hide'; };
 $('tmdbCheck').onclick = async () => {
   const n = $('tmdbNote');
@@ -1891,7 +1962,7 @@ function scanSettings(path, p) {
   const st = settingsFor(path);
   if (!p) return st;
   Object.assign(st, p.settings, { profile: p.name });
-  if (!st.replaceOriginal) st.output = outFolderFor(path) + stem(path) + (p.useNameTag ? profileTag(p) : nameTag()) + $('container').value;
+  if (!st.replaceOriginal) st.output = withFormat(outFolderFor(path) + stem(path) + (p.useNameTag ? profileTag(p) : nameTag()) + $('container').value, p);
   return st;
 }
 function scanVisible() {
@@ -1971,6 +2042,10 @@ $('scanAdd').onclick = async () => {
   const p = profiles.find(x => x.name === $('scanWith').value) || null;
   const paths = scanItems.filter(it => scanSel.has(it.path)).sort((a, b) => (b.saving || 0) - (a.saving || 0)).map(it => it.path);
   const r = await addToQueue(paths.map(x => scanSettings(x, p)));
+  if (r && r.ids && r.ids.length && $('scanTMDB').checked) {
+    if (!$('tmdbKey').value.trim()) showError('The files were added, but looking up their metadata needs your TMDB API key (Settings, ⚙).');
+    else { const t = await api('queueTMDB', { ids: r.ids }); if (!t.ok) showError(t.error); }
+  }
   if (r && r.added) { scanSel = new Set(); renderScan(); scanButtons(); }
 };
 fillScanWith();
@@ -2004,12 +2079,17 @@ function settingsText(st) {
     if (st.subMode === 'none') parts.push('no subtitles');
     else if (st.subLang || st.subMode === 'forced') parts.push('subtitles ' + (st.subLang || 'all') + (st.subMode === 'forced' ? ' forced' : ''));
     if (st.subToSRT && st.subMode !== 'none') parts.push('subtitles → SRT');
+    if (st.audioOnePerLang) parts.push('one audio per language');
+    if (st.subNameMode && st.subNameWords) parts.push('subtitles ' + (st.subNameMode === 'keep' ? 'only' : 'not') + ' "' + st.subNameWords + '"');
+  }
+  if (st.nameTracks) {
+    parts.push('tracks named');
   }
   parts.push(ext);
   return parts.join(' · ');
 }
 function rowButton(text, title, fn) {
-  const b = document.createElement('button'); b.textContent = text; b.title = title; b.onclick = fn; return b;
+  const b = document.createElement('button'); b.textContent = text; b.title = title; b.onclick = () => fn(b); return b;
 }
 let lastRunId = null;
 function renderQueue(q) {
@@ -2028,17 +2108,32 @@ function renderQueue(q) {
     row.querySelector('.qname').textContent = it.name;
     row.querySelector('.qname').title = it.input + '  →  ' + it.output;
     row.querySelector('.qsub').textContent = [it.info, settingsText(it.settings)].filter(Boolean).join('   |   ');
-    row.querySelector('.qnote').textContent = it.note || '';
+    row.querySelector('.qnote').textContent = [it.note, it.settings && it.settings.tmdbNote].filter(Boolean).join('  ·  ');
     row.querySelector('.qstat').textContent = it.status === 'running' ? Math.floor(it.percent) + '%' : STATUS_TEXT[it.status];
     row.querySelector('.qmini').classList.toggle('hidden', it.status !== 'running');
     row.querySelector('.qmini > div').style.width = it.percent + '%';
     if (it.editing) row.querySelector('.qstat').textContent = 'Being changed';
-    const key = it.status + (q.running ? 'r' : '') + (it.editing ? 'e' : '');
+    const ownTracks = !!(it.settings && (it.settings.audioTracks || it.settings.subTracks));
+    const others = q.items.filter(x => x.id !== it.id && ['waiting', 'checking', 'problem'].includes(x.status) && !x.editing).length;
+    const key = it.status + (q.running ? 'r' : '') + (it.editing ? 'e' : '') + (ownTracks && others ? 'o' : '');
     const btns = row.querySelector('.qbtns');
     if (btns.dataset.key !== key) { // rebuild the buttons only when they change
       btns.dataset.key = key; btns.innerHTML = '';
       if ((it.status === 'waiting' || it.status === 'checking' || it.status === 'problem') && !it.editing)
         btns.append(rowButton('Edit', 'Change the settings, tracks and metadata of this file only', () => startEdit(it)));
+      if (ownTracks && others && (it.status === 'waiting' || it.status === 'checking' || it.status === 'problem') && !it.editing)
+        btns.append(rowButton('Same tracks for others', "Give the waiting files this file's audio and subtitle choices (by track position). " +
+          'Only files whose tracks match this one (same number, languages and formats) are changed.', async b => {
+          b.disabled = true; b.textContent = 'Checking tracks…';
+          const r = await api('queueCopyTracks', { id: it.id });
+          b.disabled = false; b.textContent = 'Same tracks for others';
+          if (!r.ok) { showError(r.error); return; }
+          let msg = r.applied ? r.applied + (r.applied === 1 ? ' file now uses' : ' files now use') + ' the track choices of ' + it.name + '.'
+            : 'No other file has the same tracks as ' + it.name + ', so nothing was changed.';
+          if (r.different && r.different.length) msg += '\n\nLeft as they were (their tracks are different):\n' + r.different.slice(0, 15).join('\n') +
+            (r.different.length > 15 ? '\n… and ' + (r.different.length - 15) + ' more' : '');
+          showError(msg); poll();
+        }));
       if (it.status === 'waiting' || it.status === 'checking' || it.status === 'problem') {
         btns.append(rowButton('↑', 'Move up', () => api('queueMove', { id: it.id, dir: -1 }).then(poll)),
           rowButton('↓', 'Move down', () => api('queueMove', { id: it.id, dir: 1 }).then(poll)));
@@ -2087,6 +2182,8 @@ function renderQueue(q) {
   $('qApply').classList.toggle('hidden', !(waiting || c.problem));
   $('qProfile').classList.toggle('hidden', !((waiting || c.problem) && profiles.length));
   $('qClear').classList.toggle('hidden', !finished);
+  $('qTMDB').classList.toggle('hidden', !(waiting || c.problem));
+  $('qClearAll').classList.toggle('hidden', !(waiting || c.problem)); // with only finished files, Clear finished does it
   $('afterWrap').classList.toggle('hidden', !(q.running || waiting > 0 || q.after));
   if (document.activeElement !== $('after')) $('after').value = q.after || '';
   const power = q.powerIn !== undefined;

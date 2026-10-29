@@ -71,6 +71,12 @@ Choosing tracks (numbers as the window shows them: audio 1, 2, ...; subtitles 1,
   -subs <all|forced|none>  which subtitles to keep (default all)
   -subs-to-srt <replace|add>  convert ASS/SSA and PGS subtitles to SRT (PGS needs Tesseract OCR),
                        replacing them or added next to them
+  -audio-one-per-language <best|compatible>  keep one audio track per language (commentary aside):
+                       the best quality, or the most compatible (AC-3, E-AC-3, AAC)
+  -sub-keep-names <words>  keep only subtitles whose name contains one of these words, e.g. "SDH,Full"
+  -sub-drop-names <words>  drop subtitles whose name contains one of these words, e.g. "Signs"
+                       ("SDH", "forced" and "commentary" also match the tracks' flags)
+  -name-tracks         name untitled audio and subtitle tracks from what they are ("English AC-3 5.1")
   -dv <auto|drop>      Dolby Vision: auto keeps it (default), drop = plain HDR10
   -scale <size>        shrink the video to fit 2160p, 1440p, 1080p or 720p, keeping its shape
                        (3840x1600 -> 1920x800 at 1080p) and its HDR10 / HDR10+ / Dolby Vision
@@ -101,6 +107,8 @@ Metadata (with any job):
                         "chapters":{"names":{"1":"Opening"}}}
   -master-display <s>  override x265 master-display string
   -max-cll <a,b>       override MaxCLL,MaxFALL
+  -profile <name>      use a profile saved in the window (its settings, name ending and format);
+                       other options on the command line override it for this run
   -tmp <dir>           folder for temporary files (Dolby Vision needs space)
   -keep-temp           keep temporary files
   -dry-run             print the commands without running them
@@ -143,6 +151,10 @@ func parseArgs() (*Config, bool) {
 	fs.BoolVar(&cfg.AddCompatAudio, "add-compatible-audio", false, "")
 	fs.StringVar(&cfg.SubMode, "subs", "", "")
 	fs.StringVar(&cfg.SubsToSRT, "subs-to-srt", "", "")
+	fs.StringVar(&cfg.AudioOnePerLang, "audio-one-per-language", "", "")
+	subKeepNames := fs.String("sub-keep-names", "", "")
+	subDropNames := fs.String("sub-drop-names", "", "")
+	fs.BoolVar(&cfg.NameTracks, "name-tracks", false, "")
 	fs.StringVar(&cfg.Tesseract, "tesseract", "", "")
 	fs.StringVar(&cfg.AudioChannels, "audio-channels", "", "")
 	fs.BoolVar(&cfg.MetaOnly, "metadata-only", false, "")
@@ -181,6 +193,19 @@ func parseArgs() (*Config, bool) {
 	// Allow flags and positional arguments in any order.
 	var pos []string
 	args := os.Args[1:]
+	profileFormat := ""
+	if name, rest, found := takeProfileArg(args); found {
+		if strings.TrimSpace(name) == "" {
+			fmt.Fprintln(os.Stderr, "error: -profile needs the name of a profile saved in the window")
+			return cfg, false
+		}
+		pa, format, err := profileArgs(defaultPrefsFile(), name)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			return cfg, false
+		}
+		args, profileFormat = append(pa, rest...), format // options given on the command line come later, so they win
+	}
 	sawFlag := false
 	for len(args) > 0 {
 		before := len(args)
@@ -312,6 +337,21 @@ func parseArgs() (*Config, bool) {
 		fmt.Fprintln(os.Stderr, "error: -subs must be all, forced or none")
 		return cfg, false
 	}
+	switch cfg.AudioOnePerLang = strings.ToLower(cfg.AudioOnePerLang); cfg.AudioOnePerLang {
+	case "", "best", "compatible":
+	default:
+		fmt.Fprintln(os.Stderr, "error: -audio-one-per-language must be best or compatible")
+		return cfg, false
+	}
+	switch {
+	case *subKeepNames != "" && *subDropNames != "":
+		fmt.Fprintln(os.Stderr, "error: use -sub-keep-names or -sub-drop-names, not both")
+		return cfg, false
+	case *subKeepNames != "":
+		cfg.SubNameMode, cfg.SubNameWords = "keep", parseWords(*subKeepNames)
+	case *subDropNames != "":
+		cfg.SubNameMode, cfg.SubNameWords = "drop", parseWords(*subDropNames)
+	}
 	switch cfg.SubsToSRT = strings.ToLower(cfg.SubsToSRT); cfg.SubsToSRT {
 	case "", "replace", "add":
 	default:
@@ -342,7 +382,11 @@ func parseArgs() (*Config, bool) {
 	}
 	if cfg.Output == "" {
 		ext := filepath.Ext(cfg.Input)
-		cfg.Output = strings.TrimSuffix(cfg.Input, ext) + cleanTag(*tag) + ".mkv"
+		out := ".mkv"
+		if profileFormat != "" {
+			out = profileFormat
+		}
+		cfg.Output = strings.TrimSuffix(cfg.Input, ext) + cleanTag(*tag) + out
 	}
 	return cfg, true
 }

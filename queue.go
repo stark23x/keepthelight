@@ -254,6 +254,116 @@ func (g *guiServer) queueClear() {
 	g.saveQueue()
 }
 
+// queueClearAll empties the queue: everything except the file being
+// transcoded right now (which goes on; Stop queue cancels it).
+func (g *guiServer) queueClearAll() int {
+	g.mu.Lock()
+	kept, n := g.q.items[:0], 0
+	for _, it := range g.q.items {
+		if it.Status == stRunning {
+			kept = append(kept, it)
+		} else {
+			n++
+		}
+	}
+	g.q.items = kept
+	if g.q.running {
+		g.q.total = g.q.index // nothing more to come in this run
+	}
+	g.mu.Unlock()
+	g.saveQueue()
+	return n
+}
+
+// queueCopyTracks gives the waiting files the track choices of one file (its
+// audio and subtitle tracks, by position), when their tracks are laid out the
+// same way. Files that differ are left as they are and named in the reply.
+func (g *guiServer) queueCopyTracks(id int) map[string]any {
+	ffprobe, err := findTool("ffprobe", "")
+	if err != nil {
+		return failResult("ffprobe was not found")
+	}
+	g.mu.Lock()
+	src := g.findItemLocked(id)
+	if src == nil {
+		g.mu.Unlock()
+		return failResult("That file is no longer in the queue.")
+	}
+	if src.s.AudioTracks == nil && src.s.SubTracks == nil {
+		g.mu.Unlock()
+		return failResult("This file has no track choices of its own: Edit it, choose its tracks, and save it first.")
+	}
+	srcIn, srcSettings := src.Input, src.s
+	type target struct {
+		it    *queueItem
+		input string
+	}
+	var targets []target
+	for _, it := range g.q.items {
+		if it != src && (it.pending() || it.Status == stProblem) && !it.Editing {
+			targets = append(targets, target{it, it.Input})
+		}
+	}
+	g.mu.Unlock()
+	if len(targets) == 0 {
+		return failResult("There are no other waiting files.")
+	}
+	ctx := context.Background()
+	st, err := probeTracks(ctx, ffprobe, srcIn)
+	if err != nil {
+		return failResult("Could not read the tracks of " + filepath.Base(srcIn) + ": " + err.Error())
+	}
+	want := trackLayout(st)
+	layouts := make([]string, len(targets))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 4) // a few at a time: the files may be on the network
+	for i := range targets {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			if t, err := probeTracks(ctx, ffprobe, targets[i].input); err == nil {
+				layouts[i] = trackLayout(t)
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	var applied int
+	var different []string
+	g.mu.Lock()
+	for i, tg := range targets {
+		it := tg.it
+		if layouts[i] != want {
+			different = append(different, it.Name)
+			continue
+		}
+		if !(it.pending() || it.Status == stProblem) || it.Editing || it.Input != tg.input {
+			continue // started, or changed meanwhile
+		}
+		var m map[string]any
+		_ = json.Unmarshal(it.Raw, &m)
+		m["audioTracks"], m["subTracks"] = srcSettings.AudioTracks, srcSettings.SubTracks
+		m["audioDefault"], m["subDefault"] = srcSettings.AudioDefault, srcSettings.SubDefault
+		b, _ := json.Marshal(m)
+		var s settings
+		_ = json.Unmarshal(b, &s)
+		cfg, err := validateSettings(s)
+		if err != nil {
+			different = append(different, it.Name+" ("+err.Error()+")")
+			continue
+		}
+		it.Raw, it.s, it.cfg = b, s, cfg
+		it.Status, it.Note, it.checked = stChecking, "", false
+		applied++
+	}
+	g.mu.Unlock()
+	g.kickChecker()
+	g.saveQueue()
+	return map[string]any{"ok": true, "applied": applied, "different": different}
+}
+
 // queueApply gives every file that has not started the given settings (their
 // own input file and output folder/name are kept; the format follows the new
 // settings).
@@ -1066,6 +1176,10 @@ func (g *guiServer) restoreQueue() {
 		g.mu.Lock()
 		g.hwDec = hw
 		g.mu.Unlock()
+	}
+	var lang string
+	if b, ok := g.loadPrefs()["tmdbLang"]; ok && json.Unmarshal(b, &lang) == nil && tmdbLanguages[lang] {
+		tmdbLang.Store(lang)
 	}
 	var raws []json.RawMessage
 	if b, ok := g.loadPrefs()["queue"]; ok {

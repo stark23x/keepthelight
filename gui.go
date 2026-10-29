@@ -101,6 +101,9 @@ type settings struct {
 	DropCommentary             bool
 	AddCompatAudio             bool      // rule: add an E-AC-3 copy when no track plays everywhere
 	SubToSRT                   string    // rule: convert ASS/SSA and PGS subtitles to SRT: "", "replace" or "add"
+	AudioOnePerLang            string    // rule: one audio track per language: "", "best", "compatible"
+	SubNameMode, SubNameWords  string    // rule: keep only / drop subtitles whose name contains these words
+	NameTracks                 bool      // name untitled tracks from what they are
 	AudioChannels              string    // rules: channels for converted tracks: "" (as the source), "5.1", "stereo"
 	SubMode                    string    // rules: "" all matching, "forced", "none"
 	Meta                       *MetaEdit // metadata changes for this file (null = none)
@@ -220,6 +223,22 @@ func (s *settings) toConfig() (*Config, error) {
 	default:
 		return nil, fmt.Errorf("unknown subtitle conversion option")
 	}
+	switch s.AudioOnePerLang {
+	case "", "best", "compatible":
+		cfg.AudioOnePerLang = s.AudioOnePerLang
+	default:
+		return nil, fmt.Errorf("unknown audio rule")
+	}
+	switch s.SubNameMode {
+	case "", "keep", "drop":
+		cfg.SubNameMode, cfg.SubNameWords = s.SubNameMode, parseWords(s.SubNameWords)
+		if cfg.SubNameMode == "" || len(cfg.SubNameWords) == 0 {
+			cfg.SubNameMode, cfg.SubNameWords = "", nil
+		}
+	default:
+		return nil, fmt.Errorf("unknown subtitle name rule")
+	}
+	cfg.NameTracks = s.NameTracks
 	if !validChannels(s.AudioChannels, false) {
 		return nil, fmt.Errorf("unknown channels option")
 	}
@@ -343,6 +362,15 @@ func (cfg *Config) cliArgs() []string {
 	}
 	if cfg.SubsToSRT != "" {
 		a = append(a, "-subs-to-srt", cfg.SubsToSRT)
+	}
+	if cfg.AudioOnePerLang != "" {
+		a = append(a, "-audio-one-per-language", cfg.AudioOnePerLang)
+	}
+	if cfg.SubNameMode != "" {
+		a = append(a, "-sub-"+cfg.SubNameMode+"-names", strings.Join(cfg.SubNameWords, ","))
+	}
+	if cfg.NameTracks {
+		a = append(a, "-name-tracks")
 	}
 	if cfg.CopyVideo {
 		a = append(a, "-copy-video")
@@ -695,7 +723,7 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 			return failResult("bad request")
 		}
 		ids, errs := g.queueAdd(b.Items)
-		return map[string]any{"ok": len(errs) == 0, "added": len(ids), "errors": errs}
+		return map[string]any{"ok": len(errs) == 0, "added": len(ids), "ids": ids, "errors": errs}
 	case "queueApply":
 		var b struct{ Settings json.RawMessage }
 		if err := json.Unmarshal(body, &b); err != nil {
@@ -719,6 +747,16 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 			return failResult(err.Error())
 		}
 		return okResult()
+	case "queueCopyTracks":
+		var b struct{ ID int }
+		_ = json.Unmarshal(body, &b)
+		return g.queueCopyTracks(b.ID)
+	case "queueTMDB":
+		var b struct{ IDs []int }
+		_ = json.Unmarshal(body, &b)
+		return g.queueTMDB(b.IDs)
+	case "queueClearAll":
+		return map[string]any{"ok": true, "removed": g.queueClearAll()}
 	case "queueClear":
 		g.queueClear()
 		return okResult()
@@ -797,7 +835,7 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		raw, _ := json.Marshal(b.Low)
 		_ = g.savePref("lowPriority", raw)
 		return okResult()
-	case "tmdbGuess", "tmdbSearch", "tmdbDetails", "tmdbTestKey":
+	case "tmdbGuess", "tmdbSearch", "tmdbDetails", "tmdbTestKey", "tmdbKeySet", "tmdbLang":
 		return g.tmdbCall(ctx, name, body)
 	case "scanStart":
 		var b struct {
@@ -832,7 +870,7 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		_ = g.savePref("hwDecode", raw)
 		return okResult()
 	case "prefs":
-		res := map[string]any{"ok": true, "prefs": g.loadPrefs()}
+		res := map[string]any{"ok": true, "prefs": g.loadPrefs(), "tmdbKey": g.tmdbKey(), "tmdbLang": tmdbLanguage()}
 		if missing := g.missingTmpDir(); missing != "" {
 			res["tmpDirMissing"] = missing
 		}
@@ -1063,6 +1101,17 @@ func (g *guiServer) probe(ctx context.Context, s settings) map[string]any {
 		}
 	}
 	if plan.needsOCR() { // PGS to SRT: Tesseract reads the pictures
+		if tess, err := findTool("tesseract", ""); err == nil {
+			seen := map[int]bool{}
+			for _, sub := range plan.Subs {
+				if sub.needsOCR() && !seen[sub.Src.N] {
+					seen[sub.Src.N] = true
+					if _, w := ocrLang(ctx, tess, sub.Src.Lang); w != "" {
+						plan.Warnings = append(plan.Warnings, fmt.Sprintf("subtitle track %d (%s): %s", sub.Src.N, langName(sub.Src.Lang), w))
+					}
+				}
+			}
+		}
 		if _, err := findTool("tesseract", ""); err != nil {
 			resp["blocker"] = "Converting picture subtitles (PGS) to SRT needs Tesseract OCR, which is not installed on this PC. " +
 				"Install it (free, with its normal installer) and Keep the Light will find it, or set those subtitles to \"as is\"."

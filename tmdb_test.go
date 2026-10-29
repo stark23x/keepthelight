@@ -37,37 +37,7 @@ func TestGuessSearch(t *testing.T) {
 func TestTMDB(t *testing.T) {
 	jpeg := []byte("\xff\xd8\xff\xe0\x00\x10JFIF\x00poster")
 	var auth []string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		auth = append(auth, r.URL.Query().Get("api_key")+"|"+r.Header.Get("Authorization"))
-		if r.URL.Query().Get("api_key") == "bad" {
-			w.WriteHeader(401)
-			_, _ = w.Write([]byte(`{"status_message":"Invalid API key"}`))
-			return
-		}
-		if strings.HasPrefix(r.URL.Path, "/3/") && r.URL.Query().Get("language") != "en-US" {
-			t.Errorf("language: %s", r.URL)
-		}
-		switch r.URL.Path {
-		case "/3/search/movie":
-			if r.URL.Query().Get("query") != "Heat" || r.URL.Query().Get("year") != "1995" {
-				t.Errorf("search: %s", r.URL)
-			}
-			_, _ = w.Write([]byte(`{"results":[{"id":949,"title":"Heat","release_date":"1995-12-15","overview":"Cops and robbers.","poster_path":"/p.jpg"},{"id":2,"title":"Heat 2","release_date":""}]}`))
-		case "/3/movie/949":
-			_, _ = w.Write([]byte(`{"title":"Heat","release_date":"1995-12-15","overview":"Cops and robbers.","poster_path":"/p.jpg"}`))
-		case "/3/tv/136315":
-			_, _ = w.Write([]byte(`{"name":"The Bear","first_air_date":"2022-06-23","overview":"A chef.","poster_path":"/show.jpg"}`))
-		case "/3/tv/136315/season/2":
-			_, _ = w.Write([]byte(`{"poster_path":"/s2.jpg"}`))
-		case "/3/tv/136315/season/2/episode/3":
-			_, _ = w.Write([]byte(`{"name":"Sundae","air_date":"2023-06-22","overview":"Sydney eats."}`))
-		case "/img/w92/p.jpg", "/img/w780/p.jpg", "/img/w780/s2.jpg", "/img/w92/s2.jpg":
-			_, _ = w.Write(jpeg)
-		default:
-			w.WriteHeader(404)
-			_, _ = w.Write([]byte(`{"status_message":"The resource you requested could not be found."}`))
-		}
-	}))
+	srv := fakeTMDBServer(t, jpeg, &auth)
 	defer srv.Close()
 	oldAPI, oldImg := tmdbAPI, tmdbImages
 	tmdbAPI, tmdbImages = srv.URL+"/3", srv.URL+"/img/"
@@ -103,4 +73,52 @@ func TestTMDB(t *testing.T) {
 	if _, err := tmdbSearch(ctx, "", "movie", "x", ""); err == nil || !strings.Contains(err.Error(), "in Settings") {
 		t.Errorf("no key: %v", err)
 	}
+}
+
+func newFakeTMDB(t *testing.T, jpeg []byte) *httptest.Server {
+	var auth []string
+	srv := fakeTMDBServer(t, jpeg, &auth)
+	oldAPI, oldImg := tmdbAPI, tmdbImages
+	tmdbAPI, tmdbImages = srv.URL+"/3", srv.URL+"/img/"
+	t.Cleanup(func() { tmdbAPI, tmdbImages = oldAPI, oldImg })
+	return srv
+}
+
+func fakeTMDBServer(t *testing.T, jpeg []byte, auth *[]string) *httptest.Server {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		*auth = append(*auth, r.URL.Query().Get("api_key")+"|"+r.Header.Get("Authorization"))
+		if r.URL.Query().Get("api_key") == "bad" {
+			w.WriteHeader(401)
+			_, _ = w.Write([]byte(`{"status_message":"Invalid API key"}`))
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/3/") && r.URL.Query().Get("language") != "en-US" {
+			t.Errorf("language: %s", r.URL)
+		}
+		switch r.URL.Path {
+		case "/3/search/movie":
+			if r.URL.Query().Get("query") != "Heat" {
+				t.Errorf("search: %s", r.URL)
+			}
+			if r.URL.Query().Get("year") == "" { // two films of that name
+				_, _ = w.Write([]byte(`{"results":[{"id":949,"title":"Heat","release_date":"1995-12-15","poster_path":"/p.jpg"},{"id":5,"title":"Heat","release_date":"1986-03-14"}]}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"results":[{"id":949,"title":"Heat","release_date":"1995-12-15","overview":"Cops and robbers.","poster_path":"/p.jpg"},{"id":2,"title":"Heat 2","release_date":""}]}`))
+		case "/3/movie/949":
+			_, _ = w.Write([]byte(`{"title":"Heat","release_date":"1995-12-15","overview":"Cops and robbers.","poster_path":"/p.jpg"}`))
+		case "/3/tv/136315":
+			_, _ = w.Write([]byte(`{"name":"The Bear","first_air_date":"2022-06-23","overview":"A chef.","poster_path":"/show.jpg"}`))
+		case "/3/tv/136315/season/2":
+			_, _ = w.Write([]byte(`{"poster_path":"/s2.jpg"}`))
+		case "/3/tv/136315/season/2/episode/3":
+			_, _ = w.Write([]byte(`{"name":"Sundae","air_date":"2023-06-22","overview":"Sydney eats."}`))
+		case "/img/w92/p.jpg", "/img/w780/p.jpg", "/img/w780/s2.jpg", "/img/w92/s2.jpg":
+			_, _ = w.Write(jpeg)
+		default:
+			w.WriteHeader(404)
+			_, _ = w.Write([]byte(`{"status_message":"The resource you requested could not be found."}`))
+		}
+	}))
+	return srv
 }

@@ -512,6 +512,9 @@ func selectTracks(cfg *Config, t *Tracks, mp4 bool) (audio []outAudio, subs []ou
 				audio = append(audio, outAudio{Src: a, Codec: general})
 			}
 		}
+		if cfg.AudioOnePerLang != "" {
+			audio = onePerLanguage(audio, cfg.AudioOnePerLang)
+		}
 		if len(audio) == 0 && len(t.Audio) > 0 { // never leave a file silent by accident
 			keep := t.Audio[0]
 			for _, a := range t.Audio {
@@ -605,6 +608,9 @@ func selectTracks(cfg *Config, t *Tracks, mp4 bool) (audio []outAudio, subs []ou
 		}
 	} else if cfg.SubMode != "none" {
 		for _, s := range t.Subs {
+			if cfg.SubNameMode != "" && len(cfg.SubNameWords) > 0 && nameMatches(s, cfg.SubNameWords) != (cfg.SubNameMode == "keep") {
+				continue
+			}
 			if langMatch(cfg.SubLangs, s.Lang) && (cfg.SubMode != "forced" || s.Forced()) {
 				subs = append(subs, outSub{Src: s, Forced: s.Forced()})
 				srtMode = append(srtMode, cfg.SubsToSRT)
@@ -655,6 +661,9 @@ func selectTracks(cfg *Config, t *Tracks, mp4 bool) (audio []outAudio, subs []ou
 	}
 	for i := range subs {
 		subs[i].Meta = cfg.Meta.track("s", subs[i].Src.N)
+	}
+	if cfg.NameTracks {
+		nameUntitled(audio, subs)
 	}
 	return audio, subs, warns, nil
 }
@@ -999,7 +1008,7 @@ func audioChoice(audio []outAudio) map[string]any {
 		} else if a.Channels == 2 {
 			ch = "stereo"
 		}
-		sel = append(sel, map[string]any{"n": a.Src.N, "codec": c, "bitrate": a.Bitrate, "channels": ch})
+		sel = append(sel, map[string]any{"n": a.Src.N, "codec": c, "bitrate": a.Bitrate, "channels": ch, "name": a.Title})
 		if a.Default {
 			def = a.Src.N
 		}
@@ -1013,7 +1022,7 @@ func subChoice(subs []outSub) map[string]any {
 		if s.Added {
 			continue
 		}
-		m := map[string]any{"n": s.Src.N, "forced": s.Forced}
+		m := map[string]any{"n": s.Src.N, "forced": s.Forced, "name": s.Title}
 		if s.ToSRT {
 			m["srt"] = "replace"
 		} else if i+1 < len(subs) && subs[i+1].Added && subs[i+1].Src.N == s.Src.N {
