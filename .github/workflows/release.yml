@@ -1,13 +1,15 @@
 # Builds a release of Keep the Light with the current Go version: tests, the
 # vulnerability check, both programs, the bundled tools (downloaded from their
 # author's releases and checked against their published SHA-256), the program
-# and source zips, and SHA-256 checksums. Pushing a version tag ("1.20.1")
-# creates a draft release with these files; publish it on GitHub when ready.
+# and source zips, and SHA-256 checksums. A push to main that changes VERSION
+# creates a draft release (and its tag) with these files; publish it on GitHub
+# when ready. Run by hand (Actions tab), it builds the files without a release.
 name: release
 
 on:
   push:
-    tags: ["[0-9]+.[0-9]+.[0-9]+"]
+    branches: [main]
+    paths: [VERSION, .github/workflows/release.yml]
   workflow_dispatch:
 
 permissions:
@@ -33,9 +35,6 @@ jobs:
         id: v
         run: |
           V=$(tr -d ' \r\n' < VERSION)
-          if [ "${GITHUB_REF_TYPE}" = tag ] && [ "${GITHUB_REF_NAME}" != "$V" ]; then
-            echo "The tag ${GITHUB_REF_NAME} does not match VERSION ($V)"; exit 1
-          fi
           grep -q "^## $V " CHANGELOG.md || { echo "CHANGELOG.md has no entry for $V"; exit 1; }
           echo "version=$V" >> "$GITHUB_OUTPUT"
           go version
@@ -90,13 +89,18 @@ jobs:
           unzip -l "KeepTheLight-$V-win64.zip"
 
       - name: Draft release
-        if: github.ref_type == 'tag'
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           V=${{ steps.v.outputs.version }}
-          gh release create "$V" --draft --title "$V" --notes-file notes.md \
-            "KeepTheLight-$V-win64.zip" "keepthelight-src-$V.zip" "SHA256SUMS-$V.txt"
+          if gh release view "$V" >/dev/null 2>&1; then
+            echo "A release $V exists already: its files are replaced"
+            gh release upload "$V" --clobber "KeepTheLight-$V-win64.zip" "keepthelight-src-$V.zip" "SHA256SUMS-$V.txt"
+          else
+            gh release create "$V" --draft --target "$GITHUB_SHA" --title "$V" --notes-file notes.md \
+              "KeepTheLight-$V-win64.zip" "keepthelight-src-$V.zip" "SHA256SUMS-$V.txt"
+          fi
 
       - uses: actions/upload-artifact@v4
         with:

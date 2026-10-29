@@ -306,9 +306,9 @@ Go 1.24 or newer. Both programs come from the same source; the `cli` build tag m
 (from a non-Windows machine, set `GOOS=windows GOARCH=amd64` first).
 
 **Releases** are built on GitHub (`.github/workflows/release.yml`) with the current Go version, so they include Go's
-latest security fixes. Pushing a version tag (for example `1.20.1`, matching `VERSION` and a `CHANGELOG.md` entry)
-runs the tests and Go's vulnerability check, builds both programs, adds dovi_tool and hdr10plus_tool (downloaded
-from their author's releases and checked against their SHA-256), and makes a draft release with the program zip,
+latest security fixes. A push to `main` that changes `VERSION` (which needs a matching `CHANGELOG.md` entry) runs
+the tests and Go's vulnerability check, builds both programs, adds dovi_tool and hdr10plus_tool (downloaded
+from their author's releases and checked against their SHA-256), and makes a draft release (and its tag) with the program zip,
 the source zip and `SHA256SUMS-<version>.txt`. `.github/workflows/govulncheck.yml` also checks every push and runs
 weekly.
 
