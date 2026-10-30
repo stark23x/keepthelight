@@ -6,6 +6,10 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
+(nothing yet)
+
+## In this build (1.21.0, not released yet)
+
 - **Batch and per-file progress on the Queue tab** (requested 2026-10-29).
   - **The whole batch:** a progress bar at the top of the Queue tab, with "File 2 of 5", the percentage of the
     batch done, and the estimated time left for everything.

@@ -139,7 +139,12 @@
   .qname { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .qsub { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .qnote { font-size: 12px; margin-top: 2px; }
-  .qstat { font-size: 12.5px; font-weight: 600; white-space: nowrap; color: var(--muted); }
+  .qstat { font-size: 12.5px; font-weight: 600; white-space: nowrap; color: var(--muted); text-align: right; }
+  .qeta { font-size: 12px; font-weight: 400; color: var(--muted); margin-top: 2px; }
+  /* the whole run, over the list */
+  #qBatch { border: 1px solid var(--accent2); border-radius: 8px; background: var(--panel2); padding: 10px 12px; margin-bottom: 10px; }
+  .qbtop { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; margin-bottom: 7px; font-size: 13px; }
+  .qbtop b { font-size: 14px; } #qbPct { color: var(--accent); font-weight: 600; } #qbEta { color: var(--muted); margin-left: auto; }
   .qrow.flash { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent2); transition: box-shadow .4s; }
   .qrow.st-running { border-color: var(--accent2); } .qrow.st-running .qstat { color: var(--accent); }
   .qrow.st-done .qstat { color: var(--ok); }
@@ -166,7 +171,7 @@
   .srow .serr { font-size: 12px; color: var(--bad); }
   .qbtns { display: flex; gap: 4px; }
   .qbtns button { padding: 3px 8px; font-size: 12px; }
-  .qmini { height: 4px; border-radius: 9px; background: var(--line); overflow: hidden; grid-column: 1 / -1; }
+  .qmini { height: 6px; border-radius: 9px; background: var(--line); overflow: hidden; grid-column: 1 / -1; }
   .qmini > div { height: 100%; background: var(--accent); width: 0; }
   .qlog { grid-column: 1 / -1; background: #0e1013; border: 1px solid var(--line); border-radius: 6px; padding: 8px; max-height: 200px;
     overflow: auto; font: 12px/1.45 Consolas, monospace; white-space: pre-wrap; word-break: break-all; margin: 4px 0 0; color: #c3c8d2; }
@@ -499,6 +504,10 @@
 <div class="card" id="secQueue">
     <div class="tabhead"><h2>Queue</h2><span class="sum" id="sumQueue"></span></div>
     <div class="hint" id="queueHint" style="margin:0 0 10px">Add several files to transcode them one after another. Each file keeps the settings that were set when it was added.</div>
+    <div id="qBatch" class="hidden">
+      <div class="qbtop"><b id="qbFile"></b><span id="qbPct"></span><span id="qbEta"></span></div>
+      <div class="bar"><div></div></div>
+    </div>
     <div id="queueList"></div>
     <div class="actions" style="margin-top:6px">
       <button id="qAddFiles">Add files…</button>
@@ -2109,10 +2118,13 @@ function renderQueue(q) {
     row.querySelector('.qname').title = it.input + '  →  ' + it.output;
     row.querySelector('.qsub').textContent = [it.info, settingsText(it.settings)].filter(Boolean).join('   |   ');
     row.querySelector('.qnote').textContent = [it.note, it.settings && it.settings.tmdbNote].filter(Boolean).join('  ·  ');
-    row.querySelector('.qstat').textContent = it.status === 'running' ? Math.floor(it.percent) + '%' : STATUS_TEXT[it.status];
+    // status, then the time: left for the running file, an estimate for a waiting one, taken for a finished one
+    const stat = row.querySelector('.qstat'), eta = document.createElement('div');
+    stat.textContent = it.editing ? 'Being changed' : it.status === 'running' ? Math.floor(it.percent) + '%' : STATUS_TEXT[it.status];
+    eta.className = 'qeta'; eta.textContent = it.eta || '';
+    if (it.eta) stat.append(eta);
     row.querySelector('.qmini').classList.toggle('hidden', it.status !== 'running');
     row.querySelector('.qmini > div').style.width = it.percent + '%';
-    if (it.editing) row.querySelector('.qstat').textContent = 'Being changed';
     const ownTracks = !!(it.settings && (it.settings.audioTracks || it.settings.subTracks));
     const others = q.items.filter(x => x.id !== it.id && ['waiting', 'checking', 'problem'].includes(x.status) && !x.editing).length;
     const key = it.status + (q.running ? 'r' : '') + (it.editing ? 'e' : '') + (ownTracks && others ? 'o' : '');
@@ -2163,6 +2175,16 @@ function renderQueue(q) {
       list.scrollTop = Math.max(0, row.offsetTop - 6);
   }
   lastRunId = run ? run.id : null;
+
+  // the whole run: which file, how much is done (longer files count for more) and the time left for everything
+  $('qBatch').classList.toggle('hidden', !q.batch);
+  if (q.batch) {
+    const pct = Math.max(0, Math.min(100, q.batch.percent || 0));
+    $('qbFile').textContent = 'File ' + q.index + ' of ' + q.total;
+    $('qbPct').textContent = Math.floor(pct) + '% of the batch done';
+    $('qbEta').textContent = q.batch.eta ? q.batch.eta.charAt(0).toUpperCase() + q.batch.eta.slice(1) : '';
+    $('qBatch').querySelector('.bar > div').style.width = pct + '%';
+  }
 
   const c = q.counts, waiting = (c.waiting || 0) + (c.checking || 0);
   const finished = (c.done || 0) + (c.failed || 0) + (c.skipped || 0) + (c.canceled || 0) + (c.problem || 0);

@@ -161,17 +161,25 @@ func (p *progressTracker) etaText(now time.Time) string {
 }
 
 func formatRemaining(secs float64) string {
+	if secs < 60 {
+		return "less than a minute left"
+	}
+	return formatAbout(secs) + " left"
+}
+
+// formatAbout is a rough length of time, such as "about 40 min".
+func formatAbout(secs float64) string {
 	switch mins := secs / 60; {
 	case mins < 1:
-		return "less than a minute left"
+		return "less than a minute"
 	case mins < 59.5:
-		return fmt.Sprintf("about %d min left", int(math.Round(math.Max(1, mins))))
+		return fmt.Sprintf("about %d min", int(math.Round(math.Max(1, mins))))
 	default:
 		total := int(math.Round(mins/5) * 5) // over an hour: nearest 5 minutes
 		h, m := total/60, total%60
 		if m == 0 {
-			return fmt.Sprintf("about %d h left", h)
+			return fmt.Sprintf("about %d h", h)
 		}
-		return fmt.Sprintf("about %d h %d min left", h, m)
+		return fmt.Sprintf("about %d h %d min", h, m)
 	}
 }

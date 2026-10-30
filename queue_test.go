@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -426,5 +427,61 @@ awk '{print $19}' /proc/$$/stat > "$last"
 	g2.restoreQueue()
 	if !g2.lowPrio {
 		t.Fatal("low priority not remembered")
+	}
+}
+
+func TestQueueProgress(t *testing.T) {
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	g := newGUIServer()
+	g.now = func() time.Time { return now }
+	mkItem := func(id int, status string, dur float64, height int) *queueItem {
+		return &queueItem{ID: id, Status: status, Duration: dur, height: height, Output: "/nonexistent/x_KTL.mkv",
+			cfg: &Config{Codec: "x265", Preset: "medium"}}
+	}
+	old := mkItem(1, stDone, 600, 2160) // from an earlier run: not part of this one
+	old.Took = 3725
+	done := mkItem(2, stDone, 1800, 2160)
+	cur := mkItem(3, stRunning, 3600, 2160)
+	film := mkItem(4, stWaiting, 7200, 2160)
+	hd := mkItem(5, stWaiting, 1800, 1080)
+	g.q.items = []*queueItem{old, done, cur, film, hd}
+	g.q.running, g.q.index, g.q.total, g.q.runSeq = true, 2, 4, 2
+	old.run, done.run, cur.run = 1, 2, 2
+	j := &job{running: true, prog: newProgressTracker(3600)}
+	g.job, cur.job = j, j
+	j.prog.stageLine("Encoding", now)
+
+	etas := func() map[int]string {
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		res := map[int]string{}
+		for _, it := range g.queueStatusLocked()["items"].([]queueItem) {
+			res[it.ID] = it.Eta
+		}
+		return res
+	}
+	e := etas()
+	if e[1] != "took 1h 02m" || e[4] != "estimate after the first minutes" || e[3] != "estimating" {
+		t.Errorf("before any speed: %v", e)
+	}
+
+	now = now.Add(time.Hour)
+	j.prog.frameLine(1800, now) // half of the file in an hour: 0.5x
+	e = etas()
+	// the 4K film at the same speed: 4 h; the HD file a quarter of the pixels: 4x faster, 15 min
+	if e[3] != "about 1 h left" || e[4] != "about 4 h" || e[5] != "about 15 min" {
+		t.Errorf("estimates: %v", e)
+	}
+	g.mu.Lock()
+	cur.Percent = j.prog.percent()
+	pct := g.batchPercentLocked()
+	eta := g.batchEtaLocked(now)
+	g.mu.Unlock()
+	// by length: 1800 done + 1800 of 3600, out of 1800+3600+7200+1800 = 14400
+	if math.Abs(pct-25) > 0.01 {
+		t.Errorf("batch percent: %v", pct)
+	}
+	if eta != "about 5 h 15 min left" {
+		t.Errorf("batch time left: %q", eta)
 	}
 }

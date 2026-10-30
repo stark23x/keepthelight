@@ -18,6 +18,18 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.21.0 - 2026-10-30
+
+- **Progress for the whole batch.** While the queue runs, the top of the Queue tab shows "File 2 of 5", how much of
+  the batch is done and the time left for everything. Each file counts for its length, so a 2-hour film moves the
+  bar more than a 20-minute episode. Files that will be skipped (their result already exists) are left out.
+- **Times on each file.** The running file shows its own percentage and time left. Waiting files show an estimate
+  such as "about 40 min", from the speed of similar files in the run (same encoder, preset and resolution) or the
+  current file's speed adjusted for picture size. Until a speed has been measured they say "estimate after the first
+  minutes". Finished files show how long they took.
+- Time estimates now tell 4K, 1080p and 720p files apart (before, 1080p and 720p shared one speed). A 30-second test
+  of one file no longer counts the rest of the queue in its time left.
+
 ## 1.20.1 - 2026-10-28
 
 - **Built with the current Go version.** Releases are now built on GitHub with the latest Go, which includes fixes

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -43,9 +44,15 @@ type queueItem struct {
 	Percent  float64         `json:"percent"`
 	Duration float64         `json:"duration"`
 	Editing  bool            `json:"editing"` // open in the window for changes: held back until saved or cancelled
+	Eta      string          `json:"eta"`     // time left, the estimate for a waiting file, or how long a finished one took
+	Took     float64         `json:"took"`    // seconds a finished file took
+
+	started time.Time // when the file started (for Took)
+	run     int       // the run the file was started in (0 = not started)
 
 	s       settings
 	cfg     *Config
+	width   int
 	height  int
 	dv      bool
 	exists  bool // the output already existed when last checked
@@ -72,6 +79,7 @@ type batch struct {
 	savedRun int64 // space saved by the files finished in this run (bytes; can be negative)
 	index    int   // position of the current file in this run (1-based)
 	total    int   // files in this run
+	runSeq   int   // number of the current (or last) run
 
 	after      string    // "", "sleep" or "shutdown": what to do when the queue is finished
 	powerAt    time.Time // when the countdown for "after" ends (zero = no countdown)
@@ -594,6 +602,7 @@ func applyProbe(it *queueItem, r map[string]any) {
 	if it.cfg != nil && it.cfg.SampleSecs > 0 && it.Duration > float64(it.cfg.SampleSecs) {
 		it.Duration = float64(it.cfg.SampleSecs) // a test: only that much is encoded
 	}
+	it.width, _ = r["width"].(int)
 	it.height, _ = r["height"].(int)
 	_, it.dv = r["dv"]
 	parts := []string{map[string]string{"hdr10": "HDR10", "hlg": "HLG"}[fmt.Sprint(r["kind"])]}
@@ -654,6 +663,7 @@ func (g *guiServer) startQueue() error {
 		n = 1 // a test on its own
 	}
 	g.q.running, g.q.stop, g.q.index, g.q.total = true, false, 0, n
+	g.q.runSeq++
 	if g.q.only == 0 {
 		g.q.savedRun = 0 // a new run
 	}
@@ -708,13 +718,14 @@ func (g *guiServer) runQueue() {
 			break
 		}
 		g.q.index++
+		it.run = g.q.runSeq
 		if outputTaken(it.cfg) && !it.s.Overwrite {
 			it.Status, it.Note = stSkipped, "The output file already exists."
 			g.mu.Unlock()
 			g.saveQueue()
 			continue
 		}
-		it.Status, it.Note, it.Percent = stRunning, "", 0
+		it.Status, it.Note, it.Percent, it.Took, it.started = stRunning, "", 0, 0, g.clock()
 		cfg, duration := *it.cfg, it.Duration
 		g.mu.Unlock()
 		g.saveQueue()
@@ -743,6 +754,7 @@ func (g *guiServer) runQueue() {
 			it.Status, it.Note = stCanceled, "Canceled."
 		case j.exitCode == 0:
 			it.Status, it.Note, it.Percent = stDone, "", 100
+			it.Took = g.clock().Sub(it.started).Seconds()
 			for _, l := range j.lines { // a test's measured quality
 				if strings.HasPrefix(l, "Test quality:") {
 					it.Note = l
@@ -952,6 +964,8 @@ func capitalize(s string) string {
 
 // queueStatus is the queue part of the status the page polls. Caller holds g.mu.
 func (g *guiServer) queueStatusLocked() map[string]any {
+	now := g.clock()
+	cur, curSpeed := g.currentLocked(now)
 	items := make([]queueItem, 0, len(g.q.items)) // copies: they are encoded after the lock is released
 	counts := map[string]int{}
 	for _, it := range g.q.items {
@@ -959,22 +973,76 @@ func (g *guiServer) queueStatusLocked() map[string]any {
 			it.Percent = it.job.prog.percent()
 		}
 		counts[it.Status]++
-		items = append(items, *it)
+		c := *it
+		c.Eta = g.itemEtaLocked(it, cur, curSpeed, now)
+		items = append(items, c)
 	}
 	res := map[string]any{"items": items, "counts": counts, "running": g.q.running, "index": g.q.index,
 		"total": g.q.total, "after": g.q.after, "savedRun": g.q.savedRun, "savedRunText": signedBytes(g.q.savedRun),
 		"savedTotal": g.savedTotal, "savedTotalText": signedBytes(g.savedTotal)}
+	if g.q.running && g.q.total > 1 {
+		res["batch"] = map[string]any{"percent": g.batchPercentLocked(), "eta": g.batchEtaLocked(now)}
+	}
 	if !g.q.powerAt.IsZero() {
 		res["powerIn"] = int(time.Until(g.q.powerAt).Seconds() + 0.5)
 	}
 	return res
 }
 
-// speedKey groups jobs whose encode speed is comparable.
+// itemEtaLocked is the time text shown on a file's row: the time left for the
+// running file, an estimate for a waiting one, how long a finished one took.
+// Caller holds g.mu.
+func (g *guiServer) itemEtaLocked(it, cur *queueItem, curSpeed float64, now time.Time) string {
+	switch {
+	case it.Status == stRunning && it.job != nil:
+		return it.job.prog.etaText(now)
+	case it.Status == stDone && it.Took > 0:
+		return "took " + shortDuration(it.Took)
+	case it.Status == stWaiting && !it.willSkip():
+		if secs, ok := g.estimateLocked(it, cur, curSpeed); ok {
+			return formatAbout(secs)
+		}
+		return "estimate after the first minutes"
+	}
+	return ""
+}
+
+// willSkip is true for a file that will be skipped because its output exists.
+func (it *queueItem) willSkip() bool {
+	return it.cfg != nil && !it.s.Overwrite && fileExists(it.Output)
+}
+
+// inRunLocked is true for a file that has not started but will in this run.
+// Caller holds g.mu.
+func (g *guiServer) inRunLocked(it *queueItem) bool {
+	return it.pending() && (g.q.only == 0 || it.ID == g.q.only) && !it.willSkip()
+}
+
+// currentLocked returns the running file and its encode speed so far (0 = not
+// known yet). Caller holds g.mu.
+func (g *guiServer) currentLocked(now time.Time) (*queueItem, float64) {
+	var cur *queueItem
+	for _, it := range g.q.items {
+		if it.Status == stRunning {
+			cur = it
+		}
+	}
+	if j := g.job; cur != nil && j != nil && j.running {
+		return cur, j.prog.liveSpeed(now)
+	}
+	return cur, 0
+}
+
+// speedKey groups jobs whose encode speed is comparable: same encoder, preset
+// and resolution. The width tells 4K, 1080p and 720p apart even when the
+// picture is cropped to a wide film shape.
 func speedKey(it *queueItem) string {
 	size := "hd"
-	if it.height >= 1600 {
+	switch {
+	case it.width >= 3000 || it.height >= 1600:
 		size = "uhd"
+	case it.width >= 1700 || it.height >= 1000:
+		size = "fhd"
 	}
 	return it.cfg.Codec + "/" + it.cfg.Preset + "/" + size
 }
@@ -1000,6 +1068,103 @@ func (g *guiServer) speedFor(it *queueItem, cur *queueItem, curSpeed float64) fl
 	return base * r * r
 }
 
+// work is how much video a file has to get through: its length, times the
+// encode passes, plus Dolby Vision packaging. A stream copy is quick.
+func (it *queueItem) work() float64 {
+	if it.cfg == nil {
+		return 0
+	}
+	if it.cfg.CopyVideo {
+		return it.Duration / 50
+	}
+	w := it.Duration
+	if it.cfg.TargetBytes > 0 && it.cfg.Codec == "x265" {
+		w *= 2 // two passes
+	}
+	if it.dv && it.cfg.DV != "drop" {
+		w *= 1.03
+	}
+	return w
+}
+
+// estimateLocked is the time a file that has not started should take, in
+// seconds. ok is false while there is nothing to base it on. Caller holds g.mu.
+func (g *guiServer) estimateLocked(it, cur *queueItem, curSpeed float64) (float64, bool) {
+	if it.Duration <= 0 {
+		return 0, false
+	}
+	if it.cfg.CopyVideo {
+		return it.work(), true
+	}
+	sp := g.speedFor(it, cur, curSpeed)
+	if sp <= 0 {
+		return 0, false
+	}
+	return it.work() / sp, true
+}
+
+// batchPercentLocked is how much of the run is done, 0-100: each file counts
+// for its length, so a film weighs more than an episode. Files that are
+// skipped are left out. Caller holds g.mu.
+func (g *guiServer) batchPercentLocked() float64 {
+	type part struct{ w, frac float64 }
+	var parts []part
+	known, nKnown := 0.0, 0
+	for _, it := range g.q.items {
+		var frac float64
+		switch {
+		case it.run == g.q.runSeq && it.Status == stRunning:
+			frac = it.Percent / 100
+		case it.run == g.q.runSeq && it.finished() && it.Status != stSkipped:
+			frac = 1
+		case g.inRunLocked(it):
+		default:
+			continue
+		}
+		w := it.work()
+		if w > 0 {
+			known += w
+			nKnown++
+		}
+		parts = append(parts, part{w, frac})
+	}
+	avg := 1.0 // a file not checked yet counts as an average one
+	if nKnown > 0 {
+		avg = known / float64(nKnown)
+	}
+	sum, done := 0.0, 0.0
+	for _, p := range parts {
+		if p.w <= 0 {
+			p.w = avg
+		}
+		sum += p.w
+		done += p.w * p.frac
+	}
+	if sum <= 0 {
+		return 0
+	}
+	return math.Min(100, 100*done/sum)
+}
+
+// restLocked estimates the files still to come in this run: their total time,
+// whether every one could be estimated, and whether there are any. Caller holds g.mu.
+func (g *guiServer) restLocked(now time.Time) (rest float64, known, more bool) {
+	cur, curSpeed := g.currentLocked(now)
+	known = true
+	for _, it := range g.q.items {
+		if !g.inRunLocked(it) {
+			continue
+		}
+		more = true
+		if t, ok := g.estimateLocked(it, cur, curSpeed); ok {
+			rest += t
+		} else {
+			known = false
+		}
+	}
+	return rest, known, more
+}
+
 // remainingLocked is the time-left text for the window: the current file plus,
 // in a batch, the files still waiting. Caller holds g.mu.
 func (g *guiServer) remainingLocked(now time.Time) string {
@@ -1008,43 +1173,9 @@ func (g *guiServer) remainingLocked(now time.Time) string {
 		return ""
 	}
 	secs, state, ok := j.prog.remaining(now)
-	if !g.q.running {
-		if ok {
-			return formatRemaining(secs)
-		}
-		return state
-	}
-	var cur *queueItem
-	for _, it := range g.q.items {
-		if it.Status == stRunning {
-			cur = it
-		}
-	}
-	curSpeed := j.prog.liveSpeed(now)
 	rest, restKnown, more := 0.0, true, false
-	for _, it := range g.q.items {
-		if !it.pending() || (fileExists(it.Output) && !it.s.Overwrite) {
-			continue
-		}
-		more = true
-		if it.cfg.CopyVideo {
-			rest += it.Duration / 50 // a stream copy is quick
-			continue
-		}
-		sp := g.speedFor(it, cur, curSpeed)
-		if sp <= 0 || it.Duration <= 0 {
-			restKnown = false
-			continue
-		}
-		passes := 1.0
-		if it.cfg.TargetBytes > 0 && it.cfg.Codec == "x265" {
-			passes = 2
-		}
-		t := it.Duration * passes / sp
-		if it.dv && it.cfg.DV != "drop" {
-			t *= 1.03
-		}
-		rest += t
+	if g.q.running {
+		rest, restKnown, more = g.restLocked(now)
 	}
 	if !more {
 		if ok {
@@ -1062,6 +1193,23 @@ func (g *guiServer) remainingLocked(now time.Time) string {
 		return state
 	}
 	return strings.Replace(formatRemaining(secs+rest), " left", " left in total", 1)
+}
+
+// batchEtaLocked is the time left for the whole run, shown over the Queue tab.
+// Caller holds g.mu.
+func (g *guiServer) batchEtaLocked(now time.Time) string {
+	rest, restKnown, _ := g.restLocked(now)
+	secs, state, ok := 0.0, "", true
+	if j := g.job; j != nil && j.running {
+		secs, state, ok = j.prog.remaining(now)
+		if !ok && state == "finishing" {
+			secs, ok = 0, true
+		}
+	}
+	if !ok || !restKnown {
+		return "estimate after the first minutes"
+	}
+	return formatRemaining(secs + rest)
 }
 
 // titleLocked is the window title: progress first, so it shows on the taskbar.

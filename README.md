@@ -41,6 +41,10 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
 
 - **Time left:** about 30 seconds into the encode, the title bar and progress line show an estimate of the
   time remaining. It is rough: speed varies through a film, and a hardware-encoder retry restarts it.
+- **Queue progress:** while the queue runs, the Queue tab shows "File 2 of 5", how much of the whole batch is done
+  (longer files count for more) and the time left for everything. Each file shows its own time: time left while it
+  runs, an estimate such as "about 40 min" while it waits (once the first file has run for a few minutes), and how
+  long it took once it is done.
 - **Layout:** three tabs: **Convert** (the file and its settings), **Queue** and **Library scan**. Start, Add to queue,
   Test 30 s and the progress bar stay in view at the bottom of the window. The Queue tab shows how many files are waiting. Settings for this PC (temp folder, priority, GPU
   decoding, working locally, TMDB key, sounds) are under **⚙ Settings** at the top; profiles never include them.
