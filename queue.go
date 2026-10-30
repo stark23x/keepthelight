@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -42,7 +43,10 @@ type queueItem struct {
 	Info     string          `json:"info"` // what the source is, e.g. "HDR10 · 3840×2160 · 2h 1m"
 	Percent  float64         `json:"percent"`
 	Duration float64         `json:"duration"`
-	Editing  bool            `json:"editing"` // open in the window for changes: held back until saved or cancelled
+	Editing  bool            `json:"editing"`        // open in the window for changes: held back until saved or cancelled
+	ETA      string          `json:"eta,omitempty"`  // running: "about 25 min left"
+	Est      string          `json:"est,omitempty"`  // waiting: "about 40 min"
+	Took     float64         `json:"took,omitempty"` // finished: seconds it took
 
 	s       settings
 	cfg     *Config
@@ -51,6 +55,8 @@ type queueItem struct {
 	exists  bool // the output already existed when last checked
 	job     *job
 	checked bool
+	started time.Time
+	inRun   bool // started in the current (or last) run: counts toward the batch's progress
 }
 
 func (it *queueItem) finished() bool {
@@ -656,6 +662,9 @@ func (g *guiServer) startQueue() error {
 	g.q.running, g.q.stop, g.q.index, g.q.total = true, false, 0, n
 	if g.q.only == 0 {
 		g.q.savedRun = 0 // a new run
+		for _, it := range g.q.items {
+			it.inRun = false
+		}
 	}
 	go g.runQueue()
 	return nil
@@ -714,7 +723,8 @@ func (g *guiServer) runQueue() {
 			g.saveQueue()
 			continue
 		}
-		it.Status, it.Note, it.Percent = stRunning, "", 0
+		it.Status, it.Note, it.Percent, it.Took = stRunning, "", 0, 0
+		it.started, it.inRun = g.clock(), true
 		cfg, duration := *it.cfg, it.Duration
 		g.mu.Unlock()
 		g.saveQueue()
@@ -736,6 +746,7 @@ func (g *guiServer) runQueue() {
 		<-j.done
 
 		g.mu.Lock()
+		it.Took = g.clock().Sub(it.started).Seconds()
 		switch {
 		case j.canceled && g.closing:
 			it.Status, it.Note = stWaiting, "Interrupted when Keep the Light was closed; it starts again from the beginning."
@@ -961,7 +972,8 @@ func (g *guiServer) queueStatusLocked() map[string]any {
 		counts[it.Status]++
 		items = append(items, *it)
 	}
-	res := map[string]any{"items": items, "counts": counts, "running": g.q.running, "index": g.q.index,
+	g.fillTimesLocked(items)
+	res := map[string]any{"items": items, "counts": counts, "running": g.q.running, "index": g.q.index, "batch": g.batchLocked(items),
 		"total": g.q.total, "after": g.q.after, "savedRun": g.q.savedRun, "savedRunText": signedBytes(g.q.savedRun),
 		"savedTotal": g.savedTotal, "savedTotalText": signedBytes(g.savedTotal)}
 	if !g.q.powerAt.IsZero() {
@@ -1027,22 +1039,10 @@ func (g *guiServer) remainingLocked(now time.Time) string {
 			continue
 		}
 		more = true
-		if it.cfg.CopyVideo {
-			rest += it.Duration / 50 // a stream copy is quick
-			continue
-		}
-		sp := g.speedFor(it, cur, curSpeed)
-		if sp <= 0 || it.Duration <= 0 {
+		t, ok := g.itemEstimate(it, cur, curSpeed)
+		if !ok {
 			restKnown = false
 			continue
-		}
-		passes := 1.0
-		if it.cfg.TargetBytes > 0 && it.cfg.Codec == "x265" {
-			passes = 2
-		}
-		t := it.Duration * passes / sp
-		if it.dv && it.cfg.DV != "drop" {
-			t *= 1.03
 		}
 		rest += t
 	}
@@ -1340,4 +1340,139 @@ func (g *guiServer) addSavedTotalLocked(d int64) {
 	g.savedTotal += d
 	raw, _ := json.Marshal(g.savedTotal)
 	_ = g.savePref("spaceSaved", raw) // its own lock: safe while g.mu is held
+}
+
+// ---- time estimates for the queue list ----
+
+// itemEstimate is how long a waiting file will take, in seconds (false: not
+// known yet, no speed measured for anything comparable). Caller holds g.mu.
+func (g *guiServer) itemEstimate(it *queueItem, cur *queueItem, curSpeed float64) (float64, bool) {
+	if it.cfg == nil || it.Duration <= 0 {
+		return 0, false
+	}
+	if it.cfg.CopyVideo {
+		return it.Duration / 50, true // a stream copy is quick
+	}
+	sp := g.speedFor(it, cur, curSpeed)
+	if sp <= 0 {
+		return 0, false
+	}
+	passes := 1.0
+	if it.cfg.TargetBytes > 0 && it.cfg.Codec == "x265" {
+		passes = 2
+	}
+	t := it.Duration * passes / sp
+	if it.dv && it.cfg.DV != "drop" {
+		t *= 1.03
+	}
+	return t, true
+}
+
+// willSkip: the output exists already, so the file is skipped when its turn comes.
+func willSkip(it *queueItem) bool { return outputTaken(it.cfg) && !it.s.Overwrite }
+
+// current returns the file being transcoded and its live speed. Caller holds g.mu.
+func (g *guiServer) currentLocked(now time.Time) (*queueItem, float64) {
+	for _, it := range g.q.items {
+		if it.Status == stRunning && it.job != nil {
+			return it, it.job.prog.liveSpeed(now)
+		}
+	}
+	return nil, 0
+}
+
+// fillTimesLocked writes each listed file's time: left (running), expected
+// (waiting) or taken (finished, already set). items are copies of g.q.items.
+func (g *guiServer) fillTimesLocked(items []queueItem) {
+	now := g.clock()
+	cur, curSpeed := g.currentLocked(now)
+	for i := range items {
+		it := &items[i]
+		it.ETA, it.Est = "", ""
+		switch {
+		case it.Status == stRunning && it.job != nil:
+			if secs, state, ok := it.job.prog.remaining(now); ok {
+				it.ETA = formatRemaining(secs)
+			} else if state == "finishing" {
+				it.ETA = "finishing"
+			} else {
+				it.ETA = "time left: estimating"
+			}
+		case it.pending() && it.cfg != nil:
+			if willSkip(it) {
+				it.Est = "will be skipped (the output exists)"
+			} else if secs, ok := g.itemEstimate(g.q.items[i], cur, curSpeed); ok {
+				it.Est = strings.TrimSuffix(formatRemaining(secs), " left")
+				if it.Est == "less than a minute" {
+					it.Est = "under a minute"
+				}
+			} else {
+				it.Est = "estimate after the first minutes"
+			}
+		}
+	}
+}
+
+// batchLocked sums up the run: how far it has got, weighted by the length of
+// each film, and the time left for all of it.
+func (g *guiServer) batchLocked(items []queueItem) map[string]any {
+	now := g.clock()
+	cur, curSpeed := g.currentLocked(now)
+	var total, done, left float64
+	files, finished, waiting := 0, 0, 0
+	leftKnown := true
+	for i := range items {
+		it, orig := &items[i], g.q.items[i]
+		w := math.Max(it.Duration, 1)
+		switch {
+		case it.Status == stSkipped || it.Status == stProblem:
+			continue
+		case it.Status == stRunning:
+			files++
+			total += w
+			done += w * math.Min(it.Percent, 100) / 100
+			if it.job != nil {
+				if secs, _, ok := it.job.prog.remaining(now); ok {
+					left += secs
+				} else {
+					leftKnown = false
+				}
+			}
+		case it.pending():
+			if it.cfg == nil || willSkip(it) || (g.q.only > 0 && it.ID != g.q.only) {
+				continue
+			}
+			files++
+			waiting++
+			total += w
+			if secs, ok := g.itemEstimate(orig, cur, curSpeed); ok {
+				left += secs
+			} else {
+				leftKnown = false
+			}
+		case it.finished() && orig.inRun:
+			files++
+			finished++
+			total += w
+			done += w
+		}
+	}
+	if files == 0 || (!g.q.running && waiting == 0) {
+		return nil
+	}
+	b := map[string]any{"files": files, "finished": finished, "waiting": waiting, "running": g.q.running}
+	if g.q.running {
+		b["index"] = min(finished+1, files)
+		b["percent"] = 100 * done / total
+	}
+	if leftKnown {
+		if g.q.running {
+			b["eta"] = strings.Replace(formatRemaining(left), " left", " left for all of it", 1)
+		} else {
+			b["eta"] = strings.TrimSuffix(formatRemaining(left), " left") + " in total"
+		}
+	} else if g.q.running {
+		b["eta"] = "time left for all of it: estimating"
+	}
+	return b
 }

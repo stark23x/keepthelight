@@ -59,6 +59,10 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   result already exists are skipped. Files run one after another; one that fails
   does not stop the rest. Unfinished queues are remembered and come back when you reopen Keep the Light.
   **When finished** can put the PC to sleep or shut it down (with 60 seconds to cancel).
+  The Queue tab shows the whole batch's progress ("File 2 of 5 · 38% of the batch done", weighted by each film's
+  length) and the time left for all of it; each file shows its own time left while it runs, an estimate while it
+  waits (from the speed measured for similar files; "estimate after the first minutes" until there is one), and how
+  long it took once it is done.
 - **Low priority** (⚙ Settings): other programs come first, so the PC stays responsive while encoding; it
   still runs at full speed when the PC is otherwise idle. Remembered, and takes effect at once.
 - **Resolution** (under Video): shrink the video to fit 4K, 1440p, 1080p or 720p, keeping its shape (a

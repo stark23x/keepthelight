@@ -139,7 +139,14 @@
   .qname { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .qsub { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .qnote { font-size: 12px; margin-top: 2px; }
-  .qstat { font-size: 12.5px; font-weight: 600; white-space: nowrap; color: var(--muted); }
+  .qstat { font-size: 12.5px; font-weight: 600; white-space: nowrap; color: var(--muted); text-align: right; }
+  .qstat .qtime { font-size: 11.5px; font-weight: 400; color: var(--muted); margin-top: 1px; }
+  .qbatch { border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); padding: 10px 12px; margin-bottom: 10px; }
+  .qbatch .qbtop { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 7px; font-size: 13px; }
+  .qbatch .qbtop span { color: var(--muted); }
+  .qbatch .bar { height: 10px; }
+  .qbatch.idle .bar { display: none; }
+  .qbatch.idle .qbtop { margin-bottom: 0; }
   .qrow.flash { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent2); transition: box-shadow .4s; }
   .qrow.st-running { border-color: var(--accent2); } .qrow.st-running .qstat { color: var(--accent); }
   .qrow.st-done .qstat { color: var(--ok); }
@@ -498,6 +505,7 @@
       <section class="tabpane hidden" id="tabQueue">
 <div class="card" id="secQueue">
     <div class="tabhead"><h2>Queue</h2><span class="sum" id="sumQueue"></span></div>
+    <div id="qBatch" class="qbatch hidden"><div class="qbtop"><b id="qbTitle"></b><span id="qbEta"></span></div><div class="bar" id="qbBar"><div></div></div></div>
     <div class="hint" id="queueHint" style="margin:0 0 10px">Add several files to transcode them one after another. Each file keeps the settings that were set when it was added.</div>
     <div id="queueList"></div>
     <div class="actions" style="margin-top:6px">
@@ -2088,6 +2096,24 @@ function settingsText(st) {
   parts.push(ext);
   return parts.join(' · ');
 }
+function fmtTook(secs) {
+  const m = Math.round(secs / 60);
+  if (secs < 60) return 'under a minute';
+  return m >= 60 ? Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0') + ' min' : m + ' min';
+}
+// The whole batch: how far it has got (weighted by each film's length) and the time left for all of it.
+function renderBatch(b) {
+  const box = $('qBatch');
+  box.classList.toggle('hidden', !b);
+  if (!b) return;
+  box.classList.toggle('idle', !b.running);
+  if (b.running) {
+    const pct = Math.max(0, Math.min(100, b.percent || 0));
+    $('qbTitle').textContent = (b.files > 1 ? 'File ' + b.index + ' of ' + b.files + '  ·  ' : '') + Math.floor(pct) + '% of the batch done';
+    $('qbBar').firstElementChild.style.width = pct + '%';
+  } else $('qbTitle').textContent = b.waiting + (b.waiting === 1 ? ' file waiting' : ' files waiting');
+  $('qbEta').textContent = b.eta || '';
+}
 function rowButton(text, title, fn) {
   const b = document.createElement('button'); b.textContent = text; b.title = title; b.onclick = () => fn(b); return b;
 }
@@ -2095,13 +2121,14 @@ let lastRunId = null;
 function renderQueue(q) {
   if (!q) return;
   queue = q;
+  renderBatch(q.batch);
   const list = $('queueList'), seen = new Set();
   q.items.forEach(it => {
     seen.add(String(it.id));
     let row = list.querySelector('[data-id="' + it.id + '"]');
     if (!row) {
       row = document.createElement('div'); row.dataset.id = it.id;
-      row.innerHTML = '<div><div class="qname"></div><div class="qsub"></div><div class="qnote"></div></div><div class="qstat"></div><div class="qbtns"></div><div class="qmini"><div></div></div>';
+      row.innerHTML = '<div><div class="qname"></div><div class="qsub"></div><div class="qnote"></div></div><div class="qstat"><div class="qst"></div><div class="qtime"></div></div><div class="qbtns"></div><div class="qmini"><div></div></div>';
     }
     list.appendChild(row); // also keeps the order
     row.className = 'qrow st-' + it.status;
@@ -2109,10 +2136,14 @@ function renderQueue(q) {
     row.querySelector('.qname').title = it.input + '  →  ' + it.output;
     row.querySelector('.qsub').textContent = [it.info, settingsText(it.settings)].filter(Boolean).join('   |   ');
     row.querySelector('.qnote').textContent = [it.note, it.settings && it.settings.tmdbNote].filter(Boolean).join('  ·  ');
-    row.querySelector('.qstat').textContent = it.status === 'running' ? Math.floor(it.percent) + '%' : STATUS_TEXT[it.status];
+    row.querySelector('.qst').textContent = it.status === 'running' ? Math.floor(it.percent) + '%' : STATUS_TEXT[it.status];
+    // time: left for the running file, expected for a waiting one, taken for a finished one
+    const fin = ['done', 'failed', 'canceled'].includes(it.status);
+    row.querySelector('.qtime').textContent = it.status === 'running' ? (it.eta || '') : fin && it.took ? 'took ' + fmtTook(it.took) :
+      (it.status === 'waiting' || it.status === 'checking') && !it.editing ? (it.est || '') : '';
     row.querySelector('.qmini').classList.toggle('hidden', it.status !== 'running');
     row.querySelector('.qmini > div').style.width = it.percent + '%';
-    if (it.editing) row.querySelector('.qstat').textContent = 'Being changed';
+    if (it.editing) row.querySelector('.qst').textContent = 'Being changed';
     const ownTracks = !!(it.settings && (it.settings.audioTracks || it.settings.subTracks));
     const others = q.items.filter(x => x.id !== it.id && ['waiting', 'checking', 'problem'].includes(x.status) && !x.editing).length;
     const key = it.status + (q.running ? 'r' : '') + (it.editing ? 'e' : '') + (ownTracks && others ? 'o' : '');
