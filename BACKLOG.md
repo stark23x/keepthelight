@@ -6,7 +6,20 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-(none yet)
+- **Skip Plex extras in the library scan** (requested 2026-10-30).
+  - **The option:** a "Skip Plex extras" check box next to "Include subfolders", on by default and remembered.
+  - **What counts as an extra:** the same rules Plex uses
+    ([movies](https://support.plex.tv/articles/local-files-for-trailers-and-extras/),
+    [TV](https://support.plex.tv/articles/local-files-for-tv-show-trailers-and-extras/)):
+    - files inside a folder named Behind The Scenes, Deleted Scenes, Featurettes, Interviews, Scenes, Shorts,
+      Trailers or Other;
+    - files whose name ends in `-behindthescenes`, `-deleted`, `-featurette`, `-interview`, `-scene`, `-short`,
+      `-trailer` or `-other` (the hyphen directly before the word).
+  - **Also skipped:** "Plex Versions" folders (Plex's own optimised copies).
+  - **Matching:** capitals don't matter. Only those exact folder names and endings are skipped, so titles like
+    "The Other" or "Trailer Park Boys" stay in.
+  - **Reporting:** the summary line says how many extras were skipped, for example "1,240 files · 312 extras
+    skipped".
 
 ## Ideas raised, not yet requested
 
