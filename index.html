@@ -334,6 +334,15 @@
   .about-claude { color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--line); padding-top: 12px; margin: 14px 0 10px; }
   pre.lic { white-space: pre-wrap; font: 11.5px/1.45 Consolas, monospace; color: #c3c8d2; background: #0e1013; border: 1px solid var(--line);
     border-radius: 6px; padding: 10px; max-height: 220px; overflow: auto; margin: 0; }
+  /* UI-11: keyboard and contrast. Whatever has keyboard focus gets a clear outline
+     (only when using the keyboard, not on a mouse click), the segmented choices can be
+     reached with Tab and the arrow keys, and grey text is a little brighter. */
+  :root { --muted: #b9c0cc; }
+  button:focus-visible, a:focus-visible, summary:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible, .tab:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px; }
+  .seg input { display: inline; position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }
+  .seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  label.check input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 </style>
 </head>
 <body>
