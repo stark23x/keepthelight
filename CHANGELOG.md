@@ -18,6 +18,38 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.24.0 - 2026-10-31
+
+- **Deinterlace** (under Video; `-deinterlace`). Interlaced video (old TV shows, DVDs, recordings) has striped edges
+  on anything that moves. Keep the Light now finds it by looking at the picture, not the file's label, which is often
+  wrong (a Carol Burnett episode said "progressive" while every frame was interlaced), and works out the field order
+  the same way. **Smooth motion** (default: a frame per half-picture, 50/60 fps), **Standard frame rate** (25/30 fps)
+  or **Off**. Checked in SD files, files marked interlaced and HD files with no marking, so films are not slowed
+  down. Safe for HDR (10-bit). Not for Dolby Vision; HDR10+ uses the standard frame rate. The Plex check, the
+  library scan and the check of finished files flag interlaced video; the 30-second test's score compares like with
+  like.
+- **Time estimates for short files.** Files that finish within half a minute never gave a speed, so the queue stayed
+  on "estimate after the first minutes". Now how long a finished short file really took is used, and each finished
+  file refines the guess.
+- **Browse remembers the last folder**, for each kind of dialog (videos, output file and folder, scan folder, temp
+  folder, cover images, sounds, profiles), also after a restart. A path already typed in the box wins. Folder
+  dialogs now open in their folder and have their own titles.
+- **Layout and UI (UI-1 to UI-11).** Each is a separate change that can be undone on its own.
+  - **UI-1** One-click fixes: a Plex problem that a setting fixes has a **Fix** button on the Convert tab.
+  - **UI-2** The notes under the file are a compact **Checks** list (⚠ problems first, then ✓), with the rest
+    folded into "N more checks passed". The mastering-display warning is in plain words.
+  - **UI-3** Missing optional tools are a single line (**Details** opens the full text).
+  - **UI-4** The main button says what it does: "Convert this file", "Start queue (3 files)" or "Add to queue and
+    start (4 files)". "When finished" moved to the Queue tab.
+  - **UI-5** The file's name is shown large with its folder below; "HEVC 10-bit" instead of "hevc yuv420p10le".
+  - **UI-6** Hints that only explain a setting open from a **?** next to its label.
+  - **UI-7** Empty screens say how to start: "No video chosen yet" on Convert, "The queue is empty" with its buttons.
+  - **UI-8** Queue rows are two lines with chips; click a row for its full details.
+  - **UI-9** Results that need no answer are small messages that fade by themselves.
+  - **UI-10** A track with no language gets a **Set language…** picker in its row.
+  - **UI-11** A clear outline on whatever has keyboard focus; the Re-encode / Copy / Metadata only choices work with
+    the keyboard; slightly brighter grey text.
+
 ## 1.23.0 - 2026-10-31
 
 - **Plex check when files are added.** Files added to Convert or the Queue get the same Plex checks as the

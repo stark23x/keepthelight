@@ -42,11 +42,19 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
 - **Time left:** about 30 seconds into the encode, the title bar and progress line show an estimate of the
   time remaining. It is rough: speed varies through a film, and a hardware-encoder retry restarts it.
 - **Layout:** three tabs: **Convert** (the file and its settings), **Queue** and **Library scan**. Start, Add to queue,
-  Test 30 s and the progress bar stay in view at the bottom of the window. The Queue tab shows how many files are waiting. Settings for this PC (temp folder, priority, GPU
+  Test 30 s and the progress bar stay in view at the bottom of the window; the main button says exactly what it will
+  do ("Convert this file", "Start queue (3 files)", or "Add to queue and start" when files are waiting and the one on
+  the Convert tab is not among them). The Queue tab shows how many files are waiting. Settings for this PC (temp folder, priority, GPU
   decoding, working locally, TMDB key, sounds) are under **⚙ Settings** at the top; profiles never include them.
-  What the input file is (HDR10, Dolby Vision, resolution, and what will be kept) shows right under it. The Audio and
+  What the input file is (its name, HDR10, Dolby Vision, resolution, "HEVC 10-bit") shows right under it, with a
+  short **Checks** list: problems first (⚠), then what is fine (✓; more of them open with a click). Hints that only
+  explain a setting open from a small **?** next to its label. With no file chosen, a large box shows how to start.
+  A track with no language gets a **Set language…** picker in its row. Short messages ("Imported 3 profiles") fade
+  by themselves. Keyboard users see a clear outline on whatever has focus. The Audio and
   Subtitles rules for new files and the queue are in a box of their own under each file's tracks. A notice about
-  optional tools (GPAC for Dolby Vision, say) can be hidden; Dolby Vision files still say so if a tool is missing.
+  optional tools (GPAC for Dolby Vision, say) is a single line (**Details** opens it) and can be hidden; Dolby
+  Vision files still say so if a tool is missing. **Browse** dialogs open where you last were: videos, the output
+  folder, the scan folder and the others each remember their own folder (a path already typed in the box wins).
 - **Sections:** click a section's heading to close or open it. Closed sections show a summary of their
   settings, and the layout is remembered (in `%LOCALAPPDATA%\Keep the Light\settings.json`).
 - **Save converted files** (under Files): next to the original, or in a folder you choose. One remembered
@@ -58,10 +66,13 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   `name_KTL.mkv` (the ending is set under **Add to the name**), or into the folder chosen under **Save converted files**; files whose
   result already exists are skipped. Files run one after another; one that fails
   does not stop the rest. Unfinished queues are remembered and come back when you reopen Keep the Light.
-  **When finished** can put the PC to sleep or shut it down (with 60 seconds to cancel).
+  **When the queue is finished** (on the Queue tab) can put the PC to sleep or shut it down (with 60 seconds to cancel).
+  Each file is a two-line row: its name and status, then what it is with small chips (⚠ 2 Plex, x265 CRF 18, 480p,
+  SRT…); click a row for its full settings and Plex details.
   The Queue tab shows the whole batch's progress ("File 2 of 5 · 38% of the batch done", weighted by each film's
   length) and the time left for all of it; each file shows its own time left while it runs, an estimate while it
-  waits (from the speed measured for similar files; "estimate after the first minutes" until there is one), and how
+  waits (from the speed measured for similar files, or, for short files such as TV episodes, from how long the
+  first one or two really took; "estimate after the first minutes" until there is one), and how
   long it took once it is done.
 - **Low priority** (⚙ Settings): other programs come first, so the PC stays responsive while encoding; it
   still runs at full speed when the PC is otherwise idle. Remembered, and takes effect at once.
@@ -70,6 +81,13 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   smaller picture encodes much faster (1080p is about a quarter of the work of 4K). 576p (fits 1024x576) and 480p
   (fits 854x480) are standard-definition sizes, for phones, tablets or saving the most space. Videos are never
   enlarged.
+- **Deinterlace** (under Video): for interlaced video (old TV shows, DVDs, recordings), whose moving edges look
+  striped ("combing"). Keep the Light looks at the picture itself, because such files are often labelled wrong, and
+  works out the field order the same way. It checks standard-definition files, files marked interlaced and HD files
+  with no marking; films are left alone. **Smooth motion** (the default) gives each half-picture its own frame
+  (50/60 fps, the fluid look of the original broadcast); **Standard frame rate** keeps 25/30 fps; **Off** leaves it.
+  The filter (bwdif) works in 10-bit, so it is safe for HDR. The window shows an **Interlaced** badge, and the log
+  says what was done. Command line: `-deinterlace smooth|standard|off`.
 - **Noise reduction** (under Video): Off / Light / Medium / Strong (fast, on the CPU) or High quality (on the GPU
   when the FFmpeg build and graphics driver allow it, through Vulkan or OpenCL; otherwise a slower CPU filter).
   Only filters that work in 10-bit are used, so HDR keeps its gradations; Dolby Vision is unaffected. Besides a
@@ -103,14 +121,16 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   scanning the library. Because the check knows your settings, each problem is marked as **fixed** by them (for
   example styled subtitles that will become SRT), **still there** with the setting that would fix it ("Turn on
   'Add a compatible audio track when needed'"), or **cannot be fixed** (Dolby Vision profile 5). The Queue tab says
-  how many waiting files will still have problems ("1 of 10 waiting files will still have Plex problems"). Each
+  how many waiting files will still have problems ("1 of 10 waiting files will still have Plex problems").
+  On the Convert tab, a problem that a setting fixes has a **Fix** button that changes it for you. Each
   finished file is checked again, and the result is shown in its row and log. Warnings never stop a conversion.
 - **Library scan** (its own tab): choose a folder (for example `\\PlexRaid01\Movies`), with or
   without its subfolders, and Keep the Light reads every video in it (only the file information; nothing is changed).
   Each file shows its video (codec, resolution, HDR10 / HLG / Dolby Vision profile), bitrate, audio and size, an
   estimate of its size as HEVC and the space that would save, and the things likely to make Plex convert it while you
   watch: no AC-3, E-AC-3 or AAC audio (TrueHD, DTS or FLAC only), Dolby Vision profile 7, forced picture subtitles
-  (PGS/VobSub, which Plex burns in), H.264 10-bit, VC-1 / MPEG-2, and very high bitrates. Show all files, those worth
+  (PGS/VobSub, which Plex burns in), H.264 10-bit, VC-1 / MPEG-2, very high bitrates, and interlaced video (checked
+  in SD files and files marked interlaced). Show all files, those worth
   converting (at least 300 MB and a quarter saved) or those with trouble spots; **Select worth converting**, then
   **Add selected to queue** with the current settings or a profile. The estimate assumes x265 at very good quality; a
   30-second test shows the real result. Files Keep the Light made (ending in the name tag) are left out, and so are
