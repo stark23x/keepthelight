@@ -80,14 +80,14 @@ func parseIdet(out string) (tff, bff, prog int) {
 	return
 }
 
-// judgeIdet decides from the counts: interlaced when at least 30 frames and
+// judgeIdet decides from the counts: interlaced when at least 100 frames and
 // 30% of the frames that could be judged are combed (shows often mix
 // interlaced studio video with progressive film inserts), and one field order
 // clearly wins. Real interlaced video is consistent; fine detail in a
 // progressive picture can fool idet, but then the "orders" are mixed.
 func judgeIdet(tff, bff, prog int) *interlaceInfo {
 	d := &interlaceInfo{Checked: true, Combed: tff + bff, Frames: tff + bff + prog}
-	d.Interlaced = d.Combed >= 30 && float64(d.Combed) >= 0.3*float64(d.Frames) &&
+	d.Interlaced = d.Combed >= 100 && float64(d.Combed) >= 0.3*float64(d.Frames) &&
 		float64(max(tff, bff)) >= 0.8*float64(d.Combed)
 	d.Order = "bff"
 	if tff > bff {

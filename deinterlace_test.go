@@ -24,6 +24,9 @@ func TestJudgeIdet(t *testing.T) {
 	if d := judgeIdet(200, 10, 300); !d.Interlaced || d.Order != "tff" {
 		t.Errorf("a show with film inserts: %+v", d)
 	}
+	if d := judgeIdet(39, 0, 9); d.Interlaced {
+		t.Errorf("too few frames to be sure (a 2-second clip): %+v", d)
+	}
 	if d := judgeIdet(142, 111, 47); d.Interlaced {
 		t.Errorf("fine detail, mixed orders: %+v", d)
 	}
