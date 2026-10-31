@@ -80,6 +80,14 @@
   .tools .tool-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
   .tools .tool-actions button, .tools .tool-actions a { font-size: 12.5px; padding: 5px 11px; }
   .tools .tool-actions a { background: var(--accent2); border: 1px solid var(--accent2); color: #fff; border-radius: 6px; text-decoration: none; }
+  /* UI-3: optional tools missing: one slim line, details on request */
+  #toolsNote.slim { padding: 6px 10px; }
+  #toolsNote.slim > details > summary { cursor: pointer; list-style: none; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    text-transform: none; letter-spacing: normal; font-weight: 400; font-size: 13px; color: var(--warn); }
+  #toolsNote.slim > details > summary::-webkit-details-marker { display: none; }
+  #toolsNote.slim > details > summary .more { color: var(--muted); text-decoration: underline; font-size: 12.5px; }
+  #toolsNote.slim > details[open] > summary .more { display: none; }
+  #toolsNote.slim > details > div { margin-top: 8px; }
 
   /* collapsible sections */
   details.sect > summary { list-style: none; display: flex; align-items: center; gap: 10px; margin: -16px; padding: 16px;
@@ -2587,7 +2595,24 @@ async function checkTools() {
     actions.append(hide);
   }
   box.append(actions);
+  if (!miss.length) slimTools(box, t, problems); // UI-3
   return t;
+}
+// UI-3: only optional tools are missing: one line naming them, the full text and buttons when opened.
+function slimTools(box, t, problems) {
+  const names = [];
+  if (!t.mp4box) names.push('GPAC (Dolby Vision)');
+  if (!t.dovi_tool || !t.hdr10plus_tool) names.push([!t.dovi_tool && 'dovi_tool', !t.hdr10plus_tool && 'hdr10plus_tool'].filter(Boolean).join(' and '));
+  if (!t.tesseract) names.push('Tesseract (PGS subtitles to SRT)');
+  if ((t.dovi_tool || t.hdr10plus_tool) && !t.vcruntime) names.push('Visual C++ Runtime');
+  Object.keys(problems).forEach(k => { if (!names.some(n => n.toLowerCase().includes(k))) names.push(k); });
+  const d = el('details'), sum = el('summary');
+  sum.append(el('span', '', '⚠ Optional tools missing: ' + names.join(', ') + '. Everything else works.'), el('span', 'more', 'Details'));
+  const body = el('div');
+  body.append(...Array.from(box.childNodes));
+  d.append(sum, body);
+  box.append(d);
+  box.classList.add('slim');
 }
 
 // ---------- startup ----------
