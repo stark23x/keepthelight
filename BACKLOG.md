@@ -6,15 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **Two smaller resolutions: 576p and 480p** (requested 2026-10-31), added to the Resolution list under Video and to
-  `-scale`.
-  - **Sizes:** the picture fits within 1024×576 (576p) or 854×480 (480p), keeping its shape. A 2.40:1 film becomes
-    854×356 at 480p. Sizes are rounded to even numbers, which the encoders need.
-  - **HDR:** HDR10, HLG, HDR10+ and Dolby Vision are kept as for the other sizes, including the Dolby Vision
-    active area scaled per scene.
-  - **Checks:** the quality guide, size plan and queue list need to know the new sizes.
-  - **Hardware tested (2026-10-31):** both encoders accept HEVC Main10 at 854×356 (widescreen 480p). NVENC was
-    tested on the laptop's RTX 5080, QuickSync on the Dell. No fallback is needed.
+Nothing yet.
 
 ## Ideas raised, not yet requested
 
@@ -26,6 +18,8 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Done
 
+- 1.23.0: Plex check when files are added (settings-aware, a summary on the Queue tab, and a check of each finished
+  file); 576p and 480p resolutions.
 - 1.22.0: empty subtitle/audio tracks left out automatically; Skip Plex extras in the library scan; right-click
   Cut/Copy/Paste/Select all; queued file logs scroll again, with a Copy log button.
 - 1.21.0: batch and per-file progress on the Queue tab (time left for the batch and the running file, estimates for

@@ -139,6 +139,9 @@
   .qname { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .qsub { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .qnote { font-size: 12px; margin-top: 2px; }
+  .qplex { font-size: 12px; margin-top: 2px; } .qplex:empty { display: none; }
+  .qplex .pbad { color: var(--warn); } .qplex .pok { color: var(--ok); } .qplex .phow { color: var(--muted); }
+  .qplexsum { font-size: 12.5px; margin: 0 0 10px; color: var(--muted); } .qplexsum.bad { color: var(--warn); }
   .qstat { font-size: 12.5px; font-weight: 600; white-space: nowrap; color: var(--muted); text-align: right; }
   .qstat .qtime { font-size: 11.5px; font-weight: 400; color: var(--muted); margin-top: 1px; }
   .qbatch { border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); padding: 10px 12px; margin-bottom: 10px; }
@@ -372,7 +375,7 @@
           <div class="hint">Slower = smaller file at the same quality</div></div>
         <div><label for="scale">Resolution</label>
           <select id="scale"><option value="">Keep original</option><option value="2160p">4K (2160p)</option><option value="1440p">1440p</option>
-            <option value="1080p">1080p</option><option value="720p">720p</option></select>
+            <option value="1080p">1080p</option><option value="720p">720p</option><option value="576p">576p (SD)</option><option value="480p">480p (SD)</option></select>
           <div class="hint" id="scaleHint">Smaller = much faster encode and smaller file. HDR10, HDR10+ and Dolby Vision are kept.</div></div>
         <div id="dvWrap" class="hidden"><label for="dv">Dolby Vision</label>
           <select id="dv"><option value="auto">Keep Dolby Vision</option><option value="drop">Drop (plain HDR10)</option></select></div>
@@ -519,6 +522,7 @@
 <div class="card" id="secQueue">
     <div class="tabhead"><h2>Queue</h2><span class="sum" id="sumQueue"></span></div>
     <div id="qBatch" class="qbatch hidden"><div class="qbtop"><b id="qbTitle"></b><span id="qbEta"></span></div><div class="bar" id="qbBar"><div></div></div></div>
+    <div class="qplexsum hidden" id="qPlexSum"></div>
     <div class="hint" id="queueHint" style="margin:0 0 10px">Add several files to transcode them one after another. Each file keeps the settings that were set when it was added.</div>
     <div id="queueList"></div>
     <div class="actions" style="margin-top:6px">
@@ -1628,6 +1632,17 @@ function showInfo(r) {
   if (r.sizeText) notes.appendChild(note(r.sizeText + (r.sizeExact ? '' : ' (audio size estimated)'), 'info'));
   (r.notesInfo || []).forEach(n => notes.appendChild(note(n.charAt(0).toUpperCase() + n.slice(1), 'info')));
   (r.warnings || []).forEach(w => notes.appendChild(note(w, 'warn')));
+  if (r.plex) { // the Plex check: what would make Plex convert the file, and what the settings do about it
+    const items = r.plex;
+    if (!items.length) notes.appendChild(note('Plex check: nothing here should make Plex convert this file while you watch.', 'info'));
+    items.filter(x => x.state !== 'fixed').forEach(x => {
+      const n = note('Plex: ' + x.short + (x.state === 'cannot' ? ' (cannot be fixed). ' : '. Plex will have to convert this file while you watch. ') + (x.how || ''), 'warn');
+      n.title = x.text; notes.appendChild(n);
+    });
+    items.filter(x => x.state === 'fixed').forEach(x => {
+      const n = note('Plex: ' + x.short + ' – fixed: ' + x.how + '.', 'info'); n.title = x.text; notes.appendChild(n);
+    });
+  }
   if (r.kind === 'sdr' && !r.dv) notes.appendChild(note('This file does not look like HDR. It will still be transcoded, but there is no HDR to preserve.', 'warn'));
   // for the closed Files section: what the file is, plus a marker if there are warnings
   srcSummary = [r.kind === 'hdr10' ? 'HDR10' : r.kind === 'hlg' ? 'HLG' : 'SDR', r.dv && 'DV ' + r.dv, r.hdr10plus && 'HDR10+',
@@ -2202,18 +2217,52 @@ function renderBatch(b) {
 function rowButton(text, title, fn) {
   const b = document.createElement('button'); b.textContent = text; b.title = title; b.onclick = () => fn(b); return b;
 }
+// The Plex check in a queue row: before it runs, what the settings fix and what is left;
+// once it is done, the check of the new file.
+function renderPlexRow(box, it) {
+  const lines = [];
+  const line = (cls, text, how, title) => {
+    const d = el('div'); const b = el('span', cls, text); d.append(b);
+    if (how) d.append(el('span', 'phow', ' – ' + how));
+    if (title) d.title = title;
+    lines.push(d);
+  };
+  if (it.status === 'done' && it.plexAfter && it.plexAfter.length) {
+    const clean = it.plexAfter.length === 1 && /^no problems/i.test(it.plexAfter[0]);
+    if (clean) line('pok', '✓ Plex check of the new file: no problems found');
+    else it.plexAfter.forEach(t => line('pbad', '⚠ Plex check of the new file: ' + t));
+  } else if (['waiting', 'checking', 'problem'].includes(it.status) && it.plex) {
+    it.plex.filter(x => x.state !== 'fixed').forEach(x => line('pbad', '⚠ Plex: ' + x.short + (x.state === 'cannot' ? ' (cannot be fixed)' : ''), x.how, x.text));
+    const fixed = it.plex.filter(x => x.state === 'fixed');
+    if (fixed.length) line('pok', '✓ Fixed by the settings: ' + fixed.map(x => x.short).join(', '), '',
+      fixed.map(x => x.short + ': ' + x.how).join('\n'));
+  }
+  const key = lines.map(d => d.textContent + '|' + d.title).join('\n');
+  if (box.dataset.key === key) return; // unchanged: leave it alone
+  box.dataset.key = key; box.innerHTML = ''; box.append(...lines);
+}
+function renderPlexSum(q) {
+  const box = $('qPlexSum');
+  box.classList.toggle('hidden', !q.plexFiles);
+  if (!q.plexFiles) return;
+  box.classList.toggle('bad', q.plexBad > 0);
+  box.textContent = q.plexBad
+    ? '⚠ ' + q.plexBad + ' of ' + q.plexFiles + ' waiting ' + (q.plexFiles === 1 ? 'file' : 'files') + ' will still have Plex problems (marked below). Plex may have to convert ' + (q.plexBad === 1 ? 'it' : 'them') + ' while you watch.'
+    : '✓ Plex check: none of the ' + (q.plexFiles === 1 ? 'waiting file' : q.plexFiles + ' waiting files') + ' should make Plex convert while you watch.';
+}
 let lastRunId = null;
 function renderQueue(q) {
   if (!q) return;
   queue = q;
   renderBatch(q.batch);
+  renderPlexSum(q);
   const list = $('queueList'), seen = new Set();
   q.items.forEach((it, idx) => {
     seen.add(String(it.id));
     let row = list.querySelector('[data-id="' + it.id + '"]');
     if (!row) {
       row = document.createElement('div'); row.dataset.id = it.id;
-      row.innerHTML = '<div><div class="qname"></div><div class="qsub"></div><div class="qnote"></div></div><div class="qstat"><div class="qst"></div><div class="qtime"></div></div><div class="qbtns"></div><div class="qmini"><div></div></div>';
+      row.innerHTML = '<div><div class="qname"></div><div class="qsub"></div><div class="qnote"></div><div class="qplex"></div></div><div class="qstat"><div class="qst"></div><div class="qtime"></div></div><div class="qbtns"></div><div class="qmini"><div></div></div>';
     }
     // keep the order, moving a row only when it is out of place (moving it would scroll an open log back to the top)
     const want = list.children[idx] || null;
@@ -2223,6 +2272,7 @@ function renderQueue(q) {
     row.querySelector('.qname').title = it.input + '  →  ' + it.output;
     row.querySelector('.qsub').textContent = [it.info, settingsText(it.settings)].filter(Boolean).join('   |   ');
     row.querySelector('.qnote').textContent = [it.note, it.settings && it.settings.tmdbNote].filter(Boolean).join('  ·  ');
+    renderPlexRow(row.querySelector('.qplex'), it);
     row.querySelector('.qst').textContent = it.status === 'running' ? Math.floor(it.percent) + '%' : STATUS_TEXT[it.status];
     // time: left for the running file, expected for a waiting one, taken for a finished one
     const fin = ['done', 'failed', 'canceled'].includes(it.status);

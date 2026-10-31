@@ -94,7 +94,7 @@ type settings struct {
 	Audio, AudioBitrate, DV    string
 	MasterDisplay, MaxCLL, Tmp string
 	TargetSize                 string     // e.g. 8G, 4500M (when Quality is "size")
-	Scale                      string     // "" (keep) or 2160p / 1440p / 1080p / 720p
+	Scale                      string     // "" (keep) or 2160p / 1440p / 1080p / 720p / 576p / 480p
 	AudioTracks, SubTracks     []trackSel // chosen for this file; null = by the rules
 	AudioDefault, SubDefault   int
 	AudioLang, SubLang         string // rules: languages to keep, e.g. "eng, jpn" (empty = all)
@@ -1098,9 +1098,14 @@ func (g *guiServer) probe(ctx context.Context, s settings) map[string]any {
 		resp["audioTracks"], resp["subTracks"] = trackList(t.Audio, true), trackList(t.Subs, false)
 		resp["audioChoice"], resp["subChoice"] = audioChoice(audio), subChoice(subs)
 		resp["meta"] = metaInfo(t)
+		var size int64
 		if st, err := os.Stat(s.Input); err == nil {
-			resp["fileSize"] = st.Size()
+			size = st.Size()
+			resp["fileSize"] = size
 		}
+		// the Plex check: what would make Plex convert this file, and what the settings do about it
+		src := plexSrcFromProbe(p, t, size)
+		resp["plex"] = plexOutcome(src, plexAfter(src, cfg, plan), cfg)
 	}
 	if plan.UseDV { // a Dolby Vision job needs both tools to actually start; find out now, not halfway through
 		for _, tool := range []string{"dovi_tool", "MP4Box"} {

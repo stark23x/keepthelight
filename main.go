@@ -78,7 +78,7 @@ Choosing tracks (numbers as the window shows them: audio 1, 2, ...; subtitles 1,
                        ("SDH", "forced" and "commentary" also match the tracks' flags)
   -name-tracks         name untitled audio and subtitle tracks from what they are ("English AC-3 5.1")
   -dv <auto|drop>      Dolby Vision: auto keeps it (default), drop = plain HDR10
-  -scale <size>        shrink the video to fit 2160p, 1440p, 1080p or 720p, keeping its shape
+  -scale <size>        shrink the video to fit 2160p, 1440p, 1080p, 720p, 576p or 480p, keeping its shape
                        (3840x1600 -> 1920x800 at 1080p) and its HDR10 / HDR10+ / Dolby Vision
                        data. Never enlarges.
   -denoise <level>     noise reduction: light, medium, strong (fast, CPU), or hq (high quality:
@@ -251,7 +251,7 @@ func parseArgs() (*Config, bool) {
 	if sc, ok := normScale(cfg.Scale); ok {
 		cfg.Scale = sc
 	} else {
-		fmt.Fprintln(os.Stderr, "error: -scale must be 2160p, 1440p, 1080p or 720p")
+		fmt.Fprintln(os.Stderr, "error: -scale must be 2160p, 1440p, 1080p, 720p, 576p or 480p")
 		return cfg, false
 	}
 	if cfg.Audio == "opus" {
@@ -682,6 +682,12 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 		}
 	}
 	keepOriginalClip(cfg)
+	if cfg.sample == "" { // the same Plex check as the library scan, on the new file
+		fmt.Println()
+		for _, l := range plexCheckFile(ctx, cfg.Ffprobe, cfg.Output) {
+			fmt.Println(l)
+		}
+	}
 	if cfg.sample == "" && origSize > 0 {
 		if st, err := os.Stat(cfg.Output); err == nil {
 			fmt.Println("Size:", savedText(origSize, st.Size()))

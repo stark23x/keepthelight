@@ -33,20 +33,22 @@ const (
 )
 
 type queueItem struct {
-	ID       int             `json:"id"`
-	Raw      json.RawMessage `json:"settings"` // the settings as the page sent them
-	Name     string          `json:"name"`     // the input file's name
-	Input    string          `json:"input"`
-	Output   string          `json:"output"`
-	Status   string          `json:"status"`
-	Note     string          `json:"note"` // problem, warning or result detail
-	Info     string          `json:"info"` // what the source is, e.g. "HDR10 · 3840×2160 · 2h 1m"
-	Percent  float64         `json:"percent"`
-	Duration float64         `json:"duration"`
-	Editing  bool            `json:"editing"`        // open in the window for changes: held back until saved or cancelled
-	ETA      string          `json:"eta,omitempty"`  // running: "about 25 min left"
-	Est      string          `json:"est,omitempty"`  // waiting: "about 40 min"
-	Took     float64         `json:"took,omitempty"` // finished: seconds it took
+	ID        int             `json:"id"`
+	Raw       json.RawMessage `json:"settings"` // the settings as the page sent them
+	Name      string          `json:"name"`     // the input file's name
+	Input     string          `json:"input"`
+	Output    string          `json:"output"`
+	Status    string          `json:"status"`
+	Note      string          `json:"note"` // problem, warning or result detail
+	Info      string          `json:"info"` // what the source is, e.g. "HDR10 · 3840×2160 · 2h 1m"
+	Percent   float64         `json:"percent"`
+	Duration  float64         `json:"duration"`
+	Editing   bool            `json:"editing"`             // open in the window for changes: held back until saved or cancelled
+	ETA       string          `json:"eta,omitempty"`       // running: "about 25 min left"
+	Est       string          `json:"est,omitempty"`       // waiting: "about 40 min"
+	Took      float64         `json:"took,omitempty"`      // finished: seconds it took
+	Plex      []plexIssue     `json:"plex,omitempty"`      // the Plex check when the file was checked
+	PlexAfter []string        `json:"plexAfter,omitempty"` // the Plex check of the finished file
 
 	s       settings
 	cfg     *Config
@@ -591,7 +593,7 @@ func (g *guiServer) checker() {
 
 // applyProbe stores what the probe found. Caller holds g.mu.
 func applyProbe(it *queueItem, r map[string]any) {
-	it.checked = true
+	it.checked, it.Plex = true, nil
 	if ok, _ := r["ok"].(bool); !ok {
 		it.Status, it.Note = stProblem, fmt.Sprint(r["error"])
 		return
@@ -617,6 +619,7 @@ func applyProbe(it *queueItem, r map[string]any) {
 		parts = append(parts, shortDuration(it.Duration))
 	}
 	it.Info = strings.Join(parts, " · ")
+	it.Plex, _ = r["plex"].([]plexIssue)
 	if b, ok := r["blocker"].(string); ok && b != "" {
 		it.Status, it.Note = stProblem, b
 		return
@@ -723,7 +726,7 @@ func (g *guiServer) runQueue() {
 			g.saveQueue()
 			continue
 		}
-		it.Status, it.Note, it.Percent, it.Took = stRunning, "", 0, 0
+		it.Status, it.Note, it.Percent, it.Took, it.PlexAfter = stRunning, "", 0, 0, nil
 		it.started, it.inRun = g.clock(), true
 		cfg, duration := *it.cfg, it.Duration
 		g.mu.Unlock()
@@ -754,9 +757,13 @@ func (g *guiServer) runQueue() {
 			it.Status, it.Note = stCanceled, "Canceled."
 		case j.exitCode == 0:
 			it.Status, it.Note, it.Percent = stDone, "", 100
-			for _, l := range j.lines { // a test's measured quality
+			it.PlexAfter = nil
+			for _, l := range j.lines { // a test's measured quality, and the Plex check of the new file
 				if strings.HasPrefix(l, "Test quality:") {
 					it.Note = l
+				}
+				if strings.HasPrefix(l, "Plex check: ") {
+					it.PlexAfter = append(it.PlexAfter, strings.TrimPrefix(l, "Plex check: "))
 				}
 			}
 			if cfg.SampleSecs == 0 && inSize > 0 { // space saved (not for tests)
@@ -973,7 +980,17 @@ func (g *guiServer) queueStatusLocked() map[string]any {
 		items = append(items, *it)
 	}
 	g.fillTimesLocked(items)
-	res := map[string]any{"items": items, "counts": counts, "running": g.q.running, "index": g.q.index, "batch": g.batchLocked(items),
+	plexFiles, plexBad := 0, 0 // files still to do: how many will still have Plex problems
+	for _, it := range items {
+		if it.Status == stWaiting && it.checked {
+			plexFiles++
+			if plexProblems(it.Plex) > 0 {
+				plexBad++
+			}
+		}
+	}
+	res := map[string]any{"plexFiles": plexFiles, "plexBad": plexBad,
+		"items": items, "counts": counts, "running": g.q.running, "index": g.q.index, "batch": g.batchLocked(items),
 		"total": g.q.total, "after": g.q.after, "savedRun": g.q.savedRun, "savedRunText": signedBytes(g.q.savedRun),
 		"savedTotal": g.savedTotal, "savedTotalText": signedBytes(g.savedTotal)}
 	if !g.q.powerAt.IsZero() {

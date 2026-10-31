@@ -18,6 +18,19 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.23.0 - 2026-10-31
+
+- **Plex check when files are added.** Files added to Convert or the Queue get the same Plex checks as the
+  library scan (no AC-3, E-AC-3 or AAC audio; forced picture subtitles; styled subtitles shown by default; Dolby
+  Vision profile 7 or 5; H.264 10-bit; VC-1 / MPEG-2; very high bitrates), so problems show up without scanning
+  the library. The check knows the settings: each problem is marked as fixed by them, still there (with the setting
+  that would fix it), or not fixable. The Queue tab adds a line such as "1 of 10 waiting files will still have Plex
+  problems", and each row lists its own. Every finished file is checked again ("Plex check:" lines in the log, and a
+  ✓ or ⚠ in its row). Advice only: nothing is stopped.
+- **Two smaller resolutions: 576p and 480p.** The picture fits within 1024×576 or 854×480, keeping its shape (a
+  2.40:1 film becomes 854×356 at 480p), with HDR10, HLG, HDR10+ and Dolby Vision kept as for the other sizes. Also
+  for `-scale 576p` / `-scale 480p`. Tested with NVENC and QuickSync.
+
 ## 1.22.0 - 2026-10-31
 
 - **Empty subtitle and audio tracks are left out automatically.** A track with nothing in it (for example a

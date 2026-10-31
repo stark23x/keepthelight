@@ -65,9 +65,11 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   long it took once it is done.
 - **Low priority** (⚙ Settings): other programs come first, so the PC stays responsive while encoding; it
   still runs at full speed when the PC is otherwise idle. Remembered, and takes effect at once.
-- **Resolution** (under Video): shrink the video to fit 4K, 1440p, 1080p or 720p, keeping its shape (a
-  3840x1600 film becomes 1920x800 at 1080p) and its HDR10, HDR10+ and Dolby Vision data. A smaller picture
-  encodes much faster (1080p is about a quarter of the work of 4K). Videos are never enlarged.
+- **Resolution** (under Video): shrink the video to fit 4K, 1440p, 1080p, 720p, 576p or 480p, keeping its shape
+  (a 3840x1600 film becomes 1920x800 at 1080p, or 854x356 at 480p) and its HDR10, HDR10+ and Dolby Vision data. A
+  smaller picture encodes much faster (1080p is about a quarter of the work of 4K). 576p (fits 1024x576) and 480p
+  (fits 854x480) are standard-definition sizes, for phones, tablets or saving the most space. Videos are never
+  enlarged.
 - **Noise reduction** (under Video): Off / Light / Medium / Strong (fast, on the CPU) or High quality (on the GPU
   when the FFmpeg build and graphics driver allow it, through Vulkan or OpenCL; otherwise a slower CPU filter).
   Only filters that work in 10-bit are used, so HDR keeps its gradations; Dolby Vision is unaffected. Besides a
@@ -96,6 +98,13 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
 - **Space saved:** each finished file shows its size before and after ("18.7 GB → 9.2 GB · saved 9.5 GB (51%)"),
   the Queue heading adds up the run, and a single running total ("4.2 TB saved in total") is kept for this PC.
   No history is stored.
+- **Plex check** (automatic): every file added to Convert or the Queue is checked for the things likely to make
+  Plex convert it while you watch (the same checks as the library scan, below), so problems show up without
+  scanning the library. Because the check knows your settings, each problem is marked as **fixed** by them (for
+  example styled subtitles that will become SRT), **still there** with the setting that would fix it ("Turn on
+  'Add a compatible audio track when needed'"), or **cannot be fixed** (Dolby Vision profile 5). The Queue tab says
+  how many waiting files will still have problems ("1 of 10 waiting files will still have Plex problems"). Each
+  finished file is checked again, and the result is shown in its row and log. Warnings never stop a conversion.
 - **Library scan** (its own tab): choose a folder (for example `\\PlexRaid01\Movies`), with or
   without its subfolders, and Keep the Light reads every video in it (only the file information; nothing is changed).
   Each file shows its video (codec, resolution, HDR10 / HLG / Dolby Vision profile), bitrate, audio and size, an

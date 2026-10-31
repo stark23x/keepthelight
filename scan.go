@@ -129,7 +129,6 @@ func analyse(it *scanItem, data []byte) {
 	var w, h int
 	var videoBps, audioBps float64
 	var audios []string
-	compatible, anyAudio := false, false
 	dvProfile := 0
 	for _, s := range p.Streams {
 		switch s.Type {
@@ -151,31 +150,10 @@ func analyse(it *scanItem, data []byte) {
 					}
 				}
 			}
-			if s.Codec == "h264" && strings.Contains(s.PixFmt, "10") {
-				it.Issues = append(it.Issues, "H.264 10-bit: many TVs and streamers cannot play it, so Plex has to convert the video")
-			}
-			if s.Codec == "vc1" || s.Codec == "mpeg2video" {
-				it.Issues = append(it.Issues, fmt.Sprintf("%s: an older format some TVs and streamers cannot play, so Plex may have to convert the video", strings.ToUpper(map[string]string{"vc1": "VC-1", "mpeg2video": "MPEG-2"}[s.Codec])))
-			}
 		case "audio":
-			anyAudio = true
 			audioBps += bps(s)
 			t := srcTrack{Codec: s.Codec, Profile: s.Profile, Channels: s.Channels, Layout: s.Layout}
 			audios = append(audios, strings.TrimSpace(codecName(t)+" "+layoutName(t)))
-			if compatibleCodecs[s.Codec] {
-				compatible = true
-			}
-		case "subtitle":
-			if s.Disp["forced"] == 1 && bitmapSubs[s.Codec] {
-				msg := "Forced picture subtitles (PGS/VobSub): Plex burns them into the picture, which forces a video conversion"
-				if s.Codec == "hdmv_pgs_subtitle" {
-					msg += " (converting them to SRT fixes this)"
-				}
-				it.Issues = appendOnce(it.Issues, msg)
-			}
-			if (s.Codec == "ass" || s.Codec == "ssa") && (s.Disp["forced"] == 1 || s.Disp["default"] == 1) {
-				it.Issues = appendOnce(it.Issues, "Styled subtitles (ASS/SSA) shown by default: many Plex players cannot draw them, so Plex burns them in and converts the video (converting them to SRT fixes this)")
-			}
 		}
 	}
 	if vCodec == "" {
@@ -184,24 +162,15 @@ func analyse(it *scanItem, data []byte) {
 	}
 	if dvProfile > 0 {
 		hdr = fmt.Sprintf("Dolby Vision %d", dvProfile)
-		switch dvProfile {
-		case 7:
-			it.Issues = append(it.Issues, "Dolby Vision profile 7 (dual layer): most Plex players cannot show its Dolby Vision; KTL converts it to profile 8.1, which they can")
-		case 5:
-			it.Issues = append(it.Issues, "Dolby Vision profile 5: Keep the Light cannot re-encode it (it can only copy it)")
-		}
+	}
+	for _, x := range plexIssues(plexSrcFromScan(&p, it.Kbps)) { // the same check as when files are added
+		it.Issues = append(it.Issues, x.Text)
 	}
 	it.Video = strings.TrimSpace(fmt.Sprintf("%s %d×%d %s", codecDisplay(vCodec), w, h, hdr))
 	if len(audios) > 4 {
 		audios = append(audios[:4], fmt.Sprintf("+%d more", len(audios)-4))
 	}
 	it.Audio = strings.Join(audios, ", ")
-	if anyAudio && !compatible {
-		it.Issues = append(it.Issues, "No AC-3, E-AC-3 or AAC audio: many TVs and streamers need Plex to convert the sound (the \"Add a compatible audio track\" rule fixes this)")
-	}
-	if it.Kbps > 80000 {
-		it.Issues = append(it.Issues, fmt.Sprintf("Very high bitrate (%d Mbps): may stutter over Wi-Fi or when watching away from home", it.Kbps/1000))
-	}
 
 	// the estimate: the video as HEVC at very good quality; everything else as it is
 	if videoBps == 0 { // not recorded: the file's bitrate less the audio (or a share of it)

@@ -15,7 +15,13 @@ func TestFitSize(t *testing.T) {
 		{3840, 1608, 1920, 1080, 1920, 804},
 		{4096, 2160, 1920, 1080, 1920, 1012}, // DCI 4K: limited by the width, even height
 		{3840, 2160, 1280, 720, 1280, 720},
-		{1440, 1080, 1280, 720, 960, 720}, // 4:3: limited by the height
+		{1440, 1080, 1280, 720, 960, 720},  // 4:3: limited by the height
+		{3840, 1600, 854, 480, 854, 356},   // 480p: a scope film
+		{3840, 2160, 854, 480, 854, 480},   // 480p: 16:9 (853.3 rounded to even)
+		{3840, 2160, 1024, 576, 1024, 576}, // 576p
+		{1920, 1080, 1024, 576, 1024, 576}, //
+		{1440, 1080, 854, 480, 640, 480},   // 4:3 at 480p
+		{1920, 800, 1024, 576, 1024, 426},  // 576p scope
 	} {
 		w, h, ok := fitSize(c.w, c.h, c.bw, c.bh)
 		if !ok || w != c.ww || h != c.wh {
@@ -31,12 +37,12 @@ func TestFitSize(t *testing.T) {
 }
 
 func TestNormScale(t *testing.T) {
-	for in, want := range map[string]string{"": "", "1080": "1080p", "1080P": "1080p", " 720p ": "720p", "original": ""} {
+	for in, want := range map[string]string{"": "", "1080": "1080p", "1080P": "1080p", " 720p ": "720p", "original": "", "480": "480p", "576p": "576p"} {
 		if got, ok := normScale(in); !ok || got != want {
 			t.Errorf("%q: got %q %v", in, got, ok)
 		}
 	}
-	for _, bad := range []string{"480p", "big", "1080i"} {
+	for _, bad := range []string{"360p", "big", "1080i"} {
 		if _, ok := normScale(bad); ok {
 			t.Errorf("%q accepted", bad)
 		}
@@ -160,6 +166,10 @@ func TestScaleAndHWDecodeSettings(t *testing.T) {
 		t.Errorf("cli args: %s", a)
 	}
 	s.Scale = "480p"
+	if cfg, err := s.toConfig(); err != nil || cfg.Scale != "480p" {
+		t.Errorf("480p: %v", err)
+	}
+	s.Scale = "360p"
 	if _, err := s.toConfig(); err == nil {
 		t.Error("unknown resolution accepted")
 	}

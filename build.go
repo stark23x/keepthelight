@@ -75,7 +75,8 @@ type Plan struct {
 // scaleBoxes are the sizes offered for resizing: the video is shrunk to fit
 // inside the frame, keeping its shape (a 3840x1600 film becomes 1920x800 at
 // 1080p). Nothing is ever enlarged.
-var scaleBoxes = map[string][2]int{"2160p": {3840, 2160}, "1440p": {2560, 1440}, "1080p": {1920, 1080}, "720p": {1280, 720}}
+var scaleBoxes = map[string][2]int{"2160p": {3840, 2160}, "1440p": {2560, 1440}, "1080p": {1920, 1080}, "720p": {1280, 720},
+	"576p": {1024, 576}, "480p": {854, 480}} // the SD sizes as square-pixel widescreen frames
 
 // normScale accepts "1080p", "1080" or "" (keep).
 func normScale(s string) (string, bool) {
@@ -176,7 +177,7 @@ func makePlan(cfg *Config, p *Probe) (*Plan, error) {
 		box, ok := scaleBoxes[cfg.Scale]
 		switch {
 		case !ok:
-			return nil, fmt.Errorf("unknown resolution %q (use 2160p, 1440p, 1080p or 720p)", cfg.Scale)
+			return nil, fmt.Errorf("unknown resolution %q (use 2160p, 1440p, 1080p, 720p, 576p or 480p)", cfg.Scale)
 		case cfg.CopyVideo:
 			return nil, fmt.Errorf("the video cannot be resized when it is copied unchanged; choose Re-encode")
 		case p.Width <= 0 || p.Height <= 0:
