@@ -51,6 +51,7 @@
   .note.warn { background: #3a2f17; border: 1px solid #6b5420; color: var(--warn); }
   .note.bad { background: #3b1c1c; border: 1px solid #7a2e2e; color: var(--bad); }
   .note.info { background: #1b2a3f; border: 1px solid #2c4a73; color: #9cc4ff; }
+  .note .fixbtn { margin-left: 10px; padding: 2px 10px; font-size: 12px; vertical-align: baseline; } /* UI-1 */
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
   .seg label { margin: 0; padding: 7px 14px; cursor: pointer; color: var(--text); font-size: 13px; background: var(--panel2); border-right: 1px solid var(--line); }
   .seg label:last-child { border-right: 0; }
@@ -1653,6 +1654,7 @@ function showInfo(r) {
       const n = note('Plex: ' + x.short + ' – fixed: ' + x.how + '.', 'info'); n.title = x.text; notes.appendChild(n);
     });
   }
+  plexFixButtons(r, notes); // UI-1
   if (r.kind === 'sdr' && !r.dv) notes.appendChild(note('This file does not look like HDR. It will still be transcoded, but there is no HDR to preserve.', 'warn'));
   // for the closed Files section: what the file is, plus a marker if there are warnings
   srcSummary = [r.kind === 'hdr10' ? 'HDR10' : r.kind === 'hlg' ? 'HLG' : 'SDR', r.dv && 'DV ' + r.dv, r.hdr10plus && 'HDR10+',
@@ -2430,6 +2432,45 @@ async function poll() {
   }
   const checking = (q.counts.checking || 0) > 0 || q.powerIn !== undefined;
   polling = setTimeout(poll, busy || checking ? 500 : 2000);
+}
+
+// ---------- one-click fixes (UI-1) ----------
+// A Plex problem that a setting fixes gets a Fix button: it changes that setting
+// for this file, and the file is checked again (the warning turns green).
+function plexFix(key) {
+  const meta = radio('mode') === 'meta', copy = radio('mode') !== 'encode';
+  const toEncode = () => { setRadio('mode', 'encode'); document.querySelector('input[name="mode"][value="encode"]').dispatchEvent(new Event('change')); };
+  const subsToSRT = test => () => {
+    if (!tracks) return;
+    tracks.subs.forEach(k => { const src = (info.subTracks || []).find(x => x.n === k.n); if (src && test(src, k)) k.srt = 'replace'; });
+    tracksChanged();
+  };
+  switch (key) {
+    case 'h264-10': case 'old-video': case 'bitrate': return copy ? toEncode : null;
+    case 'interlaced':
+      if (copy) return toEncode;
+      return $('deinterlace').value === 'off' ? () => { $('deinterlace').value = ''; $('deinterlace').dispatchEvent(new Event('change')); updateSummaries(); } : null;
+    case 'dv7': return !copy && $('dv').value === 'drop' ? () => { $('dv').value = 'auto'; $('dv').dispatchEvent(new Event('change')); } : null;
+    case 'audio': return !meta && !$('addCompat').checked ? () => {
+      const keep = tracks; // a rule change starts the tracks again from the rules: keep this file's own choices
+      $('addCompat').checked = true; $('addCompat').dispatchEvent(new Event('change'));
+      tracks = keep;
+    } : null;
+    case 'forced-pgs': return !meta && tracks ? subsToSRT((src, k) => src.srtKind === 'ocr' && k.forced) : null;
+    case 'ass-default': return !meta && tracks ? subsToSRT((src, k) => src.srtKind === 'text' && (k.forced || tracks.subDefault === k.n)) : null;
+  }
+  return null;
+}
+function plexFixButtons(r, notes) {
+  (r.plex || []).filter(x => x.state === 'open').forEach(x => {
+    const fix = plexFix(x.key);
+    const n = Array.from(notes.querySelectorAll('.note.warn')).find(e => e.title === x.text);
+    if (!fix || !n) return;
+    const b = el('button', 'fixbtn', 'Fix');
+    b.title = 'Change the setting for this file: ' + (x.how || '');
+    b.onclick = () => { b.disabled = true; fix(); };
+    n.append(b);
+  });
 }
 
 // ---------- drag and drop ----------
