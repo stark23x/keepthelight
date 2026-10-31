@@ -21,6 +21,12 @@ next build". Shipped features move to "Done" with their version number. Nothing 
   - **Reporting:** the summary line says how many extras were skipped, for example "1,240 files · 312 extras
     skipped".
 
+- **Right-click menu for copy and paste** (requested 2026-10-30).
+  - **What it does:** right-clicking a text box (paths, name ending, metadata fields, TMDB search and so on) shows Cut, Copy, Paste and Select all. Right-clicking the log or other text shows Copy and Select all.
+  - **How:** the window's built-in browser menu is switched off today (it is only on with `KTL_DEBUG=1`), because it also offers Back, Reload and Inspect. So this is KTL's own small menu, styled like the window.
+  - **Paste** goes through KTL (the Windows clipboard read by the program), because the page alone can't always read the clipboard without asking.
+- **Fix: a queued file's Log can't be scrolled** (reported 2026-10-30). The list is redrawn every half-second, and each redraw moves every row, which resets an open log to the top. Rows should only move when the order changes. Also make it easy to copy a whole log (a "Copy log" button).
+
 ## Ideas raised, not yet requested
 
 - Plex-style output names after a TMDB lookup, such as `Title (Year) {tmdb-id}`. The owner chose no renaming
