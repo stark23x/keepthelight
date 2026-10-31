@@ -178,6 +178,11 @@
   .qrow.st-done .qstat { color: var(--ok); }
   .qrow.st-failed .qstat, .qrow.st-problem .qstat, .qrow.st-problem .qnote, .qrow.st-failed .qnote { color: var(--bad); }
   .qrow.st-skipped .qstat, .qrow.st-waiting .qnote { color: var(--warn); }
+  /* UI-9: messages that fade by themselves */
+  #toasts { position: fixed; right: 16px; bottom: 120px; z-index: 50; display: flex; flex-direction: column; gap: 8px; max-width: min(420px, calc(100vw - 32px)); }
+  .toast { background: var(--panel2); border: 1px solid var(--accent2); border-radius: 8px; padding: 10px 12px; font-size: 13px; white-space: pre-line;
+    box-shadow: 0 6px 24px rgba(0,0,0,.45); cursor: pointer; transition: opacity .5s; }
+  .toast.gone { opacity: 0; }
   /* TMDB lookup */
   .tmdb { border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 14px; background: var(--panel2); }
   #tResults { max-height: 360px; overflow-y: auto; margin-top: 10px; }
@@ -775,6 +780,17 @@ function showError(msg) {
   if (BRIDGE) api('message', { text: msg }); else alert(msg);
 }
 
+// UI-9: a result or a note that needs no answer: a small message in the corner
+// that fades by itself (a click closes it at once). Questions and problems keep the pop-up.
+function notify(msg) {
+  let box = $('toasts');
+  if (!box) { box = el('div'); box.id = 'toasts'; box.setAttribute('role', 'status'); document.body.append(box); }
+  const t = el('div', 'toast', msg);
+  t.onclick = () => t.remove();
+  box.append(t);
+  setTimeout(() => { t.classList.add('gone'); setTimeout(() => t.remove(), 600); }, Math.min(12000, 4000 + msg.length * 40));
+}
+
 function settings() {
   return {
     input: $('input').value.trim(), output: $('output').value.trim(), format: $('container').value, mode: radio('mode'),
@@ -1366,7 +1382,7 @@ $('profDelete').onclick = async () => {
 $('profExport').onclick = async () => {
   const r = await api('profilesExport', { profiles });
   if (!r.ok) showError(r.error || 'Could not export the profiles.');
-  else if (r.path) showError('Exported ' + profiles.length + ' profile' + (profiles.length === 1 ? '' : 's') + ' to ' + r.path);
+  else if (r.path) notify('Exported ' + profiles.length + ' profile' + (profiles.length === 1 ? '' : 's') + ' to ' + r.path);
 };
 $('profImport').onclick = async () => {
   const r = await api('profilesImport', {});
@@ -1388,7 +1404,7 @@ $('profImport').onclick = async () => {
     }
   });
   saveProfiles(); fillProfiles($('profile').value);
-  showError('Imported ' + incoming.length + ' profile' + (incoming.length === 1 ? '' : 's') + '.');
+  notify('Imported ' + incoming.length + ' profile' + (incoming.length === 1 ? '' : 's') + '.');
 };
 
 // Applying settings to the waiting files: files with their own changes (tracks
@@ -1951,7 +1967,7 @@ $('qAddFiles').onclick = async () => {
 $('qAddFolder').onclick = async () => {
   const r = await api('browse', { kind: 'folderFiles', initial: $('input').value, tag: nameTag() });
   if (!r.ok) { if (r.error) showError(r.error); return; }
-  if (r.folder && !r.paths.length) { showError('No video files were found in ' + r.folder + '.'); return; }
+  if (r.folder && !r.paths.length) { notify('No video files were found in ' + r.folder + '.'); return; }
   if (r.paths.length && batchOutReady()) addToQueue(r.paths.map(settingsFor));
 };
 $('qApply').onclick = () => applyToWaiting(Object.assign(settings(), { nameTag: nameTag() }));
@@ -2236,7 +2252,7 @@ $('scanAdd').onclick = async () => {
   const paths = scanItems.filter(it => scanSel.has(it.path)).sort((a, b) => (b.saving || 0) - (a.saving || 0)).map(it => it.path);
   const r = await addToQueue(paths.map(x => scanSettings(x, p)));
   if (r && r.ids && r.ids.length && $('scanTMDB').checked) {
-    if (!$('tmdbKey').value.trim()) showError('The files were added, but looking up their metadata needs your TMDB API key (Settings, ⚙).');
+    if (!$('tmdbKey').value.trim()) notify('The files were added, but looking up their metadata needs your TMDB API key (Settings, ⚙).');
     else { const t = await api('queueTMDB', { ids: r.ids }); if (!t.ok) showError(t.error); }
   }
   if (r && r.added) { scanSel = new Set(); renderScan(); scanButtons(); }
@@ -2447,7 +2463,7 @@ function renderQueue(q) {
             : 'No other file has the same tracks as ' + it.name + ', so nothing was changed.';
           if (r.different && r.different.length) msg += '\n\nLeft as they were (their tracks are different):\n' + r.different.slice(0, 15).join('\n') +
             (r.different.length > 15 ? '\n… and ' + (r.different.length - 15) + ' more' : '');
-          showError(msg); poll();
+          notify(msg); poll();
         }));
       if (it.status === 'waiting' || it.status === 'checking' || it.status === 'problem') {
         btns.append(rowButton('↑', 'Move up', () => api('queueMove', { id: it.id, dir: -1 }).then(poll)),
@@ -2472,7 +2488,7 @@ function renderQueue(q) {
   });
   list.querySelectorAll('.qrow').forEach(r => { if (!seen.has(r.dataset.id)) r.remove(); });
   if (editing && !seen.has(String(editing.id))) { // removed while being changed
-    const n = editing.name; editing.id = -1; endEdit(false); showError(n + ' was removed from the queue, so its changes were not saved.');
+    const n = editing.name; editing.id = -1; endEdit(false); notify(n + ' was removed from the queue, so its changes were not saved.');
   }
   // When the next file starts, scroll the list to it (only then, so it does not fight the user's scrolling).
   const run = q.items.find(it => it.status === 'running');
