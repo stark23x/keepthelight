@@ -1687,8 +1687,8 @@ function updateStart() {
   $('start').disabled = !ok;
 }
 
-async function browse(kind, target, initial) {
-  const r = await api('browse', { kind, initial });
+async function browse(kind, target, initial, remember) {
+  const r = await api('browse', { kind, initial, remember });
   if (!r.ok) { if (r.error) showError(r.error); return; }
   if (!r.path) return;
   target.value = r.path;
@@ -1703,7 +1703,7 @@ $('browseIn').onclick = async () => {
   if (batchOutReady()) addToQueue(r.paths.map(settingsFor)); // several files: they go into the queue with the current settings
 };
 $('browseOut').onclick = () => browse('save', $('output'), $('output').value);
-$('browseTmp').onclick = () => browse('folder', $('tmp'), $('tmp').value);
+$('browseTmp').onclick = () => browse('folder', $('tmp'), $('tmp').value, 'tmp');
 
 // A new input always gets a fresh output name, in the remembered folder.
 $('input').addEventListener('change', () => { suggestOutput(); scheduleProbe(50); });
@@ -1823,7 +1823,7 @@ function saveBatchOut() { storeOutFolder(); applyOutFolder(); }
 $('qOutMode').addEventListener('change', saveBatchOut);
 $('qOutDir').addEventListener('change', saveBatchOut);
 $('qOutBrowse').onclick = async () => {
-  const r = await api('browse', { kind: 'folder', initial: $('qOutDir').value });
+  const r = await api('browse', { kind: 'folder', initial: $('qOutDir').value, remember: 'outputFolder' });
   if (!r.ok) { if (r.error) showError(r.error); return; }
   if (r.path) { $('qOutDir').value = r.path; saveBatchOut(); }
 };
@@ -2125,7 +2125,7 @@ async function scanPoll() {
   if (!running && !r.found && r.dir) $('scanProg').classList.remove('hidden'), $('scanProg').textContent = 'No video files were found in ' + r.dir + '.';
 }
 $('scanBrowse').onclick = async () => {
-  const r = await api('browse', { kind: 'folder', initial: $('scanDir').value });
+  const r = await api('browse', { kind: 'folder', initial: $('scanDir').value, remember: 'scan' });
   if (!r.ok) { if (r.error) showError(r.error); return; }
   if (r.path) $('scanDir').value = r.path;
 };

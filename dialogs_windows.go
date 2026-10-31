@@ -34,6 +34,7 @@ var (
 	procCoUninit        = ole32.NewProc("CoUninitialize")
 	procCoTaskMemFree   = ole32.NewProc("CoTaskMemFree")
 	procSHBrowse        = shell32.NewProc("SHBrowseForFolderW")
+	procSendMessage     = user32.NewProc("SendMessageW")
 	procSHGetPath       = shell32.NewProc("SHGetPathFromIDListW")
 )
 
@@ -247,13 +248,35 @@ func fileDialogEx(save, multi bool, initial string) (string, error) {
 	})
 }
 
-func folderDialog() (string, error) {
+// folderStartCallback opens the folder dialog at its starting folder: lpData
+// is the folder's path (UTF-16), sent back as BFFM_SETSELECTIONW once the
+// dialog is ready (BFFM_INITIALIZED).
+var folderStartCallback = syscall.NewCallback(func(hwnd, msg, lparam, data uintptr) uintptr {
+	if msg == 1 && data != 0 {
+		procSendMessage.Call(hwnd, 0x400+103, 1, data)
+	}
+	return 0
+})
+
+func folderDialog(initial string) (string, error) {
 	return withOwner(func(owner uintptr) (string, error) {
 		display := make([]uint16, 260)
-		bi := &browseInfo{Owner: owner, DisplayName: &display[0], Title: u16("Choose a folder for temporary files"),
+		title := folderTitle
+		if title == "" {
+			title = "Choose a folder"
+		}
+		bi := &browseInfo{Owner: owner, DisplayName: &display[0], Title: u16(title),
 			Flags: 0x40 | 0x01} // BIF_NEWDIALOGSTYLE | BIF_RETURNONLYFSDIRS
+		var start []uint16
+		if initial != "" {
+			if st, err := os.Stat(initial); err == nil && st.IsDir() {
+				start, _ = syscall.UTF16FromString(initial)
+				bi.Fn, bi.LParam = folderStartCallback, uintptr(unsafe.Pointer(&start[0]))
+			}
+		}
 		pidl, _, _ := procSHBrowse.Call(uintptr(unsafe.Pointer(bi)))
 		runtime.KeepAlive(display)
+		runtime.KeepAlive(start)
 		runtime.KeepAlive(bi)
 		if pidl == 0 {
 			return "", nil
@@ -276,7 +299,7 @@ func browseDialog(kind, initial string) (string, error) {
 	case "save":
 		p, err = fileDialog(true, initial)
 	case "folder":
-		p, err = folderDialog()
+		p, err = folderDialog(initial)
 	case "image":
 		p, err = imageDialog(initial)
 	case "wav":

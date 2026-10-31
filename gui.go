@@ -619,32 +619,46 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		}
 		return g.probe(ctx, s)
 	case "browse":
-		var b struct{ Kind, Initial, Tag string }
+		var b struct{ Kind, Initial, Tag, Remember string }
 		_ = json.Unmarshal(body, &b)
+		group := browseGroup(b.Kind, b.Remember)
+		folderTitle = folderTitles[group]
 		switch b.Kind {
 		case "openMulti": // several files at once
-			paths, err := browseFiles(b.Initial)
+			paths, err := browseFiles(g.startAt(group, b.Initial, false))
 			if err != nil {
 				return failResult(err.Error())
 			}
+			if len(paths) > 0 {
+				g.rememberFolder(group, filepath.Dir(paths[0]))
+			}
 			return map[string]any{"ok": true, "paths": paths}
 		case "folderFiles": // every video in a folder
-			dir, err := browseDialog("folder", b.Initial)
+			dir, err := browseDialog("folder", g.startAt(group, b.Initial, true))
 			if err != nil || dir == "" {
 				if err != nil {
 					return failResult(err.Error())
 				}
 				return map[string]any{"ok": true, "paths": []string{}}
 			}
+			g.rememberFolder(group, dir)
 			paths, err := videosIn(dir, b.Tag)
 			if err != nil {
 				return failResult(err.Error())
 			}
 			return map[string]any{"ok": true, "paths": paths, "folder": dir}
 		}
-		p, err := browseDialog(b.Kind, b.Initial)
+		folder := b.Kind == "folder"
+		p, err := browseDialog(b.Kind, g.startAt(group, b.Initial, folder))
 		if err != nil {
 			return failResult(err.Error())
+		}
+		if p != "" {
+			if folder {
+				g.rememberFolder(group, p)
+			} else {
+				g.rememberFolder(group, filepath.Dir(p))
+			}
 		}
 		return map[string]any{"ok": true, "path": p}
 	case "start":
@@ -670,7 +684,10 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 	case "profilesExport": // write profiles to a file the user chooses
 		var b struct{ Profiles json.RawMessage }
 		_ = json.Unmarshal(body, &b)
-		p, err := browseDialog("saveJson", "Keep the Light profiles.json")
+		p, err := browseDialog("saveJson", g.startAt("profiles", "Keep the Light profiles.json", false))
+		if p != "" {
+			g.rememberFolder("profiles", filepath.Dir(p))
+		}
 		if err != nil || p == "" {
 			if err != nil {
 				return failResult(err.Error())
@@ -686,7 +703,10 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		}
 		return map[string]any{"ok": true, "path": p}
 	case "profilesImport":
-		p, err := browseDialog("openJson", "")
+		p, err := browseDialog("openJson", g.startAt("profiles", "", false))
+		if p != "" {
+			g.rememberFolder("profiles", filepath.Dir(p))
+		}
 		if err != nil || p == "" {
 			if err != nil {
 				return failResult(err.Error())
@@ -941,6 +961,102 @@ func appDataDir() string {
 		}
 	}
 	return filepath.Join(base, appName)
+}
+
+// ---------- where the Browse dialogs open ----------
+
+// Each kind of dialog remembers the last folder chosen with it (kept in the
+// settings file), so it opens there next time, even after a restart.
+
+// folderTitle is the folder dialog's title (dialogs run one at a time).
+var folderTitle string
+
+var folderTitles = map[string]string{
+	"videos": "Choose a folder of videos", "outputFolder": "Choose where to save converted files",
+	"scan": "Choose a folder to scan", "tmp": "Choose a folder for temporary files",
+}
+
+// browseGroup is which remembered folder a dialog uses. remember (sent by the
+// page) tells folder dialogs apart: the output folder, the scan folder...
+func browseGroup(kind, remember string) string {
+	switch kind {
+	case "open", "openMulti", "folderFiles":
+		return "videos"
+	case "save":
+		return "output"
+	case "image":
+		return "images"
+	case "wav":
+		return "sounds"
+	case "openJson", "saveJson":
+		return "profiles"
+	}
+	if remember != "" && len(remember) <= 20 {
+		return remember
+	}
+	return "folders"
+}
+
+func isDir(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && st.IsDir()
+}
+
+// startAt is where a dialog opens. What is already typed in the box wins when
+// its folder exists; otherwise the folder last chosen with this kind of dialog,
+// if it is still there (a drive may be unplugged). For file dialogs the result
+// is a path whose folder is the starting point.
+func (g *guiServer) startAt(group, initial string, folder bool) string {
+	if initial != "" {
+		if folder && isDir(initial) {
+			return initial
+		}
+		if d := filepath.Dir(initial); d != "." && isDir(d) {
+			if folder {
+				return d
+			}
+			return initial
+		}
+	}
+	dir := g.lastFolder(group)
+	if dir == "" {
+		return initial
+	}
+	if folder {
+		return dir
+	}
+	name := ""
+	if initial != "" {
+		name = filepath.Base(initial) // a save dialog keeps its file name
+	}
+	return filepath.Join(dir, name) + map[bool]string{true: string(os.PathSeparator)}[name == ""]
+}
+
+func (g *guiServer) lastFolder(group string) string {
+	var m map[string]string
+	if raw, ok := g.loadPrefs()["lastFolders"]; ok && json.Unmarshal(raw, &m) == nil {
+		if d := m[group]; d != "" && isDir(d) {
+			return d
+		}
+	}
+	return ""
+}
+
+func (g *guiServer) rememberFolder(group, dir string) {
+	if dir == "" || dir == "." {
+		return
+	}
+	m := map[string]string{}
+	if raw, ok := g.loadPrefs()["lastFolders"]; ok {
+		_ = json.Unmarshal(raw, &m)
+	}
+	if m[group] == dir {
+		return
+	}
+	m[group] = dir
+	if b, err := json.Marshal(m); err == nil {
+		_ = g.savePref("lastFolders", b)
+	}
 }
 
 func (g *guiServer) prefsFile() string {
