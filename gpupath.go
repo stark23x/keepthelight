@@ -122,6 +122,9 @@ func chooseGPUPath(ctx context.Context, cfg *Config, plan *Plan) (*gpuPath, stri
 	if cfg.Denoise != "" {
 		return nil, "Full-GPU path: not used, because noise reduction runs on the CPU (decoding on the GPU still applies if it is on)"
 	}
+	if plan.Deint != "" {
+		return nil, "Full-GPU path: not used, because deinterlacing runs on the CPU (decoding on the GPU still applies if it is on)"
+	}
 	enc := map[string]string{"nvenc": "hevc_nvenc", "qsv": "hevc_qsv"}[cfg.Codec]
 	args := append([]string{"-hide_banner", "-nostdin", "-v", "error"}, g.Input...)
 	args = append(args, "-i", cfg.Input, "-map", "0:v:0", "-frames:v", "5", "-vf", g.filter(plan),

@@ -221,10 +221,7 @@ func planSize(ctx context.Context, cfg *Config, p *Probe, plan *Plan, srcBytes i
 		sp.Width, sp.Height = plan.ScaleW, plan.ScaleH
 	}
 	sp.Aim = int64(float64(sp.Target) * aimFraction)
-	sp.FPS, _ = parseRational(p.AvgFPS)
-	if sp.FPS <= 0 {
-		sp.FPS, _ = parseRational(p.RFPS)
-	}
+	sp.FPS = outFPS(p, plan)
 
 	sp.AudioBytes, sp.AudioExact = quickAudioBytes(plan.Audio, p.Duration, false)
 	if !sp.AudioExact {

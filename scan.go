@@ -32,6 +32,9 @@ type scanItem struct {
 	Worth    bool     `json:"worth"`
 	Issues   []string `json:"issues"`
 	Err      string   `json:"err,omitempty"`
+
+	height     int    // for the interlacing check
+	fieldOrder string // what the file says
 }
 
 type scanState struct {
@@ -71,19 +74,20 @@ func typicalHEVC(height int, hdr bool) float64 {
 }
 
 type scanStream struct {
-	Type     string            `json:"codec_type"`
-	Codec    string            `json:"codec_name"`
-	Profile  string            `json:"profile"`
-	Width    int               `json:"width"`
-	Height   int               `json:"height"`
-	Channels int               `json:"channels"`
-	Layout   string            `json:"channel_layout"`
-	BitRate  string            `json:"bit_rate"`
-	PixFmt   string            `json:"pix_fmt"`
-	Transfer string            `json:"color_transfer"`
-	Tags     map[string]string `json:"tags"`
-	Disp     map[string]int    `json:"disposition"`
-	SideData []map[string]any  `json:"side_data_list"`
+	Type       string            `json:"codec_type"`
+	Codec      string            `json:"codec_name"`
+	Profile    string            `json:"profile"`
+	Width      int               `json:"width"`
+	Height     int               `json:"height"`
+	Channels   int               `json:"channels"`
+	Layout     string            `json:"channel_layout"`
+	BitRate    string            `json:"bit_rate"`
+	PixFmt     string            `json:"pix_fmt"`
+	Transfer   string            `json:"color_transfer"`
+	FieldOrder string            `json:"field_order"`
+	Tags       map[string]string `json:"tags"`
+	Disp       map[string]int    `json:"disposition"`
+	SideData   []map[string]any  `json:"side_data_list"`
 }
 
 // scanProbe is ffprobe's information for one file (streams and format only:
@@ -137,6 +141,7 @@ func analyse(it *scanItem, data []byte) {
 				continue
 			}
 			vCodec, w, h, videoBps = s.Codec, s.Width, s.Height, bps(s)
+			it.height, it.fieldOrder = s.Height, s.FieldOrder
 			switch s.Transfer {
 			case "smpte2084":
 				hdr = "HDR10"
@@ -243,6 +248,7 @@ func (g *guiServer) scanStart(dir string, recursive bool, tag string, skipExtras
 	if err != nil {
 		return failResult("ffprobe was not found")
 	}
+	ffmpeg, _ := findTool("ffmpeg", "") // for the interlacing check
 	s := &g.scan
 	s.mu.Lock()
 	if s.cancel != nil {
@@ -322,6 +328,9 @@ func (g *guiServer) scanStart(dir string, recursive bool, tag string, skipExtras
 						it.Err = "could not be read as video"
 					} else {
 						analyse(it, out)
+						if it.Err == "" && ffmpeg != "" && ctx.Err() == nil {
+							checkScanInterlace(ctx, ffmpeg, it)
+						}
 					}
 					s.mu.Lock()
 					s.items = append(s.items, it)

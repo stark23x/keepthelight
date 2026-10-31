@@ -108,6 +108,7 @@ type settings struct {
 	SubMode                    string    // rules: "" all matching, "forced", "none"
 	Meta                       *MetaEdit // metadata changes for this file (null = none)
 	Denoise                    string    // noise reduction: "" off, light, medium, strong, hq
+	Deinterlace                string    // "" (smooth), smooth, standard, off
 	TestSeconds                int       // >0: only a test of this many seconds
 	TestStart                  string    // where the test starts ("" = automatic)
 	ReplaceOriginal            bool      // metadata only: the result takes the original's place
@@ -147,11 +148,14 @@ func (s *settings) toConfig() (*Config, error) {
 	if !presets[cfg.Preset] {
 		return nil, fmt.Errorf("unknown preset")
 	}
+	if !validDeinterlace(s.Deinterlace) {
+		return nil, fmt.Errorf("unknown deinterlace setting %q", s.Deinterlace)
+	}
 	if !validDenoise(s.Denoise) {
 		return nil, fmt.Errorf("unknown noise reduction option")
 	}
 	if !cfg.CopyVideo {
-		cfg.Denoise = s.Denoise
+		cfg.Denoise, cfg.Deinterlace = s.Denoise, s.Deinterlace
 	}
 	if s.TestSeconds > 0 {
 		if cfg.CopyVideo {
@@ -313,6 +317,9 @@ func (cfg *Config) cliArgs() []string {
 	}
 	if cfg.Scale != "" {
 		a = append(a, "-scale", cfg.Scale)
+	}
+	if cfg.Deinterlace != "" && cfg.Deinterlace != "smooth" {
+		a = append(a, "-deinterlace", cfg.Deinterlace)
 	}
 	if cfg.Denoise != "" {
 		a = append(a, "-denoise", cfg.Denoise)
@@ -1198,6 +1205,13 @@ func (g *guiServer) probe(ctx context.Context, s settings) map[string]any {
 			}
 		}
 	}
+	if ffmpeg, err := findTool("ffmpeg", ""); err == nil { // old TV material: check the picture for interlacing
+		d := detectInterlace(ctx, ffmpeg, s.Input, p.Height, p.FieldOrder, p.Duration)
+		applyDeinterlace(cfg, plan, d)
+		if d.Interlaced {
+			resp["interlaced"] = d.orderName()
+		}
+	}
 	if t, err := probeTracks(ctx, ffprobe, s.Input); err != nil {
 		resp["blocker"] = "Could not read the audio and subtitle tracks: " + err.Error()
 		return resp
@@ -1221,6 +1235,7 @@ func (g *guiServer) probe(ctx context.Context, s settings) map[string]any {
 		}
 		// the Plex check: what would make Plex convert this file, and what the settings do about it
 		src := plexSrcFromProbe(p, t, size)
+		src.Interlaced = plan.Interlace != nil && plan.Interlace.Interlaced
 		resp["plex"] = plexOutcome(src, plexAfter(src, cfg, plan), cfg)
 	}
 	if plan.UseDV { // a Dolby Vision job needs both tools to actually start; find out now, not halfway through
@@ -1417,6 +1432,9 @@ func friendlyMode(cfg *Config, plan *Plan) string {
 		s = "Will keep: HLG"
 	default:
 		s = "Plain SDR video: no HDR to keep"
+	}
+	if plan.Deint != "" {
+		s += "; " + deintText(plan, 0)
 	}
 	if plan.ScaleW > 0 && !cfg.CopyVideo {
 		s += fmt.Sprintf("; resized to %dx%d", plan.ScaleW, plan.ScaleH)

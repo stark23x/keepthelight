@@ -63,8 +63,8 @@ func TestScoreTest(t *testing.T) {
 	run("-f", "lavfi", "-i", "testsrc2=s=640x360:r=24:d=2", "-c:v", "ffv1", orig)
 	run("-i", orig, "-c:v", "libx265", "-x265-params", "log-level=error", "-crf", "16", "-pix_fmt", "yuv420p10le", good)
 	run("-i", orig, "-c:v", "libx265", "-x265-params", "log-level=error", "-crf", "45", "-pix_fmt", "yuv420p10le", bad)
-	sg, err1 := scoreTest(context.Background(), ffmpeg, good, orig, 640, 360, "")
-	sb, err2 := scoreTest(context.Background(), ffmpeg, bad, orig, 640, 360, "light")
+	sg, err1 := scoreTest(context.Background(), ffmpeg, good, orig, 640, 360, "", "")
+	sb, err2 := scoreTest(context.Background(), ffmpeg, bad, orig, 640, 360, "light", "")
 	if err1 != nil || err2 != nil {
 		t.Fatal(err1, err2)
 	}

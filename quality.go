@@ -90,10 +90,7 @@ func bitrateGuide(bps float64, cfg *Config, p *Probe, plan *Plan) *QualityGuide 
 	if plan.ScaleW > 0 {
 		w, h = plan.ScaleW, plan.ScaleH
 	}
-	fps, _ := parseRational(p.AvgFPS)
-	if fps <= 0 {
-		fps, _ = parseRational(p.RFPS)
-	}
+	fps := outFPS(p, plan)
 	if bps <= 0 || w <= 0 || h <= 0 || fps <= 0 {
 		return nil
 	}
@@ -204,9 +201,15 @@ func hasFilter(ctx context.Context, ffmpeg, name string) bool {
 // VMAF (a perceptual score, 0-100) when ffmpeg has it, otherwise SSIM (0-1).
 // The original is brought to the test's size and format first, so the score is
 // about the encoding, not the resizing.
-func scoreTest(ctx context.Context, ffmpeg, test, original string, w, h int, denoise string) (string, error) {
+//
+// deint is the deinterlacing the test had: the original gets the same, so the
+// frames line up (smooth deinterlacing doubles them).
+func scoreTest(ctx context.Context, ffmpeg, test, original string, w, h int, denoise, deint string) (string, error) {
 	vmaf := hasFilter(ctx, ffmpeg, "libvmaf")
-	prep := fmt.Sprintf("[0:v]setpts=PTS-STARTPTS,format=yuv420p10le[d];[1:v]setpts=PTS-STARTPTS,scale=%d:%d:flags=lanczos,format=yuv420p10le[r];", w, h)
+	if deint != "" {
+		deint += ","
+	}
+	prep := fmt.Sprintf("[0:v]setpts=PTS-STARTPTS,format=yuv420p10le[d];[1:v]setpts=PTS-STARTPTS,%sscale=%d:%d:flags=lanczos,format=yuv420p10le[r];", deint, w, h)
 	f := prep + "[d][r]ssim"
 	if vmaf {
 		f = prep + "[d][r]libvmaf=n_subsample=3:n_threads=4"

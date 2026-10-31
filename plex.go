@@ -18,7 +18,8 @@ import (
 type plexSrc struct {
 	VCodec, PixFmt string
 	DVProfile      int
-	Kbps           int // the whole file's average bitrate
+	Kbps           int  // the whole file's average bitrate
+	Interlaced     bool // the picture was checked and is interlaced
 	Audio, Subs    []plexTrack
 }
 
@@ -65,6 +66,9 @@ func plexIssues(s plexSrc) []plexIssue {
 		if (t.Codec == "ass" || t.Codec == "ssa") && (t.Forced || t.Default) {
 			add("ass-default", "Styled subtitles (ASS/SSA) shown by default", "Styled subtitles (ASS/SSA) shown by default: many Plex players cannot draw them, so Plex burns them in and converts the video (converting them to SRT fixes this)")
 		}
+	}
+	if s.Interlaced {
+		add("interlaced", "Interlaced video", "Interlaced video: moving edges look striped on most screens, and some Plex players have to convert it (deinterlacing fixes this)")
 	}
 	switch s.DVProfile {
 	case 7:
@@ -141,6 +145,7 @@ func plexAfter(src plexSrc, cfg *Config, plan *Plan) plexSrc {
 	} else if plan.UseDV {
 		out.DVProfile, _ = strconv.Atoi(strings.SplitN(plan.DVProfile, ".", 2)[0])
 	}
+	out.Interlaced = src.Interlaced && plan.Deint == ""
 	for _, a := range plan.Audio {
 		c := a.Codec
 		if c == "copy" {
@@ -215,6 +220,8 @@ func plexFixedHow(key string, out plexSrc) string {
 		return "the new file has no audio"
 	case "bitrate":
 		return "the video is re-encoded at a much lower bitrate"
+	case "interlaced":
+		return "the video is deinterlaced"
 	}
 	return "fixed by the settings"
 }
@@ -228,6 +235,14 @@ func plexFixHint(key string, cfg *Config) string {
 		}
 		if key == "dv7" {
 			return `Set Dolby Vision to "Keep Dolby Vision" to fix it.`
+		}
+		return ""
+	case "interlaced":
+		if cfg.CopyVideo {
+			return reencode
+		}
+		if cfg.Deinterlace == "off" {
+			return `Set Deinterlace to "Smooth" or "Standard" under Video to fix it.`
 		}
 		return ""
 	case "forced-pgs", "ass-default":
@@ -260,9 +275,18 @@ func plexProblems(list []plexIssue) int {
 	return n
 }
 
+// checkScanInterlace adds the interlacing check to a scan line (only for the
+// files where it is likely: see worthChecking).
+func checkScanInterlace(ctx context.Context, ffmpeg string, it *scanItem) {
+	if d := detectInterlace(ctx, ffmpeg, it.Path, it.height, it.fieldOrder, it.Duration); d.Interlaced {
+		it.Video += " interlaced"
+		it.Issues = append(it.Issues, plexIssues(plexSrc{Interlaced: true})[0].Text)
+	}
+}
+
 // plexCheckFile checks a finished file and prints the result in the log: one
 // "Plex check:" line per problem, or one saying it is clean.
-func plexCheckFile(ctx context.Context, ffprobe, path string) []string {
+func plexCheckFile(ctx context.Context, ffprobe, ffmpeg, path string) []string {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	data, err := toolCommand(ctx, ffprobe, "-v", "error", "-show_streams", "-show_format", "-of", "json", path).Output()
@@ -280,7 +304,15 @@ func plexCheckFile(ctx context.Context, ffprobe, path string) []string {
 			total = float64(st.Size()) * 8 / dur
 		}
 	}
-	issues := plexIssues(plexSrcFromScan(&p, int(total/1000)))
+	src := plexSrcFromScan(&p, int(total/1000))
+	for _, st := range p.Streams {
+		if st.Type == "video" && st.Disp["attached_pic"] != 1 {
+			dur, _ := strconv.ParseFloat(p.Format.Duration, 64)
+			src.Interlaced = detectInterlace(ctx, ffmpeg, path, st.Height, st.FieldOrder, dur).Interlaced
+			break
+		}
+	}
+	issues := plexIssues(src)
 	if len(issues) == 0 {
 		return []string{"Plex check: no problems found in the new file."}
 	}

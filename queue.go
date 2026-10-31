@@ -614,6 +614,9 @@ func applyProbe(it *queueItem, r map[string]any) {
 	if hp, _ := r["hdr10plus"].(bool); hp {
 		parts = append(parts, "HDR10+")
 	}
+	if _, ok := r["interlaced"]; ok {
+		parts = append(parts, "interlaced")
+	}
 	parts = append(parts, fmt.Sprintf("%v×%v", r["width"], r["height"]))
 	if it.Duration > 0 {
 		parts = append(parts, shortDuration(it.Duration))

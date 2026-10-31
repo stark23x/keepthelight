@@ -83,6 +83,9 @@ Choosing tracks (numbers as the window shows them: audio 1, 2, ...; subtitles 1,
                        data. Never enlarges.
   -denoise <level>     noise reduction: light, medium, strong (fast, CPU), or hq (high quality:
                        on the GPU when it can, else slower on the CPU). Keeps 10-bit HDR intact.
+  -deinterlace <how>   for interlaced video (old TV, DVDs): smooth (default: a frame per field,
+                       50/60 fps), standard (25/30 fps) or off. The picture itself is checked
+                       (files are often labelled wrong), in SD files and files marked interlaced.
   -sample <seconds>    encode only a test of this length (e.g. 30), to check the settings
   -sample-start <time> where the test starts, e.g. 1:02:30 (default: 40%% into the video)
                        The same stretch of the original is kept next to the test, unchanged, for
@@ -181,6 +184,7 @@ func parseArgs() (*Config, bool) {
 	fs.StringVar(&cfg.WorkLocal, "work-local", "", "")
 	fs.StringVar(&cfg.Scale, "scale", "", "")
 	fs.StringVar(&cfg.Denoise, "denoise", "", "")
+	fs.StringVar(&cfg.Deinterlace, "deinterlace", "", "")
 	fs.IntVar(&cfg.SampleSecs, "sample", 0, "")
 	fs.StringVar(&cfg.SampleOriginal, "sample-original", "", "")
 	sampleStartArg := fs.String("sample-start", "", "")
@@ -259,6 +263,10 @@ func parseArgs() (*Config, bool) {
 	}
 	if cfg.Denoise = strings.ToLower(cfg.Denoise); cfg.Denoise == "off" {
 		cfg.Denoise = ""
+	}
+	if cfg.Deinterlace = strings.ToLower(cfg.Deinterlace); !validDeinterlace(cfg.Deinterlace) {
+		fmt.Fprintln(os.Stderr, "error: -deinterlace must be smooth, standard or off")
+		return cfg, false
 	}
 	if !validDenoise(cfg.Denoise) {
 		fmt.Fprintln(os.Stderr, "error: -denoise must be light, medium, strong or hq")
@@ -541,6 +549,19 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 	if err != nil {
 		return err
 	}
+	if !cfg.CopyVideo && !cfg.DryRun { // old TV material: check the picture for interlacing
+		d := detectInterlace(ctx, ffmpeg, cfg.Input, p.Height, p.FieldOrder, p.Duration)
+		applyDeinterlace(cfg, plan, d)
+		switch {
+		case plan.Deint != "":
+			fmt.Printf("Interlaced video found (%d of %d frames checked): %s\n", d.Combed, d.Frames, deintText(plan, outFPS(p, plan)))
+			if cfg.Bitrate != "" { // the frame rate may have doubled: judge the bitrate again
+				plan.Quality = qualityGuide(cfg, p, plan)
+			}
+		case d.Interlaced:
+			fmt.Printf("Interlaced video found (%d of %d frames checked, %s); not deinterlaced\n", d.Combed, d.Frames, d.orderName())
+		}
+	}
 	if err := chooseTracks(ctx, ffprobe, cfg, plan); err != nil {
 		return err
 	}
@@ -675,7 +696,7 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 		if plan.ScaleW > 0 {
 			w, h = plan.ScaleW, plan.ScaleH
 		}
-		if line, err := scoreTest(ctx, cfg.Ffmpeg, cfg.Output, cfg.sample, w, h, cfg.Denoise); err == nil {
+		if line, err := scoreTest(ctx, cfg.Ffmpeg, cfg.Output, cfg.sample, w, h, cfg.Denoise, plan.deintFilter()); err == nil {
 			fmt.Println(line)
 		} else {
 			fmt.Println("WARNING: could not measure the test's quality:", err)
@@ -684,7 +705,7 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 	keepOriginalClip(cfg)
 	if cfg.sample == "" { // the same Plex check as the library scan, on the new file
 		fmt.Println()
-		for _, l := range plexCheckFile(ctx, cfg.Ffprobe, cfg.Output) {
+		for _, l := range plexCheckFile(ctx, cfg.Ffprobe, cfg.Ffmpeg, cfg.Output) {
 			fmt.Println(l)
 		}
 	}
@@ -965,6 +986,9 @@ func verify(ctx context.Context, cfg *Config, plan *Plan) {
 
 func describeMode(cfg *Config, plan *Plan) string {
 	m := describeHDR(cfg, plan)
+	if plan.Deint != "" {
+		m += ", " + deintText(plan, 0)
+	}
 	if plan.ScaleW > 0 {
 		m += fmt.Sprintf(", resized %dx%d -> %dx%d", plan.SrcW, plan.SrcH, plan.ScaleW, plan.ScaleH)
 	}

@@ -45,6 +45,7 @@
   .badge.hdr { background: #1f3a5f; border-color: #2f5b94; color: #9cc4ff; }
   .badge.dv { background: #3b2a55; border-color: #5d4388; color: #cdb2ff; }
   .badge.plus { background: #1f4a3a; border-color: #2f7a5e; color: #8fe0bd; }
+  .badge.warnb { background: #3a2f17; border-color: #6b5420; color: var(--warn); }
   .meta { color: var(--muted); font-size: 12.5px; }
   .note { margin-top: 8px; padding: 8px 10px; border-radius: 6px; font-size: 13px; }
   .note.warn { background: #3a2f17; border: 1px solid #6b5420; color: var(--warn); }
@@ -413,6 +414,10 @@
           <select id="denoise"><option value="">Off</option><option value="light">Light</option><option value="medium">Medium</option>
             <option value="strong">Strong</option><option value="hq">High quality (slower)</option></select>
           <div class="hint" id="denoiseHint">Cleans up noise and compression fizz; also makes files smaller. Light keeps film grain recognisable.</div></div>
+      <div class="nrrow"><label for="deinterlace">Deinterlace</label>
+          <select id="deinterlace"><option value="">Smooth motion (when needed)</option><option value="standard">Standard frame rate (when needed)</option><option value="off">Off</option></select>
+          <div class="hint" id="deintHint">For interlaced video (old TV shows, DVDs, recordings), whose moving edges look striped. Keep the Light checks the picture,
+            so normal films are left alone. Smooth gives each half-picture its own frame (50/60 fps), like the original broadcast.</div></div>
     </div>
   </details>
 
@@ -725,7 +730,7 @@ function settings() {
     preset: $('preset').value, audio: $('audio').value, audioBitrate: $('abitrate').value.trim(),
     dv: $('dv').value, masterDisplay: $('master').value.trim(), maxCLL: $('cll').value.trim(), tmp: $('tmp').value.trim(),
     targetSize: $('targetNum').value.trim().replace(',', '.') + $('targetUnit').value, retries: +$('retries').value,
-    scale: $('scale').value, denoise: $('denoise').value,
+    scale: $('scale').value, denoise: $('denoise').value, deinterlace: $('deinterlace').value,
     audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, audioChannels: $('audioCh').value, addCompatAudio: $('addCompat').checked, subLang: $('subLang').value.trim(), subMode: $('subMode').value, subToSRT: $('subToSRT').value,
     audioOnePerLang: $('audioOne').value, subNameMode: $('subNameMode').value, subNameWords: $('subNameWords').value.trim(), nameTracks: $('nameTracks').checked,
     ...trackSettings(),
@@ -1170,7 +1175,7 @@ async function confirmNewFiles(form) {
 // ---------- profiles ----------
 // A profile is a named set of the settings below the Files section. It can
 // name converted files after itself ("Film_Plex 4K.mkv").
-const PROFILE_KEYS = ['mode', 'codec', 'preset', 'scale', 'denoise', 'dv', 'quality', 'crf', 'bitrate', 'targetSize', 'retries',
+const PROFILE_KEYS = ['mode', 'codec', 'preset', 'scale', 'denoise', 'deinterlace', 'dv', 'quality', 'crf', 'bitrate', 'targetSize', 'retries',
   'audio', 'audioBitrate', 'audioChannels', 'audioLang', 'dropCommentary', 'addCompatAudio', 'subLang', 'subMode', 'subToSRT', 'audioOnePerLang', 'subNameMode', 'subNameWords', 'nameTracks', 'masterDisplay', 'maxCLL', 'format'];
 let profiles = []; // [{ name, useNameTag, settings }]
 function activeProfile() { const n = $('profile').value; return n ? profiles.find(p => p.name === n) || null : null; }
@@ -1215,6 +1220,7 @@ function applyFields(st, keys) {
   if (has('preset')) $('preset').value = st.preset;
   if (has('scale')) $('scale').value = st.scale;
   if (has('denoise')) $('denoise').value = st.denoise;
+  if (has('deinterlace')) $('deinterlace').value = st.deinterlace;
   if (has('dv')) $('dv').value = st.dv;
   if (has('quality')) setRadio('quality', st.quality);
   if (has('crf')) $('crf').value = st.crf;
@@ -1241,7 +1247,7 @@ function applyFields(st, keys) {
 // a profile's format (MKV or MP4) for an output name
 function withFormat(out, p) { return p && p.settings && ['.mkv', '.mp4'].includes(p.settings.format) ? out.replace(/\.[A-Za-z0-9]+$/, '') + p.settings.format : out; }
 // settings added after a profile was saved: their defaults, so older profiles still apply cleanly
-const PROFILE_DEFAULTS = { denoise: '', addCompatAudio: false, subToSRT: '', audioOnePerLang: '', subNameMode: '', subNameWords: '', nameTracks: false };
+const PROFILE_DEFAULTS = { denoise: '', deinterlace: '', addCompatAudio: false, subToSRT: '', audioOnePerLang: '', subNameMode: '', subNameWords: '', nameTracks: false };
 function withDefaults(st) { return Object.assign({}, PROFILE_DEFAULTS, st); }
 function applyProfile(p) {
   if (p) applyFields(withDefaults(p.settings), PROFILE_KEYS);
@@ -1496,6 +1502,9 @@ function updateSummaries() {
     if ($('scale').value) v += '  ·  ' + (info && info.scaledTo ? info.scaledTo : $('scale').value);
     if ($('denoise').value) v += '  ·  noise reduction ' + $('denoise').options[$('denoise').selectedIndex].text.toLowerCase().replace(' (slower)', '');
     if (info && info.dv && $('dv').value === 'drop') v += '  ·  drop Dolby Vision';
+    const di = $('deinterlace').value;
+    if (info && info.interlaced) v += di === 'off' ? '  ·  interlaced, not deinterlaced' : '  ·  deinterlace ' + (di === 'standard' ? 'standard' : 'smooth');
+    else if (di) v += di === 'off' ? '  ·  deinterlacing off' : '  ·  deinterlace standard';
   }
   $('sumVideo').textContent = v;
   $('sumAudio').textContent = audioSummary();
@@ -1611,6 +1620,7 @@ function showInfo(r) {
   else b.appendChild(badge('SDR'));
   if (r.dv) b.appendChild(badge('Dolby Vision ' + r.dv, 'dv'));
   if (r.hdr10plus) b.appendChild(badge('HDR10+', 'plus'));
+  if (r.interlaced) b.appendChild(badge('Interlaced (' + r.interlaced + ')', 'warnb'));
   b.appendChild(badge(r.width + '×' + r.height));
   b.appendChild(badge(r.codec + ' ' + r.pixFmt));
   const bits = [];
@@ -1713,7 +1723,7 @@ $('container').addEventListener('change', () => {
   if (o) $('output').value = o.replace(/\.[A-Za-z0-9]+$/, '') + $('container').value; else suggestOutput();
   updateAudioNote(); renderMeta(); scheduleProbe();
 });
-['preset', 'scale', 'denoise', 'dv', 'bitrate', 'abitrate', 'master', 'cll', 'tmp', 'targetNum', 'targetUnit', 'retries'].forEach(id => $(id).addEventListener('change', () => scheduleProbe(200)));
+['preset', 'scale', 'denoise', 'deinterlace', 'dv', 'bitrate', 'abitrate', 'master', 'cll', 'tmp', 'targetNum', 'targetUnit', 'retries'].forEach(id => $(id).addEventListener('change', () => scheduleProbe(200)));
 $('targetNum').addEventListener('input', () => scheduleProbe(600));
 $('audio').addEventListener('change', () => { updateVisibility(); rulesChanged(); });
 ['audioLang', 'subLang'].forEach(id => $(id).addEventListener('change', rulesChanged));
@@ -2176,6 +2186,7 @@ function settingsText(st) {
   if (st.profile) parts.unshift(st.profile);
   if (st.scale) parts.push(st.scale);
   if (st.denoise) parts.push('NR ' + (st.denoise === 'hq' ? 'high quality' : st.denoise));
+  if (st.deinterlace) parts.push(st.deinterlace === 'off' ? 'no deinterlacing' : 'deinterlace standard');
   if (st.testSeconds) parts.unshift(st.testSeconds + ' s test');
   if (st.audioTracks) parts.push(st.audioTracks.length + ' audio' + (st.subTracks ? ', ' + st.subTracks.length + ' subtitle' + (st.subTracks.length === 1 ? '' : 's') : '') + ' (own choice)');
   if (st.meta) parts.push('own metadata');

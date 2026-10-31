@@ -11,6 +11,7 @@ type Config struct {
 	HWDecode                                     bool    // decode the source on the GPU (falls back to the CPU)
 	Scale                                        string  // "" keeps the size; "1080p" etc. shrinks to fit that frame
 	Denoise                                      string  // noise reduction: "" off, light, medium, strong, hq
+	Deinterlace                                  string  // "" or smooth, standard, off (see deinterlace.go)
 	SampleSecs                                   int     // >0: encode only a test of this many seconds
 	SampleStart                                  float64 // where the test starts (seconds; <0 = automatic)
 	SampleOriginal                               string  // where the same stretch of the original is kept, for comparing ("" = automatic)
@@ -70,6 +71,9 @@ type Plan struct {
 	ScaleW       int // >0: resize the video to ScaleW x ScaleH
 	ScaleH       int
 	SrcW, SrcH   int
+	Interlace    *interlaceInfo // what the check of the picture found (nil: not checked)
+	Deint        string         // "" (no), "smooth" or "standard"
+	FieldOrder   string         // "tff" or "bff"
 }
 
 // scaleBoxes are the sizes offered for resizing: the video is shrunk to fit
@@ -222,6 +226,9 @@ func buildVideoArgs(cfg *Config, p *Probe, plan *Plan, hdr10plusJSON string) ([]
 		prim, space = dflt(prim, "bt2020"), dflt(space, "bt2020nc")
 	}
 	var args, filters []string
+	if f := plan.deintFilter(); f != "" { // first: resizing an interlaced picture would blend its fields
+		filters = append(filters, f)
+	}
 	if plan.ScaleW > 0 {
 		// Same pixel format and colour space in and out: only the size changes,
 		// so the HDR picture (PQ/HLG, BT.2020, 10-bit) is untouched.
