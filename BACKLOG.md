@@ -12,8 +12,9 @@ next build". Shipped features move to "Done" with their version number. Nothing 
     854×356 at 480p. Sizes are rounded to even numbers, which the encoders need.
   - **HDR:** HDR10, HLG, HDR10+ and Dolby Vision are kept as for the other sizes, including the Dolby Vision
     active area scaled per scene.
-  - **Checks:** the quality guide, size plan and queue list need to know the new sizes. Check that NVENC and
-    QuickSync accept HEVC Main10 at these small sizes, and use the CPU (x265) with a note if not.
+  - **Checks:** the quality guide, size plan and queue list need to know the new sizes.
+  - **Hardware tested (2026-10-31):** both encoders accept HEVC Main10 at 854×356 (widescreen 480p). NVENC was
+    tested on the laptop's RTX 5080, QuickSync on the Dell. No fallback is needed.
 
 ## Ideas raised, not yet requested
 
