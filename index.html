@@ -132,6 +132,7 @@
   .trow label.check { margin: 0; white-space: nowrap; }
   .trow.sub { grid-template-columns: 90px 1fr auto auto auto; }
   .trow select.tsrt { width: auto; padding: 4px 8px; }
+  .tdesc select.tlang { width: auto; padding: 2px 6px; margin-left: 8px; font-size: 12px; } /* UI-10 */
   .trow.nodef { grid-template-columns: 1fr auto; background: transparent; border-style: dashed; }
   .rules { border-top: 1px solid var(--line); padding-top: 12px; }
   textarea { width: 100%; box-sizing: border-box; resize: vertical; font: inherit; background: var(--panel2); color: var(--text);
@@ -975,6 +976,7 @@ function renderTracks() {
       chSel.onchange = () => { kept.channels = chSel.value; tracksChanged(); };
     }
     const d = el('div', 'tdesc'); d.append(el('span', 'tnum', String(src.n)), document.createTextNode(src.desc)); d.title = src.desc;
+    if (kept) langPick(d, 'a', src); // UI-10
     row.append(sel, d, chSel, kept ? radioLabel('adef', t.audioDefault === src.n, 'default', () => { t.audioDefault = src.n; tracksChanged(); }) : el('span'));
     al.append(row);
   });
@@ -1014,6 +1016,7 @@ function renderTracks() {
       });
       if (noMP4) { keep.querySelector('input').disabled = true; keep.title = 'Picture subtitles (PGS, VobSub) cannot be stored in MP4. Choose MKV to keep them.'; }
       const d = el('div', 'tdesc'); d.append(el('span', 'tnum', String(src.n)), document.createTextNode(src.desc + (noMP4 ? ' · not possible in MP4' : ''))); d.title = src.desc;
+      if (kept && !noMP4) langPick(d, 's', src); // UI-10
       // ASS/SSA (styled text) and PGS (pictures) can become plain SRT
       let conv = el('span');
       if (kept && !noMP4 && src.srtKind && !metaMode()) {
@@ -1041,6 +1044,24 @@ function renderTracks() {
   } else sl.append(el('div', 'hint', 'This file has no subtitle tracks.'));
 }
 
+// UI-10: a track with no language gets a language picker in its row (it sets the
+// track's language in Metadata, where any other code can be typed).
+const QUICK_LANGS = [['eng', 'English'], ['spa', 'Spanish'], ['fre', 'French'], ['ger', 'German'], ['ita', 'Italian'], ['por', 'Portuguese'],
+  ['dut', 'Dutch'], ['swe', 'Swedish'], ['nor', 'Norwegian'], ['dan', 'Danish'], ['fin', 'Finnish'], ['pol', 'Polish'], ['rus', 'Russian'],
+  ['jpn', 'Japanese'], ['kor', 'Korean'], ['chi', 'Chinese'], ['hin', 'Hindi'], ['ara', 'Arabic'], ['heb', 'Hebrew'], ['tur', 'Turkish'], ['gre', 'Greek']];
+function langPick(d, kind, src) {
+  if (src.lang && src.lang !== 'und') return;
+  const m = metaFor(), v = m && m.tracks[kind + src.n];
+  if (!v) return;
+  const sel = el('select', 'tlang');
+  sel.title = 'This track has no language. Players and Plex use it to pick audio and subtitles.';
+  [['', 'Set language…'], ...QUICK_LANGS].forEach(([c, name]) => { const o = el('option', '', name); o.value = c; sel.append(o); });
+  if (v.lang && !QUICK_LANGS.some(([c]) => c === v.lang)) { const o = el('option', '', v.lang); o.value = v.lang; sel.append(o); }
+  sel.value = v.lang || '';
+  sel.onclick = e => e.stopPropagation();
+  sel.onchange = () => { v.lang = sel.value; renderMeta(); updateSummaries(); };
+  d.append(sel);
+}
 function tracksChanged() { renderTracks(); renderMeta(); updateSummaries(); scheduleProbe(250); }
 // The rules changed: start again from them for the file in the form.
 function rulesChanged() {
