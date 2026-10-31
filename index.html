@@ -46,6 +46,9 @@
   .badge.dv { background: #3b2a55; border-color: #5d4388; color: #cdb2ff; }
   .badge.plus { background: #1f4a3a; border-color: #2f7a5e; color: #8fe0bd; }
   .badge.warnb { background: #3a2f17; border-color: #6b5420; color: var(--warn); }
+  .srcinfo .fhead { margin-bottom: 8px; min-width: 0; } /* UI-5: the file's name, large, its folder below */
+  .srcinfo .fname { font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .srcinfo .fdir { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .meta { color: var(--muted); font-size: 12.5px; }
   .note { margin-top: 8px; padding: 8px 10px; border-radius: 6px; font-size: 13px; }
   .note.warn { background: #3a2f17; border: 1px solid #6b5420; color: var(--warn); }
@@ -333,6 +336,7 @@
       <button id="browseIn">Browse…</button>
     </div>
     <div id="infoCard" class="srcinfo hidden">
+      <div class="fhead"><div class="fname" id="fName"></div><div class="fdir" id="fDir"></div></div>
       <div class="badges" id="badges"></div>
       <div class="meta" id="meta"></div>
       <div id="notes"></div>
@@ -1612,6 +1616,13 @@ async function restorePrefs() {
   $('qOutDirWrap').classList.toggle('hidden', $('qOutMode').value !== 'dir');
 }
 
+// UI-5: "HEVC 10-bit" rather than "hevc yuv420p10le" (the exact format on hover)
+function plainCodec(codec, pixFmt) {
+  const names = { hevc: 'HEVC', h264: 'H.264', mpeg2video: 'MPEG-2', mpeg4: 'MPEG-4', vc1: 'VC-1', av1: 'AV1', vp9: 'VP9', prores: 'ProRes' };
+  const m = /(\d+)(le|be)?$/.exec(pixFmt || ''), bits = m && +m[1] >= 9 && +m[1] <= 16 ? m[1] : '8';
+  const b = badge((names[codec] || (codec || '').toUpperCase()) + ' ' + bits + '-bit');
+  b.title = codec + ' ' + pixFmt; return b;
+}
 function badge(text, cls) {
   const s = document.createElement('span');
   s.className = 'badge ' + (cls || ''); s.textContent = text; return s;
@@ -1632,6 +1643,8 @@ function showInfo(r) {
   b.innerHTML = ''; notes.innerHTML = ''; $('meta').textContent = '';
   if (!r || (!r.ok && !r.error)) { card.classList.add('hidden'); return; }
   card.classList.remove('hidden');
+  const path = $('input').value.trim(), cut = Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/')); // UI-5
+  $('fName').textContent = path.slice(cut + 1); $('fDir').textContent = cut > 0 ? path.slice(0, cut) : ''; $('fName').title = path;
   if (!r.ok || r.blocker) $('secFiles').open = true; // a problem that stops the job must not hide in a closed section
   if (!r.ok) { notes.appendChild(note(r.error, 'bad')); return; }
   if (r.kind === 'hdr10') b.appendChild(badge('HDR10 (PQ)', 'hdr'));
@@ -1641,7 +1654,7 @@ function showInfo(r) {
   if (r.hdr10plus) b.appendChild(badge('HDR10+', 'plus'));
   if (r.interlaced) b.appendChild(badge('Interlaced (' + r.interlaced + ')', 'warnb'));
   b.appendChild(badge(r.width + '×' + r.height));
-  b.appendChild(badge(r.codec + ' ' + r.pixFmt));
+  b.appendChild(plainCodec(r.codec, r.pixFmt)); // UI-5
   const bits = [];
   if (r.duration) bits.push(fmtDur(r.duration));
   if (r.cll) bits.push('MaxCLL/FALL ' + r.cll);
