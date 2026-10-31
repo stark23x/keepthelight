@@ -233,6 +233,12 @@
   details.help > summary::-webkit-details-marker { display: none; }
   details.help[open] > summary { margin: 0; }
   details.help[open] { display: block; margin-top: 3px; }
+  /* UI-6: hints that only explain sit behind a small "?" */
+  .tipq { width: 18px; height: 18px; padding: 0; border-radius: 99px; font-size: 11px; line-height: 16px; margin-left: 6px; vertical-align: 1px;
+    color: var(--muted); background: transparent; border: 1px solid var(--line); cursor: pointer; }
+  .tipq.on { color: var(--text); border-color: var(--accent2); }
+  .tipq.alone { margin: 6px 0 0; display: block; }
+  .hint.tip:not(.open) { display: none; }
   details.pop { position: relative; display: inline-block; }
   details.pop > summary { list-style: none; width: 22px; height: 22px; border-radius: 99px; border: 1px solid var(--line); text-align: center; line-height: 20px;
     color: var(--muted); font-size: 12px; text-transform: none; letter-spacing: 0; margin: 0; }
@@ -2213,6 +2219,25 @@ $('scanAdd').onclick = async () => {
   if (r && r.added) { scanSel = new Set(); renderScan(); scanButtons(); }
 };
 fillScanWith();
+
+// ---------- hints behind a "?" (UI-6) ----------
+// Hints that only explain are shown on request: a "?" next to the setting's label
+// (or in the hint's place) opens them. Hints that prevent mistakes stay visible.
+const TIP_HINTS = ['Slower = smaller', 'Lower = better quality', 'For example 20M', 'Cleans up noise', 'For interlaced video',
+  'For files with the same language', 'Tracks with no language set', '"SDH", "forced"', 'Plex uses the track languages', 'Only needed when the source'];
+function hintsToTips() {
+  document.querySelectorAll('#tabConvert div.hint').forEach(h => {
+    if (!TIP_HINTS.some(t => h.textContent.trim().startsWith(t))) return;
+    const q = el('button', 'tipq', '?');
+    q.type = 'button'; q.title = 'What does this do?'; q.setAttribute('aria-expanded', 'false');
+    q.onclick = e => { e.preventDefault(); const open = h.classList.toggle('open'); q.classList.toggle('on', open); q.setAttribute('aria-expanded', String(open)); };
+    h.classList.add('tip');
+    const label = h.parentElement && h.parentElement.querySelector(':scope > label');
+    if (label) label.append(q);
+    else { q.classList.add('alone'); h.before(q); }
+  });
+}
+hintsToTips();
 
 async function askUser(text) {
   if (BRIDGE) { const r = await api('ask', { text }); return !!(r && r.yes); }
