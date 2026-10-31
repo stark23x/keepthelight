@@ -104,7 +104,10 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   (PGS/VobSub, which Plex burns in), H.264 10-bit, VC-1 / MPEG-2, and very high bitrates. Show all files, those worth
   converting (at least 300 MB and a quarter saved) or those with trouble spots; **Select worth converting**, then
   **Add selected to queue** with the current settings or a profile. The estimate assumes x265 at very good quality; a
-  30-second test shows the real result. Files Keep the Light made (ending in the name tag) are left out.
+  30-second test shows the real result. Files Keep the Light made (ending in the name tag) are left out, and so are
+  Plex extras (**Skip Plex extras**, on by default): files in Behind The Scenes, Deleted Scenes, Featurettes,
+  Interviews, Scenes, Shorts, Trailers and Other folders, files ending in -trailer, -featurette, -deleted and the
+  like, and Plex Versions folders. The summary says how many were skipped.
 - **Add a compatible audio track when needed** (Audio rules): if a file has no AC-3, E-AC-3 or AAC track (TrueHD,
   DTS or FLAC only), an E-AC-3 5.1 copy of the main track is added next to the original, so TVs and streamers that
   cannot play the original get sound without Plex converting it. Files that already have one are left as they are.
@@ -141,6 +144,8 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
 - **Sound when finished** (⚙ Settings, remembered): when a transcode or the whole queue is done, Keep the Light
   plays a sound (Notify by default) and flashes its taskbar button; a different sound (Critical stop) means a file
   failed. Choose any Windows sound, a sound from Windows' Media folder (Alarm 1-10 and so on), your own .wav, or none.
+- **Right-click** text boxes for Cut, Copy, Paste and Select all, and any other text (logs, notes) for Copy and
+  Select all. A finished or failed file in the queue has a **Copy log** button in its log.
 - **One window at a time:** starting Keep the Light again, or dropping videos on the exe while it is open,
   brings the open window to the front and adds the files there.
 - The PC is kept awake while a transcode runs. Results are written as `name_KTL.partial.mkv` and renamed when
@@ -244,6 +249,9 @@ subtitles and container from the target to get a video bitrate, then:
   its own sources.
 
 ## Subtitles and audio
+- **Empty tracks** (a subtitle or audio track with nothing in it, which the file's own statistics show) are marked
+  "EMPTY" and left out automatically: such a track can make FFmpeg fail partway through an encode. Tick one to keep
+  it anyway.
 - **Choosing tracks:** the Audio and Subtitles sections list every track of the file. Each audio track can be
   copied, converted (E-AC-3, AC-3, AAC, Opus, FLAC) or dropped; each subtitle track kept or dropped, with its
   forced flag. One audio track and (optionally) one subtitle track are marked as the default. **Set all tracks

@@ -755,6 +755,19 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		var b struct{ IDs []int }
 		_ = json.Unmarshal(body, &b)
 		return g.queueTMDB(b.IDs)
+	case "clipboardRead":
+		t, err := readClipboard()
+		if err != nil {
+			return failResult(err.Error())
+		}
+		return map[string]any{"ok": true, "text": t}
+	case "clipboardWrite":
+		var c struct{ Text string }
+		_ = json.Unmarshal(body, &c)
+		if err := writeClipboard(c.Text); err != nil {
+			return failResult(err.Error())
+		}
+		return okResult()
 	case "queueClearAll":
 		return map[string]any{"ok": true, "removed": g.queueClearAll()}
 	case "queueClear":
@@ -839,11 +852,12 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		return g.tmdbCall(ctx, name, body)
 	case "scanStart":
 		var b struct {
-			Dir, Tag  string
-			Recursive bool
+			Dir, Tag   string
+			Recursive  bool
+			SkipExtras *bool
 		}
 		_ = json.Unmarshal(body, &b)
-		return g.scanStart(strings.TrimSpace(b.Dir), b.Recursive, b.Tag)
+		return g.scanStart(strings.TrimSpace(b.Dir), b.Recursive, b.Tag, b.SkipExtras == nil || *b.SkipExtras)
 	case "scanStop":
 		g.scanStop()
 		return okResult()

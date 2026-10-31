@@ -25,6 +25,8 @@ type srcTrack struct {
 	Channels            int
 	BitRate             float64 // bits/s, 0 if unknown
 	Bytes               int64   // from container statistics, 0 if unknown
+	Frames              int64   // packets (subtitles shown, audio frames), from container statistics
+	Empty               bool    // the container's statistics say the track holds nothing
 	Disp                map[string]bool
 }
 
@@ -161,6 +163,7 @@ func parseTracks(data []byte) (*Tracks, error) {
 			continue
 		}
 		tr := srcTrack{Codec: s.Codec, Profile: s.Profile, Channels: s.Channels, Layout: s.Layout, Disp: map[string]bool{}}
+		hasStats := false
 		tr.BitRate, _ = strconv.ParseFloat(s.BitRate, 64)
 		for k, v := range s.Tags {
 			uk := strings.ToUpper(k)
@@ -171,6 +174,10 @@ func parseTracks(data []byte) (*Tracks, error) {
 				tr.Title = v
 			case strings.HasPrefix(uk, "NUMBER_OF_BYTES"):
 				tr.Bytes, _ = strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+				hasStats = true
+			case strings.HasPrefix(uk, "NUMBER_OF_FRAMES"):
+				tr.Frames, _ = strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+				hasStats = true
 			case strings.HasPrefix(uk, "BPS") && tr.BitRate == 0:
 				tr.BitRate, _ = strconv.ParseFloat(strings.TrimSpace(v), 64)
 			}
@@ -180,6 +187,9 @@ func parseTracks(data []byte) (*Tracks, error) {
 				tr.Disp[k] = true
 			}
 		}
+		// MKV files made by mkvmerge (and most tools) record each track's size: a track with no
+		// data at all can make FFmpeg fail partway through the encode, so it is left out
+		tr.Empty = hasStats && tr.Frames == 0 && tr.Bytes == 0
 		if s.Type == "audio" {
 			tr.N = len(t.Audio) + 1
 			t.Audio = append(t.Audio, tr)
@@ -254,6 +264,9 @@ func describe(t srcTrack, audio bool) string {
 	}
 	if len(flags) > 0 {
 		parts = append(parts, strings.Join(flags, ", "))
+	}
+	if t.Empty {
+		parts = append(parts, "EMPTY (no content)")
 	}
 	return strings.Join(parts, " · ")
 }
@@ -496,6 +509,9 @@ func selectTracks(cfg *Config, t *Tracks, mp4 bool) (audio []outAudio, subs []ou
 				continue
 			}
 			seen[s.N] = true
+			if t.Audio[s.N-1].Empty {
+				warn("audio track %d is empty; keeping it can make FFmpeg fail partway through (drop it if that happens)", s.N)
+			}
 			codec := s.Codec
 			if codec == "" {
 				codec = general
@@ -508,6 +524,10 @@ func selectTracks(cfg *Config, t *Tracks, mp4 bool) (audio []outAudio, subs []ou
 		}
 	} else {
 		for _, a := range t.Audio {
+			if a.Empty {
+				warns = append(warns, fmt.Sprintf("note: audio track %d is empty (it holds no sound), so it is left out", a.N))
+				continue
+			}
 			if langMatch(cfg.AudioLangs, a.Lang) && !(cfg.DropCommentary && isCommentary(a)) {
 				audio = append(audio, outAudio{Src: a, Codec: general})
 			}
@@ -602,12 +622,19 @@ func selectTracks(cfg *Config, t *Tracks, mp4 bool) (audio []outAudio, subs []ou
 			}
 			if !seen[s.N] {
 				seen[s.N] = true
+				if t.Subs[s.N-1].Empty {
+					warn("subtitle track %d is empty; keeping it can make FFmpeg fail partway through (drop it if that happens)", s.N)
+				}
 				subs = append(subs, outSub{Src: t.Subs[s.N-1], Forced: s.Forced})
 				srtMode = append(srtMode, s.SRT)
 			}
 		}
 	} else if cfg.SubMode != "none" {
 		for _, s := range t.Subs {
+			if s.Empty {
+				warns = append(warns, fmt.Sprintf("note: subtitle track %d is empty (it holds no subtitles), so it is left out", s.N))
+				continue
+			}
 			if cfg.SubNameMode != "" && len(cfg.SubNameWords) > 0 && nameMatches(s, cfg.SubNameWords) != (cfg.SubNameMode == "keep") {
 				continue
 			}
@@ -982,7 +1009,7 @@ func trackList(ts []srcTrack, audio bool) []map[string]any {
 	for _, t := range ts {
 		m := map[string]any{"n": t.N, "desc": describe(t, audio), "codec": t.Codec, "lang": t.Lang, "title": t.Title,
 			"default": t.Default(), "forced": t.Forced(), "commentary": isCommentary(t), "channels": t.Channels,
-			"sdhFlag": t.Disp["hearing_impaired"], "commentFlag": t.Disp["comment"]}
+			"sdhFlag": t.Disp["hearing_impaired"], "commentFlag": t.Disp["comment"], "empty": t.Empty}
 		if audio {
 			m["mp4ok"] = mp4Audio(t.Codec)
 		} else {

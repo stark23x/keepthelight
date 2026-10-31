@@ -18,6 +18,20 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.22.0 - 2026-10-31
+
+- **Empty subtitle and audio tracks are left out automatically.** A track with nothing in it (for example a
+  subtitle track holding no subtitles) can make FFmpeg fail partway through an encode, with an error that looks
+  like the video encoder's ("hevc_nvenc … Invalid argument"). Keep the Light now spots such tracks from the file's
+  own statistics, marks them "EMPTY", and leaves them out, also for queued files, with a note in the log. Ticking
+  one keeps it anyway (with a warning).
+- **Skip Plex extras in the library scan** (on by default): trailers, featurettes, deleted scenes and the other
+  extras Plex recognises by folder or file name, and Plex Versions folders. The summary says how many were skipped.
+- **Right-click menu:** Cut, Copy, Paste and Select all in text boxes; Copy and Select all elsewhere. Paste reads
+  the Windows clipboard directly.
+- **Fix: a queued file's log could not be scrolled** (it jumped back every half-second). It also has a **Copy
+  log** button now.
+
 ## 1.21.0 - 2026-10-29
 
 - **Progress for the whole batch and for each file** (Queue tab).

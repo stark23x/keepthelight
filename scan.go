@@ -41,6 +41,7 @@ type scanState struct {
 	found     int // video files found so far
 	done      int // read so far
 	listing   bool
+	extras    int // Plex extras left out
 	items     []*scanItem
 	cancel    context.CancelFunc
 	startedAt time.Time
@@ -237,7 +238,34 @@ func codecDisplay(c string) string {
 
 // ---------- running a scan ----------
 
-func (g *guiServer) scanStart(dir string, recursive bool, tag string) map[string]any {
+// Plex's extras: files in these folders, or whose name ends in these words
+// (https://support.plex.tv/articles/local-files-for-trailers-and-extras/), and
+// Plex's own optimised copies ("Plex Versions").
+var (
+	plexExtraDirs = map[string]bool{"behind the scenes": true, "deleted scenes": true, "featurettes": true, "interviews": true,
+		"scenes": true, "shorts": true, "trailers": true, "other": true, "plex versions": true}
+	plexExtraSuffixes = []string{"-behindthescenes", "-deleted", "-featurette", "-interview", "-scene", "-short", "-trailer", "-other"}
+)
+
+// isPlexExtra: Plex treats the file (relative to the scanned folder) as an extra.
+func isPlexExtra(rel string) bool {
+	parts := strings.Split(filepath.ToSlash(rel), "/")
+	for _, d := range parts[:len(parts)-1] {
+		if plexExtraDirs[strings.ToLower(strings.TrimSpace(d))] {
+			return true
+		}
+	}
+	name := parts[len(parts)-1]
+	stem := strings.ToLower(strings.TrimSuffix(name, filepath.Ext(name)))
+	for _, s := range plexExtraSuffixes {
+		if strings.HasSuffix(stem, s) {
+			return true
+		}
+	}
+	return false
+}
+
+func (g *guiServer) scanStart(dir string, recursive bool, tag string, skipExtras bool) map[string]any {
 	st, err := os.Stat(dir)
 	if err != nil || !st.IsDir() {
 		return failResult("That folder is not available: " + dir)
@@ -253,6 +281,7 @@ func (g *guiServer) scanStart(dir string, recursive bool, tag string) map[string
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s.running, s.dir, s.found, s.done, s.items, s.cancel, s.listing, s.startedAt = true, dir, 0, 0, nil, cancel, true, time.Now()
+	s.extras = 0
 	s.mu.Unlock()
 
 	go func() {
@@ -278,6 +307,14 @@ func (g *guiServer) scanStart(dir string, recursive bool, tag string) map[string
 				if !videoExts[strings.ToLower(filepath.Ext(n))] || strings.HasSuffix(stem, ".partial") || strings.Contains(stem, " s test)") ||
 					strings.Contains(stem, " s original)") || strings.HasPrefix(n, ".keepthelight") || isOwnOutput(stem, tag) {
 					return nil
+				}
+				if skipExtras {
+					if rel, err := filepath.Rel(dir, path); err == nil && isPlexExtra(rel) {
+						s.mu.Lock()
+						s.extras++
+						s.mu.Unlock()
+						return nil
+					}
 				}
 				s.mu.Lock()
 				s.found++
@@ -362,7 +399,7 @@ func (g *guiServer) scanStatus(since int) map[string]any {
 	items := append([]*scanItem(nil), s.items[since:]...)
 	sort.SliceStable(items, func(a, b int) bool { return items[a].Saving > items[b].Saving })
 	return map[string]any{"ok": true, "running": s.running, "listing": s.listing, "dir": s.dir, "found": s.found, "done": s.done,
-		"next": len(s.items), "items": items, "size": formatBytes(size), "worth": worth, "saving": formatBytes(saving), "trouble": trouble}
+		"next": len(s.items), "items": items, "size": formatBytes(size), "worth": worth, "saving": formatBytes(saving), "trouble": trouble, "extras": s.extras}
 }
 
 // isOwnOutput: a file Keep the Light made (its name ends with the name tag).

@@ -247,6 +247,19 @@
   .testgrp input { width: 110px; padding: 7px 8px; }
   .dock pre#log { max-height: 28vh; }
 
+  /* right-click menu */
+  .ctxmenu { position: fixed; z-index: 1000; min-width: 160px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 4px; box-shadow: 0 10px 30px rgba(0,0,0,.5); font-size: 13px; }
+  .ctxmenu button { display: flex; justify-content: space-between; gap: 24px; width: 100%; text-align: left; background: none; border: 0;
+    border-radius: 5px; padding: 6px 10px; }
+  .ctxmenu button:hover:not(:disabled) { background: var(--panel2); }
+  .ctxmenu button span { color: var(--muted); font-size: 12px; }
+  .ctxmenu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 2px; }
+  .qlogwrap { grid-column: 1 / -1; }
+  .qlogwrap .qlogbar { display: flex; justify-content: flex-end; margin-top: 4px; }
+  .qlogwrap .qlogbar button { padding: 3px 8px; font-size: 12px; }
+  .qlogwrap .qlog { margin-top: 4px; }
+
   /* About */
   dialog#about { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 0;
     width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 48px); box-shadow: 0 18px 50px rgba(0,0,0,.55); }
@@ -531,7 +544,10 @@
       <button id="scanGo" class="primary">Scan</button>
       <button id="scanStop" class="hidden">Stop</button>
     </div>
-    <label class="check" style="margin-top:10px"><input type="checkbox" id="scanSub" checked> <span>Include subfolders</span></label>
+    <div class="row" style="margin-top:10px; gap:18px; flex-wrap:wrap">
+      <label class="check"><input type="checkbox" id="scanSub" checked> <span>Include subfolders</span></label>
+      <label class="check" title="Trailers, Featurettes, Deleted Scenes and the other extras folders Plex recognises, files ending in -trailer, -featurette and so on, and Plex Versions folders"><input type="checkbox" id="scanExtras" checked> <span>Skip Plex extras</span></label>
+    </div>
     <div id="scanProg" class="hint hidden" style="margin-top:10px"></div>
     <div id="scanResult" class="hidden">
       <div id="scanSumLine" class="note info" style="margin:12px 0 10px"></div>
@@ -889,7 +905,7 @@ function renderTracks() {
 
   if (info.subTracks.length) {
     // "Set all tracks to": keep or drop every subtitle track at once (as for audio)
-    const keepable = info.subTracks.filter(x => !(mp4 && !x.mp4ok && x.srtKind !== 'ocr'));
+    const keepable = info.subTracks.filter(x => !(mp4 && !x.mp4ok && x.srtKind !== 'ocr') && !x.empty); // empty tracks only when ticked one by one
     const ruleSRT = src => src.srtKind && !metaMode() ? $('subToSRT').value : '';
     const head = el('div', 'thead'), all = el('select', 'tall');
     [['', 'Set all tracks to…'], ['keep', 'Keep all'], ['drop', 'Drop all'], ['srt', 'Convert all ASS/PGS to SRT'], ['asis', 'Keep all as they are (no SRT)']].forEach(([v, text]) => { const o = el('option', '', text); o.value = v; all.append(o); });
@@ -1523,6 +1539,7 @@ async function restorePrefs() {
   tmdbKeyUI();
   if (typeof r.prefs.scanDir === 'string') $('scanDir').value = r.prefs.scanDir;
   if (typeof r.prefs.scanSub === 'boolean') $('scanSub').checked = r.prefs.scanSub;
+  if (typeof r.prefs.scanExtras === 'boolean') $('scanExtras').checked = r.prefs.scanExtras;
   $('secQueue').open = false; // the queue starts closed; it opens when files are added or some are left from last time
   if (r.tmpDirMissing) {
     const box = $('tmpNote');
@@ -1951,6 +1968,73 @@ $('tmdbCheck').onclick = async () => {
   n.className = 'note ' + (r.ok ? 'info' : 'bad');
   n.textContent = r.ok ? 'TMDB accepted the key.' : r.error;
 };
+// ---------- right-click menu: cut, copy, paste, select all ----------
+// The window's own browser menu is off (it would offer Back, Reload, Inspect...), so this small one stands in.
+async function copyText(text) {
+  const r = await api('clipboardWrite', { text });
+  if (r && r.ok) return true;
+  try { await navigator.clipboard.writeText(text); return true; } catch (e) {}
+  return document.execCommand('copy');
+}
+async function pasteText() {
+  const r = await api('clipboardRead');
+  if (r && r.ok) return r.text;
+  try { return await navigator.clipboard.readText(); } catch (e) { return null; }
+}
+let ctxMenu = null;
+function closeCtx() { if (ctxMenu) { ctxMenu.remove(); ctxMenu = null; } }
+const EDITABLE = 'input[type=text], input[type=password], input:not([type]), textarea';
+function changed(field) { // as if typed: the page reacts the same way
+  field.dispatchEvent(new Event('input', { bubbles: true }));
+  field.dispatchEvent(new Event('change', { bubbles: true }));
+}
+document.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  if (e.target.closest('.ctxmenu')) return;
+  closeCtx();
+  const field = e.target.closest(EDITABLE);
+  const editable = !!field && !field.disabled && !field.readOnly;
+  const fieldSel = field ? field.value.substring(field.selectionStart || 0, field.selectionEnd || 0) : '';
+  const sel = field ? fieldSel : String(window.getSelection());
+  const secret = !!field && field.type === 'password';
+  const items = [];
+  const item = (label, key, enabled, fn) => items.push({ label, key, enabled, fn });
+  if (field) item('Cut', 'Ctrl+X', editable && !!fieldSel && !secret, async () => {
+    const a = field.selectionStart, b = field.selectionEnd;
+    await copyText(fieldSel); field.focus(); field.setRangeText('', a, b, 'start'); changed(field);
+  });
+  item('Copy', 'Ctrl+C', !!sel && !secret, () => copyText(sel));
+  if (field) item('Paste', 'Ctrl+V', editable, async () => {
+    const a = field.selectionStart, b = field.selectionEnd;
+    const t = await pasteText();
+    if (t === null) { showError('The clipboard could not be read. Press Ctrl+V instead.'); return; }
+    field.focus(); field.setRangeText(t, a, b, 'end'); changed(field);
+  });
+  items.push(null);
+  item('Select all', 'Ctrl+A', true, () => {
+    if (field) { field.focus(); field.select(); return; }
+    const box = e.target.closest('pre, .popin, .note, .qrow, .srow, .tres, .card, dialog') || document.body;
+    const r = document.createRange(); r.selectNodeContents(box);
+    const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  });
+  ctxMenu = el('div', 'ctxmenu');
+  items.forEach(it => {
+    if (!it) { ctxMenu.append(el('hr')); return; }
+    const b = el('button'); b.disabled = !it.enabled;
+    b.append(document.createTextNode(it.label), el('span', '', it.key));
+    b.addEventListener('mousedown', ev => ev.preventDefault()); // keep the text field's selection
+    b.onclick = async () => { closeCtx(); await it.fn(); };
+    ctxMenu.append(b);
+  });
+  (e.target.closest('dialog[open]') || document.body).append(ctxMenu);
+  const w = ctxMenu.offsetWidth, h = ctxMenu.offsetHeight;
+  ctxMenu.style.left = Math.max(4, Math.min(e.clientX, innerWidth - w - 6)) + 'px';
+  ctxMenu.style.top = Math.max(4, Math.min(e.clientY, innerHeight - h - 6)) + 'px';
+});
+['mousedown', 'wheel'].forEach(t => window.addEventListener(t, e => { if (!(e.target.closest && e.target.closest('.ctxmenu'))) closeCtx(); }, true));
+window.addEventListener('resize', closeCtx); window.addEventListener('blur', closeCtx);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCtx(); });
+
 // ---------- library scan ----------
 let scanItems = [], scanTimer = null, scanSel = new Set();
 function fmtSize(b) {
@@ -2018,7 +2102,7 @@ async function scanPoll() {
   if (scanItems.length || !running) {
     $('scanResult').classList.toggle('hidden', !scanItems.length);
     $('scanSumLine').textContent = scanItems.length + ' files, ' + r.size + ' · ' + r.worth + ' worth converting, saving about ' + r.saving +
-      ' · ' + r.trouble + ' with Plex trouble spots';
+      ' · ' + r.trouble + ' with Plex trouble spots' + (r.extras ? ' · ' + r.extras + ' Plex extras skipped' : '');
     $('sumScan').textContent = scanItems.length ? r.worth + ' worth converting (about ' + r.saving + ')' : '';
   }
   $('scanGo').classList.toggle('hidden', running); $('scanStop').classList.toggle('hidden', !running);
@@ -2034,7 +2118,8 @@ $('scanGo').onclick = async () => {
   const dir = $('scanDir').value.trim();
   if (!dir) { showError('Choose the folder to scan.'); return; }
   api('setPref', { name: 'scanDir', value: dir }); api('setPref', { name: 'scanSub', value: $('scanSub').checked });
-  const r = await api('scanStart', { dir, recursive: $('scanSub').checked, tag: nameTag() });
+  api('setPref', { name: 'scanExtras', value: $('scanExtras').checked });
+  const r = await api('scanStart', { dir, recursive: $('scanSub').checked, tag: nameTag(), skipExtras: $('scanExtras').checked });
   if (!r.ok) { showError(r.error); return; }
   scanItems = []; scanSel = new Set(); renderScan(); scanButtons();
   $('scanResult').classList.add('hidden');
@@ -2123,14 +2208,16 @@ function renderQueue(q) {
   queue = q;
   renderBatch(q.batch);
   const list = $('queueList'), seen = new Set();
-  q.items.forEach(it => {
+  q.items.forEach((it, idx) => {
     seen.add(String(it.id));
     let row = list.querySelector('[data-id="' + it.id + '"]');
     if (!row) {
       row = document.createElement('div'); row.dataset.id = it.id;
       row.innerHTML = '<div><div class="qname"></div><div class="qsub"></div><div class="qnote"></div></div><div class="qstat"><div class="qst"></div><div class="qtime"></div></div><div class="qbtns"></div><div class="qmini"><div></div></div>';
     }
-    list.appendChild(row); // also keeps the order
+    // keep the order, moving a row only when it is out of place (moving it would scroll an open log back to the top)
+    const want = list.children[idx] || null;
+    if (want !== row) list.insertBefore(row, want);
     row.className = 'qrow st-' + it.status;
     row.querySelector('.qname').textContent = it.name;
     row.querySelector('.qname').title = it.input + '  →  ' + it.output;
@@ -2171,12 +2258,16 @@ function renderQueue(q) {
       }
       if (it.status === 'failed' || it.status === 'done' || it.status === 'canceled') {
         btns.append(rowButton('Log', 'Show the log of this file', async () => {
-          const old = row.querySelector('.qlog');
+          const old = row.querySelector('.qlogwrap');
           if (old) { old.remove(); return; }
           const r = await api('queueLog', { id: it.id });
+          const wrap = el('div', 'qlogwrap'), bar = el('div', 'qlogbar');
           const pre = document.createElement('pre'); pre.className = 'qlog';
           pre.textContent = r.ok ? r.lines.join('\n') : r.error;
-          row.appendChild(pre); pre.scrollTop = pre.scrollHeight;
+          const copy = el('button', '', 'Copy log');
+          copy.onclick = async () => { await copyText(pre.textContent); copy.textContent = 'Copied'; setTimeout(() => { copy.textContent = 'Copy log'; }, 1500); };
+          bar.append(copy); wrap.append(bar, pre);
+          row.appendChild(wrap); pre.scrollTop = pre.scrollHeight;
         }));
       }
       if (it.status !== 'running') btns.append(rowButton('✕', 'Remove from the queue', () => api('queueRemove', { id: it.id }).then(poll)));

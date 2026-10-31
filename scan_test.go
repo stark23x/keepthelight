@@ -59,11 +59,13 @@ func TestScanFolder(t *testing.T) {
 	mk(filepath.Join(dir, "a.mkv"), "-c:v", "mpeg4", "-b:v", "8M", "-c:a", "flac")
 	mk(filepath.Join(dir, "Season 1", "b.mkv"), "-c:v", "mpeg4", "-c:a", "ac3")
 	mk(filepath.Join(dir, "a_KTL.mkv"), "-c:v", "mpeg4", "-c:a", "ac3") // an output: skipped
+	_ = os.MkdirAll(filepath.Join(dir, "Season 1", "Featurettes"), 0o755)
+	mk(filepath.Join(dir, "Season 1", "Featurettes", "Making of.mkv"), "-c:v", "mpeg4", "-c:a", "ac3") // a Plex extra: skipped
 	_ = os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("x"), 0o644)
 
 	for _, rec := range []bool{false, true} {
 		g := newGUIServer()
-		if r := g.scanStart(dir, rec, "_KTL"); r["ok"] != true {
+		if r := g.scanStart(dir, rec, "_KTL", true); r["ok"] != true {
 			t.Fatal(r)
 		}
 		var st map[string]any
@@ -88,6 +90,9 @@ func TestScanFolder(t *testing.T) {
 			if it.Name == "b.mkv" && it.Folder != "Season 1" {
 				t.Errorf("folder %q", it.Folder)
 			}
+		}
+		if ex := st["extras"]; ex != map[bool]int{false: 0, true: 1}[rec] {
+			t.Errorf("recursive=%v: extras %v", rec, ex)
 		}
 		if more := g.scanStatus(len(items))["items"].([]*scanItem); len(more) != 0 {
 			t.Errorf("items after the last: %v", more)
