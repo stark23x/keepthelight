@@ -27,6 +27,18 @@ next build". Shipped features move to "Done" with their version number. Nothing 
   - **Paste** goes through KTL (the Windows clipboard read by the program), because the page alone can't always read the clipboard without asking.
 - **Fix: a queued file's Log can't be scrolled** (reported 2026-10-30). The list is redrawn every half-second, and each redraw moves every row, which resets an open log to the top. Rows should only move when the order changes. Also make it easy to copy a whole log (a "Copy log" button).
 
+- **Skip empty subtitle tracks automatically** (requested 2026-10-30). John Wick (2014) failed after 9 minutes
+  with "hevc_nvenc … Terminating thread with error: Invalid argument". The cause was an empty subtitle track: with
+  all subtitles dropped, the test ran fine.
+  - **Detect them** when reading a file. MKV records each track's subtitle count and size (`NUMBER_OF_FRAMES` /
+    `NUMBER_OF_BYTES` in the track statistics). Where those are missing, count the track's packets with ffprobe.
+  - **In the window:** an empty track is marked "empty" in the Subtitles list and left out by default (it can be
+    kept on purpose).
+  - **Everywhere else:** left out for queued files and in the library scan too, with a note in the log ("subtitle
+    track 3 is empty and was left out").
+  - **Check before building:** whether empty audio or attachment tracks cause the same failure, and handle those
+    the same way.
+
 ## Ideas raised, not yet requested
 
 - Plex-style output names after a TMDB lookup, such as `Title (Year) {tmdb-id}`. The owner chose no renaming
