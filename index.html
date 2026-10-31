@@ -152,6 +152,16 @@
   .qname { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .qsub { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .qnote { font-size: 12px; margin-top: 2px; }
+  /* UI-8: two lines per row; the rest opens on a click */
+  .qrow { cursor: pointer; }
+  .qrow:not([data-open="1"]) .qsub, .qrow:not([data-open="1"]) .qplex { display: none; }
+  .qrow[data-open="1"] { border-color: var(--accent2); }
+  .qchips { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; margin-top: 3px; font-size: 12px; color: var(--muted); min-width: 0; }
+  .qchips .qinfo { margin-right: 4px; }
+  .qchips .chip { padding: 0 7px; border-radius: 99px; border: 1px solid var(--line); background: var(--panel); line-height: 18px; white-space: nowrap; }
+  .qchips .chip.warn { color: var(--warn); border-color: #6b5420; }
+  .qchips .chip.ok { color: var(--ok); }
+  .qchips .chip.prof { color: var(--accent); }
   .qplex { font-size: 12px; margin-top: 2px; } .qplex:empty { display: none; }
   .qplex .pbad { color: var(--warn); } .qplex .pok { color: var(--ok); } .qplex .phow { color: var(--muted); }
   .qplexsum { font-size: 12.5px; margin: 0 0 10px; color: var(--muted); } .qplexsum.bad { color: var(--warn); }
@@ -2312,6 +2322,46 @@ function renderBatch(b) {
 function rowButton(text, title, fn) {
   const b = document.createElement('button'); b.textContent = text; b.title = title; b.onclick = () => fn(b); return b;
 }
+// ---------- tidier queue rows (UI-8) ----------
+// Two lines per file: its name and status, then a short summary with chips.
+// Clicking the row opens everything else (settings, Plex details) below it.
+function qRowToggle(row) {
+  row.title = 'Click for details';
+  row.addEventListener('click', e => {
+    if (e.target.closest('button, a, select, input, .qlogwrap')) return;
+    row.dataset.open = row.dataset.open === '1' ? '' : '1';
+  });
+}
+function renderChips(box, it) {
+  const st = it.settings || {}, chips = [];
+  const chip = (text, cls, title) => chips.push({ text, cls: cls || '', title: title || '' });
+  const pending = ['waiting', 'checking', 'problem'].includes(it.status);
+  if (pending && it.plex) {
+    const open = it.plex.filter(x => x.state !== 'fixed').length;
+    if (open) chip('⚠ ' + open + ' Plex', 'warn', it.plex.filter(x => x.state !== 'fixed').map(x => x.short).join('\n'));
+    else chip('✓ Plex', 'ok', it.plex.length ? 'Fixed by the settings: ' + it.plex.map(x => x.short).join(', ') : 'Nothing should make Plex convert this file');
+  }
+  if (it.status === 'done' && it.plexAfter && it.plexAfter.length) {
+    const clean = it.plexAfter.length === 1 && /^no problems/i.test(it.plexAfter[0]);
+    chip(clean ? '✓ Plex' : '⚠ Plex', clean ? 'ok' : 'warn', it.plexAfter.join('\n'));
+  }
+  if (st.mode === 'copy') chip('copy video'); else if (st.mode === 'meta') chip('metadata only');
+  else {
+    chip(({ x265: 'x265', nvenc: 'NVENC', qsv: 'QuickSync' }[st.codec] || st.codec) + ' ' +
+      (st.quality === 'bitrate' ? st.bitrate : st.quality === 'size' ? String(st.targetSize).replace(/G$/, ' GB').replace(/M$/, ' MB') : 'CRF ' + st.crf));
+    if (st.scale) chip(st.scale);
+    if (st.denoise) chip('NR');
+  }
+  if (st.testSeconds) chip(st.testSeconds + ' s test');
+  if (st.subToSRT || (st.subTracks || []).some(x => x.srt)) chip('SRT');
+  if (st.audioTracks || st.subTracks) chip('own tracks');
+  if (st.meta) chip('metadata');
+  if (st.profile) chip(st.profile, 'prof');
+  box.textContent = '';
+  if (it.info) box.append(el('span', 'qinfo', it.info));
+  chips.forEach(c => { const s = el('span', 'chip ' + c.cls, c.text); if (c.title) s.title = c.title; box.append(s); });
+}
+
 // The Plex check in a queue row: before it runs, what the settings fix and what is left;
 // once it is done, the check of the new file.
 function renderPlexRow(box, it) {
@@ -2357,7 +2407,8 @@ function renderQueue(q) {
     let row = list.querySelector('[data-id="' + it.id + '"]');
     if (!row) {
       row = document.createElement('div'); row.dataset.id = it.id;
-      row.innerHTML = '<div><div class="qname"></div><div class="qsub"></div><div class="qnote"></div><div class="qplex"></div></div><div class="qstat"><div class="qst"></div><div class="qtime"></div></div><div class="qbtns"></div><div class="qmini"><div></div></div>';
+      row.innerHTML = '<div><div class="qname"></div><div class="qchips"></div><div class="qsub"></div><div class="qnote"></div><div class="qplex"></div></div><div class="qstat"><div class="qst"></div><div class="qtime"></div></div><div class="qbtns"></div><div class="qmini"><div></div></div>';
+      qRowToggle(row); // UI-8
     }
     // keep the order, moving a row only when it is out of place (moving it would scroll an open log back to the top)
     const want = list.children[idx] || null;
@@ -2365,7 +2416,8 @@ function renderQueue(q) {
     row.className = 'qrow st-' + it.status;
     row.querySelector('.qname').textContent = it.name;
     row.querySelector('.qname').title = it.input + '  →  ' + it.output;
-    row.querySelector('.qsub').textContent = [it.info, settingsText(it.settings)].filter(Boolean).join('   |   ');
+    renderChips(row.querySelector('.qchips'), it); // UI-8
+    row.querySelector('.qsub').textContent = settingsText(it.settings); // UI-8: what the file is shows in the chips line
     row.querySelector('.qnote').textContent = [it.note, it.settings && it.settings.tmdbNote].filter(Boolean).join('  ·  ');
     renderPlexRow(row.querySelector('.qplex'), it);
     row.querySelector('.qst').textContent = it.status === 'running' ? Math.floor(it.percent) + '%' : STATUS_TEXT[it.status];
