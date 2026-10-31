@@ -545,6 +545,8 @@
       <section class="tabpane hidden" id="tabQueue">
 <div class="card" id="secQueue">
     <div class="tabhead"><h2>Queue</h2><span class="sum" id="sumQueue"></span></div>
+    <div class="after hidden" id="afterWrap" style="margin:0 0 10px"><label for="after">When the queue is finished</label>
+      <select id="after"><option value="">Do nothing</option><option value="sleep">Sleep</option><option value="shutdown">Shut down</option></select></div>
     <div id="qBatch" class="qbatch hidden"><div class="qbtop"><b id="qbTitle"></b><span id="qbEta"></span></div><div class="bar" id="qbBar"><div></div></div></div>
     <div class="qplexsum hidden" id="qPlexSum"></div>
     <div class="hint" id="queueHint" style="margin:0 0 10px">Add several files to transcode them one after another. Each file keeps the settings that were set when it was added.</div>
@@ -598,7 +600,7 @@
     </main>
     <aside id="dock" class="dock">
       <div class="actions">
-        <button class="primary" id="start" disabled>Start transcode</button>
+        <button class="primary" id="start" disabled>Convert this file</button>
         <button id="addQueue" disabled>Add to queue</button>
         <span class="testgrp" id="testGrp"><button id="testBtn" title="Encode 30 seconds with these settings, to check the picture, the size and the speed">Test 30 s</button>
           <input type="text" id="testStart" spellcheck="false" placeholder="from: auto" title="Where the test starts, for example 1:02:30 (empty: 40% into the film)">
@@ -612,8 +614,6 @@
         <button id="again" class="hidden">New job</button>
         <button id="queueLink" class="linkbtn hidden"></button>
         <span class="meta" id="planLine"></span>
-        <span class="after hidden" id="afterWrap"><label for="after">When finished</label>
-          <select id="after"><option value="">Do nothing</option><option value="sleep">Sleep</option><option value="shutdown">Shut down</option></select></span>
       </div>
       <div id="powerNote" class="note warn hidden"><span id="powerText"></span><button id="powerCancel">Cancel</button></div>
       <div id="jobBox" class="hidden" style="margin-top:10px">
@@ -1710,7 +1710,10 @@ async function probe() {
 function updateStart() {
   const waiting = (queue.counts.waiting || 0) + (queue.counts.checking || 0);
   const formOk = info && !info.blocker && $('output').value.trim();
-  $('start').textContent = waiting && !queue.running ? 'Start queue (' + waiting + (waiting === 1 ? ' file)' : ' files)') : 'Start transcode';
+  // UI-4: the button says exactly what it does
+  const files = n => n + (n === 1 ? ' file' : ' files');
+  $('start').textContent = !waiting || queue.running ? 'Convert this file'
+    : formOk && !fileInQueue() ? 'Add to queue and start (' + files(waiting + 1) + ')' : 'Start queue (' + files(waiting) + ')';
   $('start').disabled = jobActive || !(waiting || formOk) || !!editing;
   $('addQueue').disabled = !formOk || !!editing;
   $('testBtn').disabled = jobActive || !!editing || !formOk || radio('mode') !== 'encode';
@@ -1861,6 +1864,11 @@ $('qOutBrowse').onclick = async () => {
 // Files went into the queue: the Queue tab's count pulses (the view stays where the user is).
 function showQueue() { const b = $('qBadge'); b.classList.remove('pulse'); void b.offsetWidth; b.classList.add('pulse'); }
 
+// UI-4: the file in the form is already waiting in the queue
+function fileInQueue() {
+  const norm = x => (x || '').trim().replace(/\//g, '\\').toLowerCase(), p = norm($('input').value);
+  return !!p && (queue.items || []).some(it => norm(it.input) === p && ['waiting', 'checking', 'problem'].includes(it.status));
+}
 async function addToQueue(items) {
   const r = await api('queueAdd', { items });
   if (r.errors && r.errors.length) showError('Not added:\n' + r.errors.join('\n'));
@@ -1873,7 +1881,11 @@ $('start').onclick = async () => {
   const waiting = (queue.counts.waiting || 0) + (queue.counts.checking || 0);
   let r;
   if (!await confirmNewFiles(waiting ? null : settings())) return;
-  if (waiting) r = await api('queueStart', {});
+  if (waiting && info && !info.blocker && $('output').value.trim() && !fileInQueue()) { // UI-4: this file joins the queue first
+    const a = await addToQueue([settings()]);
+    if (!a.added) return;
+    r = await api('queueStart', {});
+  } else if (waiting) r = await api('queueStart', {});
   else {
     r = await api('start', settings());
     if (!r.ok && r.exists && await askUser(r.error + '\n\nReplace it?')) r = await api('start', Object.assign(settings(), { overwrite: true }));
