@@ -211,6 +211,11 @@
   .tabhead h2 { margin: 0; }
   .tabhead .sum { white-space: normal; }
   /* the source, under the input */
+  /* UI-7: what to do on an empty screen */
+  .emptybox { border: 2px dashed var(--line); border-radius: 10px; padding: 26px 16px; text-align: center; margin: -4px 0 14px; }
+  .emptybox .ebig { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+  .emptybox .hint { margin-top: 10px; }
+  .emptybox .qadd { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
   .srcinfo { margin: -4px 0 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); }
   .srcinfo .badges { margin-bottom: 4px; }
   .srcinfo #notes .note:first-child { margin-top: 6px; }
@@ -347,6 +352,10 @@
       <div class="meta" id="meta"></div>
       <div id="notes"></div>
     </div>
+    <div id="emptyConv" class="emptybox hidden"><div class="ebig">No video chosen yet</div>
+      <button class="primary" id="emptyBrowse">Choose a video…</button>
+      <div class="hint">or paste its path above. To start with a video from Explorer, drag it onto Keep the Light.exe (or its shortcut).
+        Several files at once? Use the Queue tab.</div></div>
     <div class="row">
       <div class="grow"><label for="output">Output file</label><input type="text" id="output" spellcheck="false" placeholder="Where to save the result"></div>
       <div><label for="container">Format</label>
@@ -559,6 +568,10 @@
       <select id="after"><option value="">Do nothing</option><option value="sleep">Sleep</option><option value="shutdown">Shut down</option></select></div>
     <div id="qBatch" class="qbatch hidden"><div class="qbtop"><b id="qbTitle"></b><span id="qbEta"></span></div><div class="bar" id="qbBar"><div></div></div></div>
     <div class="qplexsum hidden" id="qPlexSum"></div>
+    <div id="emptyQueue" class="emptybox hidden"><div class="ebig">The queue is empty</div>
+      <div class="qadd"><button id="eqFiles">Add files…</button><button id="eqFolder">Add a folder…</button><button id="eqScan">Find files with the Library scan</button></div>
+      <div class="hint">Or set up a file on the Convert tab and press Add to queue. Each file keeps the settings it was added with,
+        and the queue is remembered if Keep the Light is closed.</div></div>
     <div class="hint" id="queueHint" style="margin:0 0 10px">Add several files to transcode them one after another. Each file keeps the settings that were set when it was added.</div>
     <div id="queueList"></div>
     <div class="actions" style="margin-top:6px">
@@ -2590,6 +2603,21 @@ function tesseractNote(text, instead) {
   return n;
 }
 function linkButton(text, href) { const a = document.createElement('a'); a.href = href; a.textContent = text; return a; }
+// ---------- empty screens (UI-7) ----------
+function updateEmpty() {
+  const noFile = !$('input').value.trim() && !editing;
+  $('emptyConv').classList.toggle('hidden', !noFile);
+  const empty = !(queue.items || []).length;
+  $('emptyQueue').classList.toggle('hidden', !empty);
+  if (empty) $('queueHint').classList.add('hidden');
+  $('qAddFiles').parentElement.classList.toggle('hidden', empty); // the same buttons are in the empty box
+}
+$('emptyBrowse').onclick = () => $('browseIn').click();
+$('eqFiles').onclick = () => $('qAddFiles').click();
+$('eqFolder').onclick = () => $('qAddFolder').click();
+$('eqScan').onclick = () => document.querySelector('.tabs .tab[data-tab=scan]').click();
+setInterval(updateEmpty, 400); updateEmpty();
+
 let toolsHidden = '';
 $('toolsUnhide').onclick = () => { toolsHidden = ''; api('setPref', { name: 'toolsHidden', value: '' }); checkTools(); };
 async function checkTools() {
