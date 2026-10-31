@@ -66,3 +66,48 @@ func TestBatchProgressAndEstimates(t *testing.T) {
 		t.Errorf("nothing waiting: %v", b)
 	}
 }
+
+// Short files finish before their encode speed can be trusted: how long they
+// really took gives the estimate for the others, and each one refines it.
+func TestShortFileEstimates(t *testing.T) {
+	cfg := &Config{Codec: "nvenc", Preset: "p5", Output: "/nonexistent/out.mkv", Input: "/nonexistent/in.mkv"}
+	it := &queueItem{Duration: 1320, Took: 66, cfg: cfg, height: 1080} // a 22-minute episode in 66 s
+	j := &job{prog: newProgressTracker(1320)}
+	if sp := finishedSpeed(it, j, 1320); sp != 20 {
+		t.Errorf("short file: speed %v, want 20", sp)
+	}
+	j.canceled = true
+	if sp := finishedSpeed(it, j, 1320); sp != 0 {
+		t.Errorf("canceled: %v", sp)
+	}
+	j.canceled = false
+	j.prog.speed = 3 // a long film keeps its live encode speed
+	if sp := finishedSpeed(&queueItem{Duration: 7200, Took: 3000, cfg: cfg}, j, 7200); sp != 3 {
+		t.Errorf("long film: %v", sp)
+	}
+	two := &Config{Codec: "x265", TargetBytes: 1 << 30}
+	if sp := finishedSpeed(&queueItem{Duration: 600, Took: 300, cfg: two}, &job{prog: newProgressTracker(600)}, 300); sp != 2 {
+		t.Errorf("two passes: %v", sp) // 300 s of film, encoded twice in 300 s
+	}
+
+	// a running short file, after one finished: its time left comes from that
+	g := newGUIServer()
+	now := time.Date(2026, 10, 31, 20, 0, 0, 0, time.UTC)
+	g.now = func() time.Time { return now }
+	g.q.speeds = map[string]float64{speedKey(it): 20}
+	run := &queueItem{ID: 2, Status: stRunning, Duration: 1320, cfg: cfg, height: 1080, started: now.Add(-16 * time.Second),
+		job: &job{prog: newProgressTracker(1320)}}
+	wait := &queueItem{ID: 3, Status: stWaiting, Duration: 1320, cfg: cfg, height: 1080}
+	g.q.items, g.q.running = []*queueItem{run, wait}, true
+	secs, _, ok := g.runningLeft(run, now)
+	if !ok || secs != 50 {
+		t.Errorf("running short file: %v %v, want 50 s", secs, ok)
+	}
+	items := g.queueStatusLocked()["items"].([]queueItem)
+	if items[1].Est != "about 1 min" && items[1].Est != "under a minute" && !strings.Contains(items[1].Est, "1 min") {
+		t.Errorf("waiting: %q", items[1].Est)
+	}
+	if items[0].ETA == "time left: estimating" {
+		t.Errorf("running: %q", items[0].ETA)
+	}
+}

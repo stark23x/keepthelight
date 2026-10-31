@@ -780,9 +780,12 @@ func (g *guiServer) runQueue() {
 			finished++
 			failed++
 		}
-		if sp := j.prog.speed; sp > 0 && !it.cfg.CopyVideo {
+		if sp := finishedSpeed(it, j, duration); sp > 0 && !it.cfg.CopyVideo {
 			if g.q.speeds == nil {
 				g.q.speeds = map[string]float64{}
+			}
+			if old := g.q.speeds[speedKey(it)]; old > 0 {
+				sp = (old + sp) / 2 // each finished file refines the guess
 			}
 			g.q.speeds[speedKey(it)] = sp
 			g.q.lastSpeed, g.q.lastHeight = sp, it.height
@@ -1048,6 +1051,9 @@ func (g *guiServer) remainingLocked(now time.Time) string {
 		if it.Status == stRunning {
 			cur = it
 		}
+	}
+	if !ok && cur != nil && cur.job == j {
+		secs, state, ok = g.runningLeft(cur, now)
 	}
 	curSpeed := j.prog.liveSpeed(now)
 	rest, restKnown, more := 0.0, true, false
@@ -1363,6 +1369,41 @@ func (g *guiServer) addSavedTotalLocked(d int64) {
 
 // itemEstimate is how long a waiting file will take, in seconds (false: not
 // known yet, no speed measured for anything comparable). Caller holds g.mu.
+// passesOf is how many times the video is encoded (x265 aiming at a size encodes twice).
+func passesOf(cfg *Config) float64 {
+	if cfg.TargetBytes > 0 && cfg.Codec == "x265" {
+		return 2
+	}
+	return 1
+}
+
+// finishedSpeed is the speed a finished file gives for estimating the others
+// (video seconds per second, per pass). Short files are measured by how long
+// they really took, start to finish: their encode is over before its live
+// speed can be trusted, and the steps around it are a large part of their time.
+// Longer files use the encode speed measured as they ran. 0 = nothing learned.
+func finishedSpeed(it *queueItem, j *job, duration float64) float64 {
+	sp := j.prog.speed
+	if j.exitCode == 0 && !j.canceled && it.Took > 0 && duration > 0 && (sp <= 0 || duration < 600) {
+		sp = duration * passesOf(it.cfg) / it.Took
+	}
+	return sp
+}
+
+// runningLeft is the time left for the running file: from its own progress once
+// its speed has settled, otherwise from what earlier files took (so short files,
+// which finish before their speed settles, still get an estimate).
+func (g *guiServer) runningLeft(it *queueItem, now time.Time) (float64, string, bool) {
+	secs, state, ok := it.job.prog.remaining(now)
+	if ok || state == "finishing" {
+		return secs, state, ok
+	}
+	if est, eok := g.itemEstimate(it, nil, 0); eok && !it.started.IsZero() {
+		return math.Max(est-now.Sub(it.started).Seconds(), 0), state, true
+	}
+	return secs, state, ok
+}
+
 func (g *guiServer) itemEstimate(it *queueItem, cur *queueItem, curSpeed float64) (float64, bool) {
 	if it.cfg == nil || it.Duration <= 0 {
 		return 0, false
@@ -1374,11 +1415,7 @@ func (g *guiServer) itemEstimate(it *queueItem, cur *queueItem, curSpeed float64
 	if sp <= 0 {
 		return 0, false
 	}
-	passes := 1.0
-	if it.cfg.TargetBytes > 0 && it.cfg.Codec == "x265" {
-		passes = 2
-	}
-	t := it.Duration * passes / sp
+	t := it.Duration * passesOf(it.cfg) / sp
 	if it.dv && it.cfg.DV != "drop" {
 		t *= 1.03
 	}
@@ -1408,7 +1445,7 @@ func (g *guiServer) fillTimesLocked(items []queueItem) {
 		it.ETA, it.Est = "", ""
 		switch {
 		case it.Status == stRunning && it.job != nil:
-			if secs, state, ok := it.job.prog.remaining(now); ok {
+			if secs, state, ok := g.runningLeft(g.q.items[i], now); ok {
 				it.ETA = formatRemaining(secs)
 			} else if state == "finishing" {
 				it.ETA = "finishing"
@@ -1449,7 +1486,7 @@ func (g *guiServer) batchLocked(items []queueItem) map[string]any {
 			total += w
 			done += w * math.Min(it.Percent, 100) / 100
 			if it.job != nil {
-				if secs, _, ok := it.job.prog.remaining(now); ok {
+				if secs, _, ok := g.runningLeft(g.q.items[i], now); ok {
 					left += secs
 				} else {
 					leftKnown = false
