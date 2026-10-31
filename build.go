@@ -202,7 +202,7 @@ func makePlan(cfg *Config, p *Probe) (*Plan, error) {
 	}
 
 	if p.Mastering == nil && cfg.MasterDisplay == "" && plan.Kind == "hdr10" && !cfg.CopyVideo {
-		warn("no mastering-display metadata found in source; output will have HDR10 colour tags only (use -master-display to supply it)")
+		warn("the source has no mastering-display information, so the new file has the HDR10 colour tags only; most TVs handle this fine (it can be supplied under Advanced, or with -master-display)")
 	}
 	return plan, nil
 }

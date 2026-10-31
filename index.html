@@ -203,6 +203,16 @@
   .srcinfo { margin: -4px 0 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); }
   .srcinfo .badges { margin-bottom: 4px; }
   .srcinfo #notes .note:first-child { margin-top: 6px; }
+  /* UI-2: the notes under the file as one compact list of checks: a line each, problems first */
+  #notes .note.warn, #notes .note.info { background: none; border: 0; padding: 3px 0 3px 22px; margin-top: 2px; position: relative; line-height: 1.45; }
+  #notes .note.warn::before, #notes .note.info::before { position: absolute; left: 2px; top: 3px; width: 16px; text-align: center; }
+  #notes .note.warn::before { content: "⚠"; }
+  #notes .note.info::before { content: "✓"; color: var(--ok); }
+  #notes .note.info { color: var(--text); }
+  #notes .checkshead { font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 10px 0 2px; }
+  #notes details.morechecks > summary { cursor: pointer; color: var(--muted); font-size: 12.5px; padding: 3px 0 3px 22px; list-style: none; position: relative; }
+  #notes details.morechecks > summary::before { content: "✓"; color: var(--ok); position: absolute; left: 2px; width: 16px; text-align: center; }
+  #notes details.morechecks > summary::-webkit-details-marker { display: none; }
   /* settings heading with the profile */
   .settitle { margin: 0 6px 0 0 !important; }
   .profsel select { width: auto; min-width: 180px; }
@@ -1661,6 +1671,7 @@ function showInfo(r) {
     r.width + '×' + r.height].filter(Boolean).join(' ');
   srcWarn = notes.querySelectorAll('.note.warn').length;
   updateSummaries();
+  tidyNotes(notes); // UI-2
 }
 
 let probeTimer = null;
@@ -2485,6 +2496,25 @@ function plexFixButtons(r, notes) {
     clearTimeout(box._t); box._t = setTimeout(() => box.classList.add('hidden'), 8000);
   }
 }));
+
+// ---------- the checks under the file (UI-2) ----------
+// Problems first (✕ then ⚠), then what is fine (✓). Beyond the first "fine" line
+// (what will be kept), the rest fold into one line that opens on a click.
+function tidyNotes(notes) {
+  const all = Array.from(notes.children).filter(n => n.classList.contains('note'));
+  if (!all.length) return;
+  const rank = n => n.classList.contains('bad') ? 0 : n.classList.contains('warn') ? 1 : 2;
+  const sorted = all.slice().sort((a, b) => rank(a) - rank(b)); // stable: keeps the order within each kind
+  sorted.forEach(n => { const t = n.firstChild; if (t && t.nodeType === 3) t.textContent = t.textContent.charAt(0).toUpperCase() + t.textContent.slice(1); });
+  const head = el('div', 'checkshead', 'Checks');
+  notes.append(head, ...sorted);
+  const fine = sorted.filter(n => rank(n) === 2);
+  if (fine.length > 2) {
+    const more = el('details', 'morechecks'), sum = el('summary', '', (fine.length - 1) + ' more checks passed');
+    more.append(sum, ...fine.slice(1));
+    notes.append(more);
+  }
+}
 
 // ---------- tools ----------
 // FFmpeg is not included with Keep the Light (its licence makes bundling it a burden),
