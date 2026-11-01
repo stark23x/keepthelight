@@ -10,6 +10,27 @@
     --accent: #5b9dff; --accent2: #3d7de0; --ok: #4cc38a; --warn: #f0b74a; --bad: #ff6b6b;
   }
   * { box-sizing: border-box; }
+  /* UI-12: tighter spacing, so more fits on screen (about half the empty space at the edges).
+     "html body" makes these win over the rules further down, so the block can be removed on its own. */
+  html body .wrap { max-width: 924px; padding: 12px 12px 24px; }
+  html body header { margin-bottom: 8px; }
+  html body .tabs { margin: 0 0 8px; }
+  html body .card { padding: 10px; margin-bottom: 8px; }
+  html body .card h2 { margin: 0 0 8px; }
+  html body details.sect > summary { margin: -10px; padding: 10px; }
+  html body details.sect[open] > summary { margin-bottom: 0; }
+  html body .grid { gap: 8px; }
+  html body .row { gap: 6px; }
+  html body .srcinfo { padding: 6px 8px; margin: -2px 0 8px; }
+  html body .srcinfo .fhead { margin-bottom: 5px; }
+  html body .trow { padding: 4px 8px; margin-bottom: 4px; gap: 8px; }
+  html body .qrow { padding: 6px 8px; margin-bottom: 4px; }
+  html body .qbatch { padding: 7px 10px; margin-bottom: 7px; }
+  html body .dock { padding: 8px 10px; }
+  html body .nrrow { margin-top: 9px; }
+  html body .rules { padding-top: 8px; }
+  html body .emptybox { padding: 16px 12px; }
+  html body #toolsNote { margin-bottom: 8px; padding: 5px 8px; }
   html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
   .wrap { max-width: 940px; margin: 0 auto; padding: 20px 20px 40px; }
   header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
