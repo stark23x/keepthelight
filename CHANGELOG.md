@@ -18,6 +18,14 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.24.1 - 2026-11-01
+
+- **Fixed:** on an empty queue, the "Add several files…" line no longer flashes in and out (part of UI-7).
+- **Changed:** Start no longer also adds the file on the Convert tab. With files waiting it is always "Start queue
+  (N files)"; **Add to queue** is its own button (part of UI-4).
+- **UI-12 Tighter spacing:** about half the empty space at the edges of each section and between sections, so more
+  fits on screen. Text size is unchanged. Like the other UI changes, it can be undone on its own.
+
 ## 1.24.0 - 2026-10-31
 
 - **Deinterlace** (under Video; `-deinterlace`). Interlaced video (old TV shows, DVDs, recordings) has striped edges

@@ -43,8 +43,8 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   time remaining. It is rough: speed varies through a film, and a hardware-encoder retry restarts it.
 - **Layout:** three tabs: **Convert** (the file and its settings), **Queue** and **Library scan**. Start, Add to queue,
   Test 30 s and the progress bar stay in view at the bottom of the window; the main button says exactly what it will
-  do ("Convert this file", "Start queue (3 files)", or "Add to queue and start" when files are waiting and the one on
-  the Convert tab is not among them). The Queue tab shows how many files are waiting. Settings for this PC (temp folder, priority, GPU
+  do ("Convert this file", or "Start queue (3 files)" when files are waiting; **Add to queue** is its own button).
+  The Queue tab shows how many files are waiting. Settings for this PC (temp folder, priority, GPU
   decoding, working locally, TMDB key, sounds) are under **⚙ Settings** at the top; profiles never include them.
   What the input file is (its name, HDR10, Dolby Vision, resolution, "HEVC 10-bit") shows right under it, with a
   short **Checks** list: problems first (⚠), then what is fine (✓; more of them open with a click). Hints that only
