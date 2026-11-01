@@ -262,8 +262,10 @@ subtitles and container from the target to get a video bitrate, then:
 - **TMDB for the queue:** **Look up metadata on TMDB** (Queue tab), or the check box next to **Add selected to
   queue** in the library scan, looks up each waiting file. Only a clear match is used (one result, or one whose title
   and year match the file's name); it fills in the title, date, description and cover, and the queue list shows what
-  was found. Anything else is marked "needs a match": open it with Edit and pick the right result. Files whose title
-  was already changed are skipped.
+  was found. Anything else is marked "needs a match": open it with Edit and pick the right result. When you save it,
+  every other waiting file with the same title in its name follows (each episode with its own season and episode),
+  and the choice is remembered, so the next season matches straight away (**Forget remembered matches** in
+  ⚙ Settings). Each title is searched once per lookup. Files whose title was already changed are skipped.
   This product uses the TMDB API but is not endorsed or certified by TMDB.
 - **Metadata only** (under Video) copies every kept stream unchanged into a new file with the new metadata: no
   re-encoding, so the quality is identical, and it takes about as long as copying the file. Audio tracks can be kept

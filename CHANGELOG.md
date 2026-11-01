@@ -18,6 +18,14 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.25.0 - 2026-11-01
+
+- **TMDB: match one episode, the rest of the show follows.** When the queue's lookup finds several shows of the same
+  name, match one file by hand (Edit → TMDB → Use → Save changes) and every other waiting file with that title is
+  filled in from the same show, each with its own season and episode, with no further questions. The choice is
+  remembered, so the next season matches straight away (⚙ Settings can forget remembered matches). Works the same
+  for several copies of one film. A lookup now searches each title once instead of once per file.
+
 ## 1.24.1 - 2026-11-01
 
 - **Fixed:** on an empty queue, the "Add several files…" line no longer flashes in and out (part of UI-7).

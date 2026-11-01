@@ -6,17 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **TMDB: match one episode, the rest of the show follows** (requested 2026-11-01). Today, when the queue's TMDB
-  lookup finds several possible shows ("needs a match"), every episode has to be opened with Edit and matched by hand.
-  - **One match is enough:** when a file is matched by hand (Edit → TMDB → choose → Save), every other waiting file
-    whose name points to the same show (same title from the file or folder name) gets that show at once. Each one
-    gets its own season and episode (title, date, description, season poster), with no further questions. A short
-    message says how many were filled in ("The Office (US): 21 more episodes filled in").
-  - **Remembered:** the choice is kept, so the next season's files, or a later lookup, match straight away. A
-    Settings button forgets the remembered shows.
-  - **Faster lookups:** episodes of the same show are looked up once per show instead of once per file.
-  - **Limits:** files with no season and episode in their name (S01E03, 1x03) still need Edit, and so do files
-    whose title is changed by hand. The same works for films with several copies (different versions of one film).
+Nothing yet.
 
 ## Ideas raised, not yet requested
 
@@ -28,6 +18,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Done
 
+- 1.25.0: TMDB: match one file by hand, the rest of that title follows (remembered; Settings can forget).
 - 1.24.1: the queue hint no longer flickers (UI-7); Start no longer also adds (UI-4); UI-12 tighter spacing. To undo
   UI-4 or UI-7, revert both commits with that number.
 - 1.24.0: deinterlace (automatic, from the picture); queue estimates for short files; Browse remembers the last
