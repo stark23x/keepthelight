@@ -136,13 +136,39 @@ func cutSample(r *runner, cfg *Config, start float64, dir string) (string, error
 	name := f.Name()
 	f.Close()
 	fmt.Printf("\nCutting a %d-second test from %s\n", cfg.SampleSecs, formatClock(start))
-	err = r.run(cfg.Ffmpeg, "-hide_banner", "-v", "error", "-y", "-ss", strconv.FormatFloat(start, 'f', 3, 64), "-i", cfg.Input,
-		"-t", strconv.Itoa(cfg.SampleSecs), "-map", "0:v", "-map", "0:a?", "-map", "0:s?", "-map", "0:t?", "-c", "copy", name)
+	args := []string{"-hide_banner", "-v", "error", "-y", "-ss", strconv.FormatFloat(start, 'f', 3, 64), "-i", cfg.Input,
+		"-t", strconv.Itoa(cfg.SampleSecs), "-map", "0:v", "-map", "0:a?", "-map", "0:s?", "-map", "0:t?", "-c", "copy"}
+	args = append(args, sampleSubArgs(r.ctx, cfg.Ffprobe, cfg.Input)...)
+	err = r.run(cfg.Ffmpeg, append(args, name)...)
 	if err != nil {
 		_ = removeFile(name)
 		return "", err
 	}
 	return name, nil
+}
+
+// sampleSubArgs: the sample is an MKV, which cannot hold MP4's text subtitles
+// (mov_text) as they are, so those become SRT in it (the same text; the job
+// then writes them as the output needs). Everything else is copied.
+func sampleSubArgs(ctx context.Context, ffprobe, input string) []string {
+	if ffprobe == "" {
+		return nil
+	}
+	out, err := toolCommand(ctx, ffprobe, "-v", "error", "-select_streams", "s", "-show_entries", "stream=codec_name", "-of", "csv=p=0", input).Output()
+	if err != nil {
+		return nil
+	}
+	return subsToSRTArgs(strings.Fields(string(out)))
+}
+
+func subsToSRTArgs(codecs []string) []string {
+	var a []string
+	for i, c := range codecs {
+		if c = strings.ToLower(strings.TrimSpace(c)); c == "mov_text" || c == "text" || c == "tx3g" {
+			a = append(a, fmt.Sprintf("-c:s:%d", i), "srt")
+		}
+	}
+	return a
 }
 
 // originalClipName is where the unchanged 30 seconds of the original go:

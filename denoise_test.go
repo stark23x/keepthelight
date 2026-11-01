@@ -114,3 +114,15 @@ func TestOriginalClipName(t *testing.T) {
 		}
 	}
 }
+
+// An MP4's text subtitles (mov_text) cannot be copied into the MKV test sample:
+// they become SRT there; other subtitles are copied.
+func TestSampleSubtitlesFromMP4(t *testing.T) {
+	got := strings.Join(subsToSRTArgs([]string{"mov_text", "hdmv_pgs_subtitle", "subrip", "mov_text"}), " ")
+	if got != "-c:s:0 srt -c:s:3 srt" {
+		t.Errorf("%q", got)
+	}
+	if subsToSRTArgs([]string{"ass", "subrip"}) != nil {
+		t.Error("MKV-friendly subtitles were changed")
+	}
+}
