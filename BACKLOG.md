@@ -6,7 +6,17 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing yet.
+- **Fix: the queue hint flickers on an empty queue** (reported 2026-11-01). On the Queue tab with nothing queued, the
+  line "Add several files…" flashes in and out. Cause: the queue list shows it, and UI-7's empty box hides it every
+  0.4 s. Fix inside UI-7, so it stays undoable on its own: the hint is simply not shown while the empty box is.
+- **Fix: Start must not also add** (reported 2026-11-01). UI-4's "Add to queue and start (N files)" mixed two
+  actions. With files waiting, the main button is always "Start queue (N files)", and **Add to queue** stays its own
+  button. The UI-4 labels "Convert this file" and "Start queue (N files)" stay. Change made inside UI-4.
+- **UI-12: tighter spacing** (requested 2026-11-01), so more fits on screen.
+  - Cut the empty space at the edges of each section by about 35–50%: card padding 16 → 10 px, the gaps between
+    sections 14 → 8 px, and smaller gaps in the source box, queue rows, track rows and the bottom bar.
+  - Font sizes stay the same.
+  - It is its own commit, so it can be undone like the other UI changes.
 
 ## Ideas raised, not yet requested
 
