@@ -18,6 +18,12 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.25.1 - 2026-11-01
+
+- **Fixed:** the 30-second test failed on MP4 files with subtitles ("Subtitle codec mov_text is not supported"). The
+  test first cuts the stretch into an MKV, which cannot hold MP4's text subtitles as they are; they now become SRT in
+  that cut (the same text). Full conversions were not affected.
+
 ## 1.25.0 - 2026-11-01
 
 - **TMDB: match one episode, the rest of the show follows.** When the queue's lookup finds several shows of the same
