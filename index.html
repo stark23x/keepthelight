@@ -1801,8 +1801,7 @@ function updateStart() {
   const formOk = info && !info.blocker && $('output').value.trim();
   // UI-4: the button says exactly what it does
   const files = n => n + (n === 1 ? ' file' : ' files');
-  $('start').textContent = !waiting || queue.running ? 'Convert this file'
-    : formOk && !fileInQueue() ? 'Add to queue and start (' + files(waiting + 1) + ')' : 'Start queue (' + files(waiting) + ')';
+  $('start').textContent = !waiting || queue.running ? 'Convert this file' : 'Start queue (' + files(waiting) + ')'; // adding is Add to queue's job
   $('start').disabled = jobActive || !(waiting || formOk) || !!editing;
   $('addQueue').disabled = !formOk || !!editing;
   $('testBtn').disabled = jobActive || !!editing || !formOk || radio('mode') !== 'encode';
@@ -1953,11 +1952,6 @@ $('qOutBrowse').onclick = async () => {
 // Files went into the queue: the Queue tab's count pulses (the view stays where the user is).
 function showQueue() { const b = $('qBadge'); b.classList.remove('pulse'); void b.offsetWidth; b.classList.add('pulse'); }
 
-// UI-4: the file in the form is already waiting in the queue
-function fileInQueue() {
-  const norm = x => (x || '').trim().replace(/\//g, '\\').toLowerCase(), p = norm($('input').value);
-  return !!p && (queue.items || []).some(it => norm(it.input) === p && ['waiting', 'checking', 'problem'].includes(it.status));
-}
 async function addToQueue(items) {
   const r = await api('queueAdd', { items });
   if (r.errors && r.errors.length) showError('Not added:\n' + r.errors.join('\n'));
@@ -1970,11 +1964,7 @@ $('start').onclick = async () => {
   const waiting = (queue.counts.waiting || 0) + (queue.counts.checking || 0);
   let r;
   if (!await confirmNewFiles(waiting ? null : settings())) return;
-  if (waiting && info && !info.blocker && $('output').value.trim() && !fileInQueue()) { // UI-4: this file joins the queue first
-    const a = await addToQueue([settings()]);
-    if (!a.added) return;
-    r = await api('queueStart', {});
-  } else if (waiting) r = await api('queueStart', {});
+  if (waiting) r = await api('queueStart', {});
   else {
     r = await api('start', settings());
     if (!r.ok && r.exists && await askUser(r.error + '\n\nReplace it?')) r = await api('start', Object.assign(settings(), { overwrite: true }));
