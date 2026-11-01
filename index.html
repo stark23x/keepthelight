@@ -232,6 +232,7 @@
   .emptybox .ebig { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
   .emptybox .hint { margin-top: 10px; }
   .emptybox .qadd { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  #emptyQueue:not(.hidden) ~ #queueHint { display: none !important; } /* the empty box says it all */
   .srcinfo { margin: -4px 0 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); }
   .srcinfo .badges { margin-bottom: 4px; }
   .srcinfo #notes .note:first-child { margin-top: 6px; }
@@ -2707,7 +2708,6 @@ function updateEmpty() {
   $('emptyConv').classList.toggle('hidden', !noFile);
   const empty = !(queue.items || []).length;
   $('emptyQueue').classList.toggle('hidden', !empty);
-  if (empty) $('queueHint').classList.add('hidden');
   $('qAddFiles').parentElement.classList.toggle('hidden', empty); // the same buttons are in the empty box
 }
 $('emptyBrowse').onclick = () => $('browseIn').click();
