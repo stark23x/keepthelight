@@ -731,6 +731,9 @@
           <option value="ko-KR">Korean</option><option value="zh-CN">Chinese (simplified)</option><option value="zh-TW">Chinese (traditional)</option>
         </select>
         <div class="hint">When TMDB has no translation, it gives the original.</div></div>
+      <div class="row" style="margin-top:10px; align-items:center"><span class="hint grow" id="tmdbPicksText">When you match a file by hand, the other files with
+        that title follow, and the choice is remembered for later (the next season, say).</span>
+        <button id="tmdbForget" class="hidden">Forget remembered matches</button></div>
       <div class="rules-title" style="margin-top:16px">When a transcode or the queue has finished <span>– remembered</span></div>
       <div class="grid">
         <div><label for="sndDone">Sound when all files are done</label>
@@ -1517,7 +1520,7 @@ async function endEdit(save) {
     const r = await api('queueEditSave', { id: editing.id, settings: settings() });
     if (!r.ok) { showError(r.error); return; }
   } else await api('queueEditCancel', { id: editing.id });
-  const snap = editing.snapshot, editedId = editing.id;
+  const snap = editing.snapshot, editedId = editing.id, picked = save && editing.tmdbPicked;
   editing = null; pendingLoad = null;
   $('editBanner').classList.add('hidden'); $('input').readOnly = false; $('browseIn').disabled = false;
   loadForm(snap.st, { profile: snap.profile });
@@ -1529,6 +1532,11 @@ async function endEdit(save) {
   await poll();
   const row = $('queueList').querySelector('[data-id="' + editedId + '"]');
   if (row) { row.scrollIntoView({ block: 'nearest' }); row.classList.add('flash'); setTimeout(() => row.classList.remove('flash'), 1600); }
+  if (picked) { // matched on TMDB by hand: the other waiting files with that title follow
+    const f = await api('queueTMDBFollow', { id: editedId });
+    if (f && f.ok && f.files) notify((f.title ? f.title + ': ' : '') + 'filling in ' + f.files + ' more ' + (f.files === 1 ? 'file' : 'files') + ' from TMDB.');
+    poll();
+  }
 }
 $('testBtn').onclick = async () => {
   jobBoxDismissed = false;
@@ -1668,6 +1676,7 @@ async function restorePrefs() {
   if (typeof r.prefs.toolsHidden === 'string') toolsHidden = r.prefs.toolsHidden;
   $('tmdbKey').value = r.tmdbKey || (typeof r.prefs.tmdbKey === 'string' ? r.prefs.tmdbKey : '');
   if (r.tmdbLang) $('tmdbLangSel').value = r.tmdbLang;
+  tmdbPicksUI(r.tmdbPicks || 0);
   if (typeof r.prefs.scanTMDB === 'boolean') $('scanTMDB').checked = r.prefs.scanTMDB;
   tmdbKeyUI();
   if (typeof r.prefs.scanDir === 'string') $('scanDir').value = r.prefs.scanDir;
@@ -2082,6 +2091,13 @@ async function tmdbSearch() {
     box.append(row);
   });
 }
+// Matches chosen by hand are remembered (by the title in the file name), and the
+// other waiting files with that title follow once the edit is saved.
+function tmdbPicksUI(n) {
+  $('tmdbForget').classList.toggle('hidden', !n);
+  if (n) $('tmdbForget').textContent = 'Forget ' + n + ' remembered ' + (n === 1 ? 'match' : 'matches');
+}
+$('tmdbForget').onclick = async () => { await api('tmdbForget', {}); tmdbPicksUI(0); notify('Remembered TMDB matches forgotten.'); };
 async function tmdbUse(x, btn) {
   const m = metaFor(); if (!m) return;
   const tv = x.kind === 'tv';
@@ -2092,6 +2108,9 @@ async function tmdbUse(x, btn) {
   if (!r.ok) { showError(r.error); return; }
   if (metaFor() !== m) return; // another file was chosen meanwhile
   const f = r.fill;
+  api('tmdbRemember', { path: $('input').value.trim(), tag: nameTag(), kind: x.kind, id: x.id, title: x.title + (x.year && x.kind === 'movie' ? ' (' + x.year + ')' : '') })
+    .then(() => api('prefs', {})).then(p => { if (p && p.ok) tmdbPicksUI(p.tmdbPicks || 0); });
+  if (editing) editing.tmdbPicked = true;
   m.tags.title = f.title; m.tags.date = f.date; m.tags.description = f.description;
   if (f.cover) { m.cover = f.cover; m.removeCover = false; }
   renderMeta(); metaChanged();

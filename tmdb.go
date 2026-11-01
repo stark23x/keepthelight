@@ -475,6 +475,21 @@ func (g *guiServer) tmdbCall(ctx context.Context, name string, body []byte) map[
 		raw, _ := json.Marshal(l.Lang)
 		_ = g.savePref("tmdbLang", raw)
 		return okResult()
+	case "tmdbRemember": // the page matched a file by hand
+		var p struct {
+			Path, Kind, Title string
+			ID                int
+		}
+		_ = json.Unmarshal(body, &p)
+		key := tmdbPickKey(guessSearch(p.Path, b.Tag))
+		if key == "" || p.ID <= 0 || (p.Kind != "movie" && p.Kind != "tv") {
+			return failResult("nothing to remember")
+		}
+		g.rememberTMDB(key, tmdbPick{Kind: p.Kind, ID: p.ID, Title: p.Title})
+		return okResult()
+	case "tmdbForget":
+		_ = g.savePref("tmdbPicks", json.RawMessage(`{}`))
+		return okResult()
 	case "tmdbTestKey":
 		var r struct{}
 		if err := tmdbGet(ctx, b.Key, "/configuration", nil, &r); err != nil {
@@ -483,6 +498,77 @@ func (g *guiServer) tmdbCall(ctx context.Context, name string, body []byte) map[
 		return okResult()
 	}
 	return failResult("unknown request")
+}
+
+// ---------- matches chosen by hand, remembered ----------
+
+// When a file is matched by hand, the choice is remembered by the title its
+// name gives ("the office" → The Office (US), TMDB id 2316), so the show's
+// other episodes, and later seasons, match without asking.
+
+type tmdbPick struct {
+	Kind  string `json:"kind"`
+	ID    int    `json:"id"`
+	Title string `json:"title"`
+}
+
+// tmdbPickKey: the name's title, its kind, and for films the year (two films
+// can share a title; a show's episodes rarely carry its year).
+func tmdbPickKey(gs tmdbGuess) string {
+	q := normTitle(gs.Query)
+	if q == "" {
+		return ""
+	}
+	if gs.Kind == "movie" {
+		return "movie|" + q + "|" + gs.Year
+	}
+	return "tv|" + q
+}
+
+func (g *guiServer) tmdbPicks() map[string]tmdbPick {
+	m := map[string]tmdbPick{}
+	_ = json.Unmarshal(g.loadPrefs()["tmdbPicks"], &m)
+	return m
+}
+
+func (g *guiServer) rememberTMDB(key string, p tmdbPick) {
+	m := g.tmdbPicks()
+	if len(m) >= 500 { // a long list is never needed; start again rather than grow without end
+		m = map[string]tmdbPick{}
+	}
+	m[key] = p
+	if b, err := json.Marshal(m); err == nil {
+		_ = g.savePref("tmdbPicks", b)
+	}
+}
+
+// queueTMDBFollow fills in the waiting files that point to the same title as a
+// file just matched by hand (each with its own season and episode).
+func (g *guiServer) queueTMDBFollow(id int) map[string]any {
+	g.mu.Lock()
+	it := g.findItemLocked(id)
+	if it == nil {
+		g.mu.Unlock()
+		return failResult("that file is no longer in the queue")
+	}
+	key := tmdbPickKey(guessSearch(it.Input, ""))
+	var ids []int
+	for _, x := range g.q.items {
+		if x.ID == id || x.Editing || !(x.pending() || x.Status == stProblem) || (x.s.Meta != nil && x.s.Meta.Tags["title"] != "") {
+			continue
+		}
+		if key != "" && tmdbPickKey(guessSearch(x.Input, "")) == key {
+			ids = append(ids, x.ID)
+		}
+	}
+	g.mu.Unlock()
+	pick, ok := g.tmdbPicks()[key]
+	if !ok || len(ids) == 0 {
+		return map[string]any{"ok": true, "files": 0}
+	}
+	r := g.queueTMDB(ids)
+	r["title"] = pick.Title
+	return r
 }
 
 // ---------- the queue: matching without asking ----------
@@ -565,6 +651,7 @@ func (g *guiServer) queueTMDB(ids []int) map[string]any {
 	go func() {
 		dir := filepath.Join(appDataDir(), "covers")
 		cleanCovers(dir)
+		lk := &tmdbLookup{key: key, coverDir: dir, picks: g.tmdbPicks(), found: map[string]*tmdbFound{}}
 		for _, id := range todo {
 			g.mu.Lock()
 			it := g.findItemLocked(id)
@@ -576,7 +663,7 @@ func (g *guiServer) queueTMDB(ids []int) map[string]any {
 			if input == "" {
 				continue
 			}
-			note, meta := tmdbLookupFile(key, input, dir)
+			note, meta := lk.file(input)
 			g.mu.Lock()
 			if it := g.findItemLocked(id); it != nil && it.Input == input && !it.Editing && (it.pending() || it.Status == stProblem) {
 				if meta != nil {
@@ -612,28 +699,65 @@ func (g *guiServer) queueTMDB(ids []int) map[string]any {
 	return map[string]any{"ok": true, "files": len(todo)}
 }
 
-// tmdbLookupFile finds one file on TMDB without asking: the note for the queue
-// list, and the metadata when there was one clear match.
+// tmdbLookup is one run of the queue's lookup: the remembered matches, and
+// what each title gave, so a show's episodes are searched once, not once each.
+type tmdbLookup struct {
+	key, coverDir string
+	picks         map[string]tmdbPick
+	found         map[string]*tmdbFound
+}
+
+type tmdbFound struct {
+	hit        *tmdbResult
+	n          int  // results, when there was no clear match
+	remembered bool // the match was chosen by hand before
+	err        error
+}
+
+// tmdbLookupFile finds one file on TMDB without asking (see tmdbLookup.file).
 func tmdbLookupFile(key, input, coverDir string) (string, *MetaEdit) {
+	return (&tmdbLookup{key: key, coverDir: coverDir, found: map[string]*tmdbFound{}}).file(input)
+}
+
+// file finds one file on TMDB without asking: the note for the queue list, and
+// the metadata when there was one clear (or remembered) match.
+func (lk *tmdbLookup) file(input string) (string, *MetaEdit) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
+	key, coverDir := lk.key, lk.coverDir
 	gs := guessSearch(input, "")
 	if gs.Query == "" {
 		return "TMDB: needs a match (no title in the file name; use Edit)", nil
 	}
-	res, err := tmdbSearch(ctx, key, gs.Kind, gs.Query, gs.Year)
-	if err == nil && len(res) == 0 && gs.Year != "" { // the year in a name is sometimes off by one
-		res, err = tmdbSearch(ctx, key, gs.Kind, gs.Query, "")
+	pk := tmdbPickKey(gs)
+	fd := lk.found[pk]
+	if fd == nil {
+		fd = &tmdbFound{}
+		if p, ok := lk.picks[pk]; ok {
+			fd.hit, fd.remembered = &tmdbResult{ID: p.ID, Kind: p.Kind, Title: p.Title}, true
+		} else {
+			res, err := tmdbSearch(ctx, key, gs.Kind, gs.Query, gs.Year)
+			if err == nil && len(res) == 0 && gs.Year != "" { // the year in a name is sometimes off by one
+				res, err = tmdbSearch(ctx, key, gs.Kind, gs.Query, "")
+			}
+			fd.err, fd.n = err, len(res)
+			if err == nil {
+				fd.hit = tmdbAutoMatch(res, gs)
+			}
+		}
+		if fd.err == nil || ctx.Err() == nil { // a timeout is not remembered: the next file tries again
+			lk.found[pk] = fd
+		}
 	}
-	if err != nil {
-		return "TMDB: " + err.Error(), nil
+	if fd.err != nil {
+		return "TMDB: " + fd.err.Error(), nil
 	}
-	hit := tmdbAutoMatch(res, gs)
+	hit := fd.hit
 	if hit == nil {
-		if len(res) == 0 {
+		if fd.n == 0 {
 			return "TMDB: nothing found for \"" + gs.Query + "\" (use Edit to search)", nil
 		}
-		return fmt.Sprintf("TMDB: needs a match (%d possible results for \"%s\"; use Edit to choose)", len(res), gs.Query), nil
+		return fmt.Sprintf("TMDB: needs a match (%d possible results for \"%s\"; use Edit to choose, and the other files of that title follow)", fd.n, gs.Query), nil
 	}
 	f, err := tmdbDetails(ctx, key, hit.Kind, hit.ID, gs.Season, gs.Episode, coverDir)
 	if err != nil {
@@ -648,6 +772,9 @@ func tmdbLookupFile(key, input, coverDir string) (string, *MetaEdit) {
 	what := f.Title
 	if hit.Year != "" && gs.Kind == "movie" {
 		what += " (" + hit.Year + ")"
+	}
+	if fd.remembered {
+		return "TMDB: " + what + " (as matched before; check it with Edit)", m
 	}
 	return "TMDB: " + what + " (check it with Edit)", m
 }

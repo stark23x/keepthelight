@@ -782,6 +782,10 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		var b struct{ IDs []int }
 		_ = json.Unmarshal(body, &b)
 		return g.queueTMDB(b.IDs)
+	case "queueTMDBFollow": // a file was matched by hand: the other episodes of that show follow
+		var b struct{ ID int }
+		_ = json.Unmarshal(body, &b)
+		return g.queueTMDBFollow(b.ID)
 	case "clipboardRead":
 		t, err := readClipboard()
 		if err != nil {
@@ -875,7 +879,7 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		raw, _ := json.Marshal(b.Low)
 		_ = g.savePref("lowPriority", raw)
 		return okResult()
-	case "tmdbGuess", "tmdbSearch", "tmdbDetails", "tmdbTestKey", "tmdbKeySet", "tmdbLang":
+	case "tmdbGuess", "tmdbSearch", "tmdbDetails", "tmdbTestKey", "tmdbKeySet", "tmdbLang", "tmdbRemember", "tmdbForget":
 		return g.tmdbCall(ctx, name, body)
 	case "scanStart":
 		var b struct {
@@ -911,7 +915,7 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		_ = g.savePref("hwDecode", raw)
 		return okResult()
 	case "prefs":
-		res := map[string]any{"ok": true, "prefs": g.loadPrefs(), "tmdbKey": g.tmdbKey(), "tmdbLang": tmdbLanguage()}
+		res := map[string]any{"ok": true, "prefs": g.loadPrefs(), "tmdbKey": g.tmdbKey(), "tmdbLang": tmdbLanguage(), "tmdbPicks": len(g.tmdbPicks())}
 		if missing := g.missingTmpDir(); missing != "" {
 			res["tmpDirMissing"] = missing
 		}
