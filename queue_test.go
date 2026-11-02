@@ -428,3 +428,43 @@ awk '{print $19}' /proc/$$/stat > "$last"
 		t.Fatal("low priority not remembered")
 	}
 }
+
+// ⤒ and ⤓: straight to the top or the bottom of the files that have not started.
+func TestQueueMoveToTopAndBottom(t *testing.T) {
+	dir := t.TempDir()
+	var raws []json.RawMessage
+	for _, n := range []string{"a", "b", "c", "d", "e"} {
+		p := filepath.Join(dir, n+".mkv")
+		_ = os.WriteFile(p, []byte("x"), 0o644)
+		raws = append(raws, itemSettings(p, filepath.Join(dir, n+"_KTL.mkv")))
+	}
+	g := newGUIServer()
+	g.prefsPath = filepath.Join(t.TempDir(), "settings.json")
+	ids, _ := g.queueAdd(raws)
+	order := func() string {
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		var n []string
+		for _, it := range g.q.items {
+			n = append(n, strings.TrimSuffix(it.Name, ".mkv"))
+		}
+		return strings.Join(n, "")
+	}
+	g.mu.Lock()
+	g.q.items[0].Status = stDone    // finished files stay where they are
+	g.q.items[1].Status = stRunning // and so does the running one
+	g.mu.Unlock()
+	if err := g.queueMove(ids[4], -2); err != nil || order() != "abecd" {
+		t.Errorf("to the top: %s %v", order(), err)
+	}
+	if err := g.queueMove(ids[4], 2); err != nil || order() != "abcde" {
+		t.Errorf("to the bottom: %s %v", order(), err)
+	}
+	if err := g.queueMove(ids[1], -2); err == nil {
+		t.Error("the running file was moved")
+	}
+	if err := g.queueMove(ids[2], 5); err == nil {
+		t.Error("a bad direction was accepted")
+	}
+	time.Sleep(50 * time.Millisecond)
+}

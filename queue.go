@@ -232,6 +232,8 @@ func (g *guiServer) queueRemove(id int) error {
 }
 
 // queueMove moves a not-yet-started item up (-1) or down (+1) past its neighbour.
+// queueMove moves a waiting file one place up (-1) or down (1), or all the way
+// to the top (-2: the next to start) or the bottom (2) of the waiting files.
 func (g *guiServer) queueMove(id, dir int) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -239,12 +241,25 @@ func (g *guiServer) queueMove(id, dir int) error {
 	if it == nil || it.Status == stRunning || it.finished() {
 		return errors.New("only files that have not started can be moved")
 	}
-	j := i + dir
-	if j < 0 || j >= len(g.q.items) || g.q.items[j].Status == stRunning || g.q.items[j].finished() {
-		return nil // already at the end of the movable part
+	step, steps := dir, 1
+	if dir == -2 || dir == 2 {
+		step, steps = dir/2, len(g.q.items)
 	}
-	g.q.items[i], g.q.items[j] = g.q.items[j], g.q.items[i]
-	go g.saveQueue()
+	if step != -1 && step != 1 {
+		return errors.New("bad direction")
+	}
+	moved := false
+	for ; steps > 0; steps-- {
+		j := i + step
+		if j < 0 || j >= len(g.q.items) || g.q.items[j].Status == stRunning || g.q.items[j].finished() {
+			break // the end of the movable part
+		}
+		g.q.items[i], g.q.items[j] = g.q.items[j], g.q.items[i]
+		i, moved = j, true
+	}
+	if moved {
+		go g.saveQueue()
+	}
 	return nil
 }
 

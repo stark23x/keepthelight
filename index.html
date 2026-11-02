@@ -2527,8 +2527,10 @@ function renderQueue(q) {
           notify(msg); poll();
         }));
       if (it.status === 'waiting' || it.status === 'checking' || it.status === 'problem') {
-        btns.append(rowButton('↑', 'Move up', () => api('queueMove', { id: it.id, dir: -1 }).then(poll)),
-          rowButton('↓', 'Move down', () => api('queueMove', { id: it.id, dir: 1 }).then(poll)));
+        btns.append(rowButton('⤒', 'Move to the top: the next file to start', () => api('queueMove', { id: it.id, dir: -2 }).then(poll)),
+          rowButton('↑', 'Move up', () => api('queueMove', { id: it.id, dir: -1 }).then(poll)),
+          rowButton('↓', 'Move down', () => api('queueMove', { id: it.id, dir: 1 }).then(poll)),
+          rowButton('⤓', 'Move to the bottom', () => api('queueMove', { id: it.id, dir: 2 }).then(poll)));
       }
       if (it.status === 'failed' || it.status === 'done' || it.status === 'canceled') {
         btns.append(rowButton('Log', 'Show the log of this file', async () => {
