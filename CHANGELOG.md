@@ -18,6 +18,17 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.26.0 - 2026-11-02
+
+- **Pause / Resume** (next to Cancel while a file is converting). Pause freezes the conversion where it is; Resume
+  carries on from the same spot, with nothing lost. While paused, the progress bar turns amber, the time left and
+  the window title say "Paused", and the PC can go to sleep as usual. A pause lasts while Keep the Light is open:
+  closing it still stops that file.
+- **Stop after this file** (in the queue): the running file finishes, then the queue stops; the other files stay
+  waiting. Press it again to undo. **Stop queue** still stops at once.
+- **Move to the top / bottom:** ⤒ and ⤓ next to ↑ and ↓ move a waiting file straight to the front (the next to
+  start) or to the end.
+
 ## 1.25.1 - 2026-11-01
 
 - **Fixed:** the 30-second test failed on MP4 files with subtitles ("Subtitle codec mov_text is not supported"). The

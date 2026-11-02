@@ -66,6 +66,10 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   `name_KTL.mkv` (the ending is set under **Add to the name**), or into the folder chosen under **Save converted files**; files whose
   result already exists are skipped. Files run one after another; one that fails
   does not stop the rest. Unfinished queues are remembered and come back when you reopen Keep the Light.
+  **Pause** freezes the running file and **Resume** carries on from the same spot (as long as Keep the Light stays
+  open; the PC can sleep while paused). **Stop after this file** lets the running file finish and then stops the queue;
+  **Stop queue** cancels the running file at once. ⤒ / ↑ / ↓ / ⤓ move a waiting file to the top, up, down or to the
+  bottom.
   **When the queue is finished** (on the Queue tab) can put the PC to sleep or shut it down (with 60 seconds to cancel).
   Each file is a two-line row: its name and status, then what it is with small chips (⚠ 2 Plex, x265 CRF 18, 480p,
   SRT…); click a row for its full settings and Plex details.

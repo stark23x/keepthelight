@@ -6,18 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **Pause / Resume** (requested 2026-11-02). Freezes the running file where it is, and Resume carries on from the
-  same spot. On Windows this suspends FFmpeg and the other tools of the job, so no work is lost.
-  - While paused, the progress bar and time left say "Paused", the window title says so, and the PC may sleep as
-    usual (the "keep awake" hold is released, then taken again on Resume).
-  - A pause only lasts while Keep the Light is open. Closing it, or restarting the PC, still loses that file's
-    progress, so closing while paused asks first, as now.
-  - Works for a single file and in the queue.
-- **Move to the top** (requested 2026-11-02). A ⤒ button next to ↑ and ↓ on each waiting file moves it straight
-  to the front of the waiting files, so it is the next to start (a running file is not interrupted). A ⤓ "move to
-  the bottom" button next to it, for the opposite case.
-- **Stop after this file** (requested 2026-11-02). The running file finishes, and then the queue stops; the other
-  files stay waiting. It can be undone before the file ends. **Stop queue** (cancel now) stays as it is.
+Nothing yet.
 
 ## Ideas raised, not yet requested
 
@@ -29,6 +18,8 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Done
 
+- 1.26.0: Pause / Resume; Stop after this file; move a queued file to the top or bottom.
+- 1.25.1: fixed the 30-second test of MP4 files with text subtitles.
 - 1.25.0: TMDB: match one file by hand, the rest of that title follows (remembered; Settings can forget).
 - 1.24.1: the queue hint no longer flickers (UI-7); Start no longer also adds (UI-4); UI-12 tighter spacing. To undo
   UI-4 or UI-7, revert both commits with that number.
