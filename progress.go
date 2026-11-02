@@ -88,6 +88,13 @@ func (p *progressTracker) keepSpeed(now time.Time) {
 
 func (p *progressTracker) finish() { p.phase = "done" }
 
+// shift leaves out a pause: the pass started that much later.
+func (p *progressTracker) shift(d time.Duration) {
+	if !p.passStart.IsZero() {
+		p.passStart = p.passStart.Add(d)
+	}
+}
+
 // liveSpeed is the current encode speed (video seconds per second), or the
 // previous pass's while this one settles; 0 if not known yet.
 func (p *progressTracker) liveSpeed(now time.Time) float64 {

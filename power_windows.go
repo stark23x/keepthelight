@@ -5,7 +5,7 @@ package main
 import (
 	"errors"
 	"os/exec"
-	"runtime"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -24,18 +24,25 @@ const (
 
 // preventSleep keeps Windows from going to sleep while a transcode runs (the
 // screen may still turn off). Call the returned function when done.
-// The request belongs to a thread, so a dedicated locked thread holds it.
+//
+// It tells Windows "the system is in use" every 30 seconds rather than holding
+// a lasting request: a paused job (its processes frozen) stops telling, so the
+// PC can go to sleep as usual while paused.
 func preventSleep() (release func()) {
-	stop, held := make(chan struct{}), make(chan struct{})
+	stop := make(chan struct{})
+	_, _, _ = procSetThreadExecutionState.Call(esSystemRequired)
 	go func() {
-		runtime.LockOSThread()
-		defer runtime.UnlockOSThread()
-		_, _, _ = procSetThreadExecutionState.Call(esContinuous | esSystemRequired)
-		close(held)
-		<-stop
-		_, _, _ = procSetThreadExecutionState.Call(esContinuous)
+		t := time.NewTicker(30 * time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-t.C:
+				_, _, _ = procSetThreadExecutionState.Call(esSystemRequired) // resets the sleep timer
+			}
+		}
 	}()
-	<-held
 	return func() { close(stop) }
 }
 

@@ -49,6 +49,8 @@ type job struct {
 	stage    string
 	running  bool
 	canceled bool
+	paused   bool      // frozen by Pause until Resume
+	pausedAt time.Time // when it was paused
 	exitCode int
 	output   string        // the finished file's name
 	partial  string        // where it is written until it is complete
@@ -838,6 +840,18 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 	case "cancel":
 		g.cancel()
 		return okResult()
+	case "pause", "resume":
+		if err := g.pauseJob(name == "pause"); err != nil {
+			return failResult(err.Error())
+		}
+		return okResult()
+	case "queueStopAfter": // stop the queue once the running file is done (or not, any more)
+		var b struct{ On bool }
+		_ = json.Unmarshal(body, &b)
+		g.mu.Lock()
+		g.q.stopAfter = b.On && g.q.running
+		g.mu.Unlock()
+		return okResult()
 	case "reveal":
 		g.reveal()
 		return okResult()
@@ -1370,7 +1384,7 @@ func (g *guiServer) status(since int) map[string]any {
 		"active": true, "running": j.running, "lines": lines, "next": j.base + len(j.lines),
 		"progress": j.progress, "percent": j.prog.percent(), "eta": g.remainingLocked(g.clock()), "stage": j.stage, "exitCode": j.exitCode,
 		"jobId": j.id, "queue": g.queueStatusLocked(), "title": g.titleLocked(g.clock()), "open": g.takeInboxLocked(),
-		"canceled": j.canceled, "output": j.output,
+		"canceled": j.canceled, "output": j.output, "paused": j.paused,
 	}
 }
 
@@ -1379,12 +1393,46 @@ func (g *guiServer) cancel() {
 	j := g.job
 	if j != nil && j.running {
 		j.canceled = true
-		cmd := j.cmd
+		cmd, paused := j.cmd, j.paused
 		g.mu.Unlock()
+		if paused && cmd != nil && cmd.Process != nil {
+			_ = suspendTree(cmd.Process.Pid, false) // let it run, so it can be stopped and tidy up
+		}
 		killTree(cmd)
 		return
 	}
 	g.mu.Unlock()
+}
+
+// pauseJob freezes the running job where it is (pause) or lets it carry on
+// (resume). The time spent paused does not count toward its speed and time left.
+func (g *guiServer) pauseJob(pause bool) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	j := g.job
+	if j == nil || !j.running || j.cmd == nil || j.cmd.Process == nil {
+		return fmt.Errorf("nothing is running")
+	}
+	if j.paused == pause {
+		return nil
+	}
+	if err := suspendTree(j.cmd.Process.Pid, pause); err != nil {
+		return fmt.Errorf("could not %s: %v", map[bool]string{true: "pause", false: "resume"}[pause], err)
+	}
+	now := g.clock()
+	if pause {
+		j.paused, j.pausedAt = true, now
+		return nil
+	}
+	away := now.Sub(j.pausedAt)
+	j.paused = false
+	j.prog.shift(away)
+	for _, it := range g.q.items {
+		if it.job == j && !it.started.IsZero() {
+			it.started = it.started.Add(away)
+		}
+	}
+	return nil
 }
 
 // cancelAndWait stops a running job and waits (up to timeout) until it has

@@ -318,6 +318,8 @@
   .dock { position: sticky; bottom: 0; z-index: 10; background: var(--panel); border: 1px solid var(--line); border-radius: 10px 10px 0 0;
     padding: 12px 16px; box-shadow: 0 -8px 24px rgba(0,0,0,.45); margin-top: 6px; }
   .dock .actions { gap: 8px; }
+  #stopAfter.on { border-color: var(--warn); color: var(--warn); }
+  .bar.paused > div { background: var(--warn) !important; }
   .testgrp { display: inline-flex; gap: 6px; align-items: center; }
   .testgrp input { width: 110px; padding: 7px 8px; }
   .dock pre#log { max-height: 28vh; }
@@ -679,7 +681,9 @@
             and <b>"… (30 s original)"</b>, the same seconds unchanged. Compare them, change a setting and test again (the clips are replaced), and press
             Start when you are happy. The test is scored (VMAF or SSIM) in the log.</div></details></span>
         <button class="danger hidden" id="cancel">Cancel</button>
-        <button class="hidden" id="stopQueue" title="Cancel this file and do not start the rest">Stop queue</button>
+        <button class="hidden" id="pauseBtn" title="Freeze this file where it is; Resume carries on from the same spot (as long as Keep the Light stays open)">Pause</button>
+        <button class="hidden" id="stopAfter" title="Let this file finish, then stop; the other files stay waiting">Stop after this file</button>
+        <button class="hidden" id="stopQueue" title="Cancel this file now and do not start the rest">Stop queue</button>
         <button id="reveal" class="hidden">Show in folder</button>
         <button id="again" class="hidden">New job</button>
         <button id="queueLink" class="linkbtn hidden"></button>
@@ -2006,6 +2010,12 @@ $('start').onclick = async () => {
 $('addQueue').onclick = () => addToQueue([settings()]);
 $('cancel').onclick = async () => { $('cancel').disabled = true; await api('cancel', {}); setTimeout(() => $('cancel').disabled = false, 1500); };
 $('stopQueue').onclick = () => api('queueStop', {});
+$('pauseBtn').onclick = async () => {
+  const resume = $('pauseBtn').textContent === 'Resume';
+  const r = await api(resume ? 'resume' : 'pause', {});
+  if (!r.ok) showError(r.error); poll();
+};
+$('stopAfter').onclick = async () => { await api('queueStopAfter', { on: !queue.stopAfter }); poll(); };
 $('reveal').onclick = () => api('reveal', {});
 $('again').onclick = () => { jobBoxDismissed = true; $('jobBox').classList.add('hidden'); $('again').classList.add('hidden'); $('reveal').classList.add('hidden'); };
 $('after').onchange = () => api('after', { action: $('after').value });
@@ -2625,7 +2635,17 @@ async function poll() {
     $('pct').textContent = (pct > 0 ? pct.toFixed(1) + '%' : '') + (r.running && r.eta ? (pct > 0 ? '  ·  ' : '') + r.eta : '');
   }
   setJobUI(busy);
-  $('stopQueue').classList.toggle('hidden', !(q.running && ((q.counts.waiting || 0) + (q.counts.checking || 0)) > 0));
+  const more = q.running && ((q.counts.waiting || 0) + (q.counts.checking || 0)) > 0;
+  $('stopQueue').classList.toggle('hidden', !more);
+  // Pause / Resume, and Stop after this file
+  const paused = !!(busy && r.paused);
+  $('pauseBtn').classList.toggle('hidden', !(busy && r.running));
+  $('pauseBtn').textContent = paused ? 'Resume' : 'Pause';
+  $('pauseBtn').classList.toggle('primary', paused);
+  $('stopAfter').classList.toggle('hidden', !(more || q.stopAfter));
+  $('stopAfter').textContent = q.stopAfter ? 'Will stop after this file (undo)' : 'Stop after this file';
+  $('stopAfter').classList.toggle('on', !!q.stopAfter);
+  $('bar').classList.toggle('paused', paused);
   if (!busy && r.active && !jobBoxDismissed) { // everything has finished: show how the last run ended
     $('again').classList.remove('hidden');
     $('bar').classList.remove('done', 'fail');

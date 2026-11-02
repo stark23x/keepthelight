@@ -72,14 +72,15 @@ func (it *queueItem) finished() bool {
 func (it *queueItem) pending() bool { return it.Status == stWaiting || it.Status == stChecking }
 
 type batch struct {
-	items    []*queueItem
-	nextID   int
-	running  bool  // the runner is working through the queue
-	stop     bool  // stop after the current file
-	only     int   // >0: run only this file (a test), not the rest of the queue
-	savedRun int64 // space saved by the files finished in this run (bytes; can be negative)
-	index    int   // position of the current file in this run (1-based)
-	total    int   // files in this run
+	items     []*queueItem
+	nextID    int
+	running   bool  // the runner is working through the queue
+	stop      bool  // stop: the current file was canceled, the rest do not start
+	stopAfter bool  // stop once the current file is done
+	only      int   // >0: run only this file (a test), not the rest of the queue
+	savedRun  int64 // space saved by the files finished in this run (bytes; can be negative)
+	index     int   // position of the current file in this run (1-based)
+	total     int   // files in this run
 
 	after      string    // "", "sleep" or "shutdown": what to do when the queue is finished
 	powerAt    time.Time // when the countdown for "after" ends (zero = no countdown)
@@ -680,7 +681,7 @@ func (g *guiServer) startQueue() error {
 	if g.q.only > 0 {
 		n = 1 // a test on its own
 	}
-	g.q.running, g.q.stop, g.q.index, g.q.total = true, false, 0, n
+	g.q.running, g.q.stop, g.q.stopAfter, g.q.index, g.q.total = true, false, false, 0, n
 	if g.q.only == 0 {
 		g.q.savedRun = 0 // a new run
 		for _, it := range g.q.items {
@@ -704,7 +705,7 @@ func (g *guiServer) runQueue() {
 	finished, failed := 0, 0 // files this run got to the end of (for the sound at the end)
 	for {
 		g.mu.Lock()
-		if g.q.stop {
+		if g.q.stop || g.q.stopAfter { // stopped, or "stop after this file" and that file is done
 			stoppedByUser = true
 			g.mu.Unlock()
 			break
@@ -812,7 +813,7 @@ func (g *guiServer) runQueue() {
 		g.saveQueue()
 	}
 	g.mu.Lock()
-	g.q.running, g.q.only = false, 0
+	g.q.running, g.q.only, g.q.stopAfter = false, 0, false
 	closing := g.closing
 	g.mu.Unlock()
 	if !stoppedByUser && !closing && finished > 0 {
@@ -1010,7 +1011,7 @@ func (g *guiServer) queueStatusLocked() map[string]any {
 			}
 		}
 	}
-	res := map[string]any{"plexFiles": plexFiles, "plexBad": plexBad,
+	res := map[string]any{"plexFiles": plexFiles, "plexBad": plexBad, "stopAfter": g.q.stopAfter,
 		"items": items, "counts": counts, "running": g.q.running, "index": g.q.index, "batch": g.batchLocked(items),
 		"total": g.q.total, "after": g.q.after, "savedRun": g.q.savedRun, "savedRunText": signedBytes(g.q.savedRun),
 		"savedTotal": g.savedTotal, "savedTotalText": signedBytes(g.savedTotal)}
@@ -1056,6 +1057,9 @@ func (g *guiServer) remainingLocked(now time.Time) string {
 	j := g.job
 	if j == nil || !j.running {
 		return ""
+	}
+	if j.paused {
+		return "Paused"
 	}
 	secs, state, ok := j.prog.remaining(now)
 	if !g.q.running {
@@ -1462,6 +1466,8 @@ func (g *guiServer) fillTimesLocked(items []queueItem) {
 		it := &items[i]
 		it.ETA, it.Est = "", ""
 		switch {
+		case it.Status == stRunning && it.job != nil && it.job.paused:
+			it.ETA = "paused"
 		case it.Status == stRunning && it.job != nil:
 			if secs, state, ok := g.runningLeft(g.q.items[i], now); ok {
 				it.ETA = formatRemaining(secs)
