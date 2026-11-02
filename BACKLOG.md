@@ -13,6 +13,9 @@ next build". Shipped features move to "Done" with their version number. Nothing 
   - A pause only lasts while Keep the Light is open. Closing it, or restarting the PC, still loses that file's
     progress, so closing while paused asks first, as now.
   - Works for a single file and in the queue.
+- **Move to the top** (requested 2026-11-02). A ⤒ button next to ↑ and ↓ on each waiting file moves it straight
+  to the front of the waiting files, so it is the next to start (a running file is not interrupted). A ⤓ "move to
+  the bottom" button next to it, for the opposite case.
 - **Stop after this file** (requested 2026-11-02). The running file finishes, and then the queue stops; the other
   files stay waiting. It can be undone before the file ends. **Stop queue** (cancel now) stays as it is.
 
