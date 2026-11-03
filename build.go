@@ -12,6 +12,7 @@ type Config struct {
 	Scale                                        string  // "" keeps the size; "1080p" etc. shrinks to fit that frame
 	Denoise                                      string  // noise reduction: "" off, light, medium, strong, hq
 	Deinterlace                                  string  // "" or smooth, standard, off (see deinterlace.go)
+	Crop                                         bool    // cut black bars (only with 576p / 480p; see crop.go)
 	SampleSecs                                   int     // >0: encode only a test of this many seconds
 	SampleStart                                  float64 // where the test starts (seconds; <0 = automatic)
 	SampleOriginal                               string  // where the same stretch of the original is kept, for comparing ("" = automatic)
@@ -52,6 +53,7 @@ type Config struct {
 	gpu                                          *gpuPath       // the full-GPU path, when it works for this file
 	cleanup                                      []string       // files to remove when the job ends (a test's sample)
 	sample                                       string         // a test's cut of the original
+	fullInput                                    string         // a test: the whole original (the bars are found in it, not only in the cut)
 	replaceFinal                                 string         // command line -replace-original: the name the result finally gets
 }
 
@@ -74,6 +76,8 @@ type Plan struct {
 	Interlace    *interlaceInfo // what the check of the picture found (nil: not checked)
 	Deint        string         // "" (no), "smooth" or "standard"
 	FieldOrder   string         // "tff" or "bff"
+	CropW, CropH int            // >0: the black bars are cut, leaving this picture...
+	CropX, CropY int            // ...from this corner
 }
 
 // scaleBoxes are the sizes offered for resizing: the video is shrunk to fit
@@ -227,6 +231,9 @@ func buildVideoArgs(cfg *Config, p *Probe, plan *Plan, hdr10plusJSON string) ([]
 	}
 	var args, filters []string
 	if f := plan.deintFilter(); f != "" { // first: resizing an interlaced picture would blend its fields
+		filters = append(filters, f)
+	}
+	if f := plan.cropFilter(); f != "" { // then the black bars go, before resizing
 		filters = append(filters, f)
 	}
 	if plan.ScaleW > 0 {

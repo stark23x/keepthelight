@@ -464,7 +464,9 @@
         <div><label for="scale">Resolution</label>
           <select id="scale"><option value="">Keep original</option><option value="2160p">4K (2160p)</option><option value="1440p">1440p</option>
             <option value="1080p">1080p</option><option value="720p">720p</option><option value="576p">576p (SD)</option><option value="480p">480p (SD)</option></select>
-          <div class="hint" id="scaleHint">Smaller = much faster encode and smaller file. HDR10, HDR10+ and Dolby Vision are kept.</div></div>
+          <div class="hint" id="scaleHint">Smaller = much faster encode and smaller file. HDR10, HDR10+ and Dolby Vision are kept.</div>
+          <label class="check hidden" id="cropWrap" style="margin-top:6px" title="Old TV and DVD material is often stored inside a bigger frame with black bars. They are found by looking at the picture, cut, and the picture is then shrunk to fit. Not for Dolby Vision files.">
+            <input type="checkbox" id="crop" checked> <span>Crop black bars</span></label></div>
         <div id="dvWrap" class="hidden"><label for="dv">Dolby Vision</label>
           <select id="dv"><option value="auto">Keep Dolby Vision</option><option value="drop">Drop (plain HDR10)</option></select></div>
       </div>
@@ -837,7 +839,7 @@ function settings() {
     preset: $('preset').value, audio: $('audio').value, audioBitrate: $('abitrate').value.trim(),
     dv: $('dv').value, masterDisplay: $('master').value.trim(), maxCLL: $('cll').value.trim(), tmp: $('tmp').value.trim(),
     targetSize: $('targetNum').value.trim().replace(',', '.') + $('targetUnit').value, retries: +$('retries').value,
-    scale: $('scale').value, denoise: $('denoise').value, deinterlace: $('deinterlace').value,
+    scale: $('scale').value, crop: $('crop').checked, denoise: $('denoise').value, deinterlace: $('deinterlace').value,
     audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, audioChannels: $('audioCh').value, addCompatAudio: $('addCompat').checked, subLang: $('subLang').value.trim(), subMode: $('subMode').value, subToSRT: $('subToSRT').value,
     audioOnePerLang: $('audioOne').value, subNameMode: $('subNameMode').value, subNameWords: $('subNameWords').value.trim(), nameTracks: $('nameTracks').checked,
     ...trackSettings(),
@@ -881,6 +883,7 @@ function showQualityGuide() {
     document.createTextNode('. A rough rule of thumb; Test 30 seconds measures the real result.'));
 }
 function updateVisibility() {
+  $('cropWrap').classList.toggle('hidden', !['576p', '480p'].includes($('scale').value)); // only for the SD sizes
   const enc = radio('mode') === 'encode';
   $('encodeOpts').classList.toggle('hidden', !enc);
   $('dvWrap').classList.toggle('hidden', !(info && info.dv));
@@ -1302,7 +1305,7 @@ async function confirmNewFiles(form) {
 // ---------- profiles ----------
 // A profile is a named set of the settings below the Files section. It can
 // name converted files after itself ("Film_Plex 4K.mkv").
-const PROFILE_KEYS = ['mode', 'codec', 'preset', 'scale', 'denoise', 'deinterlace', 'dv', 'quality', 'crf', 'bitrate', 'targetSize', 'retries',
+const PROFILE_KEYS = ['mode', 'codec', 'preset', 'scale', 'crop', 'denoise', 'deinterlace', 'dv', 'quality', 'crf', 'bitrate', 'targetSize', 'retries',
   'audio', 'audioBitrate', 'audioChannels', 'audioLang', 'dropCommentary', 'addCompatAudio', 'subLang', 'subMode', 'subToSRT', 'audioOnePerLang', 'subNameMode', 'subNameWords', 'nameTracks', 'masterDisplay', 'maxCLL', 'format'];
 let profiles = []; // [{ name, useNameTag, settings }]
 function activeProfile() { const n = $('profile').value; return n ? profiles.find(p => p.name === n) || null : null; }
@@ -1346,6 +1349,7 @@ function applyFields(st, keys) {
   if (has('codec')) $('codec').value = st.codec;
   if (has('preset')) $('preset').value = st.preset;
   if (has('scale')) $('scale').value = st.scale;
+  if (has('crop')) $('crop').checked = !!st.crop;
   if (has('denoise')) $('denoise').value = st.denoise;
   if (has('deinterlace')) $('deinterlace').value = st.deinterlace;
   if (has('dv')) $('dv').value = st.dv;
@@ -1374,7 +1378,7 @@ function applyFields(st, keys) {
 // a profile's format (MKV or MP4) for an output name
 function withFormat(out, p) { return p && p.settings && ['.mkv', '.mp4'].includes(p.settings.format) ? out.replace(/\.[A-Za-z0-9]+$/, '') + p.settings.format : out; }
 // settings added after a profile was saved: their defaults, so older profiles still apply cleanly
-const PROFILE_DEFAULTS = { denoise: '', deinterlace: '', addCompatAudio: false, subToSRT: '', audioOnePerLang: '', subNameMode: '', subNameWords: '', nameTracks: false };
+const PROFILE_DEFAULTS = { crop: true, denoise: '', deinterlace: '', addCompatAudio: false, subToSRT: '', audioOnePerLang: '', subNameMode: '', subNameWords: '', nameTracks: false };
 function withDefaults(st) { return Object.assign({}, PROFILE_DEFAULTS, st); }
 function applyProfile(p) {
   if (p) applyFields(withDefaults(p.settings), PROFILE_KEYS);
@@ -1632,6 +1636,7 @@ function updateSummaries() {
       : 'target ' + $('targetNum').value.trim() + ' ' + ($('targetUnit').value === 'G' ? 'GB' : 'MB');
     v = [{ x265: 'x265', nvenc: 'NVENC', qsv: 'QuickSync' }[$('codec').value], quality, $('preset').value].join('  ·  ');
     if ($('scale').value) v += '  ·  ' + (info && info.scaledTo ? info.scaledTo : $('scale').value);
+    if (info && info.crop) v += '  ·  black bars cropped';
     if ($('denoise').value) v += '  ·  noise reduction ' + $('denoise').options[$('denoise').selectedIndex].text.toLowerCase().replace(' (slower)', '');
     if (info && info.dv && $('dv').value === 'drop') v += '  ·  drop Dolby Vision';
     const di = $('deinterlace').value;
@@ -1869,7 +1874,7 @@ $('container').addEventListener('change', () => {
   if (o) $('output').value = o.replace(/\.[A-Za-z0-9]+$/, '') + $('container').value; else suggestOutput();
   updateAudioNote(); renderMeta(); scheduleProbe();
 });
-['preset', 'scale', 'denoise', 'deinterlace', 'dv', 'bitrate', 'abitrate', 'master', 'cll', 'tmp', 'targetNum', 'targetUnit', 'retries'].forEach(id => $(id).addEventListener('change', () => scheduleProbe(200)));
+['preset', 'scale', 'crop', 'denoise', 'deinterlace', 'dv', 'bitrate', 'abitrate', 'master', 'cll', 'tmp', 'targetNum', 'targetUnit', 'retries'].forEach(id => $(id).addEventListener('change', () => scheduleProbe(200)));
 $('targetNum').addEventListener('input', () => scheduleProbe(600));
 $('audio').addEventListener('change', () => { updateVisibility(); rulesChanged(); });
 ['audioLang', 'subLang'].forEach(id => $(id).addEventListener('change', rulesChanged));
@@ -2365,7 +2370,7 @@ function settingsText(st) {
     ? 'target ' + String(st.targetSize).replace(/G$/, ' GB').replace(/M$/, ' MB') : 'CRF ' + st.crf;
   const parts = [{ x265: 'x265', nvenc: 'NVENC', qsv: 'QuickSync' }[st.codec] || st.codec, q, st.preset];
   if (st.profile) parts.unshift(st.profile);
-  if (st.scale) parts.push(st.scale);
+  if (st.scale) parts.push(st.scale + (st.crop && ['576p', '480p'].includes(st.scale) ? ' (bars cropped)' : ''));
   if (st.denoise) parts.push('NR ' + (st.denoise === 'hq' ? 'high quality' : st.denoise));
   if (st.deinterlace) parts.push(st.deinterlace === 'off' ? 'no deinterlacing' : 'deinterlace standard');
   if (st.testSeconds) parts.unshift(st.testSeconds + ' s test');

@@ -122,6 +122,9 @@ func chooseGPUPath(ctx context.Context, cfg *Config, plan *Plan) (*gpuPath, stri
 	if cfg.Denoise != "" {
 		return nil, "Full-GPU path: not used, because noise reduction runs on the CPU (decoding on the GPU still applies if it is on)"
 	}
+	if plan.CropW > 0 {
+		return nil, "Full-GPU path: not used, because cropping black bars runs on the CPU (decoding on the GPU still applies if it is on)"
+	}
 	if plan.Deint != "" {
 		return nil, "Full-GPU path: not used, because deinterlacing runs on the CPU (decoding on the GPU still applies if it is on)"
 	}

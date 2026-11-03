@@ -111,6 +111,7 @@ type settings struct {
 	Meta                       *MetaEdit // metadata changes for this file (null = none)
 	Denoise                    string    // noise reduction: "" off, light, medium, strong, hq
 	Deinterlace                string    // "" (smooth), smooth, standard, off
+	Crop                       bool      // cut black bars (576p and 480p only)
 	TestSeconds                int       // >0: only a test of this many seconds
 	TestStart                  string    // where the test starts ("" = automatic)
 	ReplaceOriginal            bool      // metadata only: the result takes the original's place
@@ -178,6 +179,7 @@ func (s *settings) toConfig() (*Config, error) {
 	}
 	if !cfg.CopyVideo {
 		cfg.Scale = sc
+		cfg.Crop = s.Crop && cropAllowed(sc) // hidden, and off, for the other sizes
 	}
 	if cfg.CRF < 0 || cfg.CRF > 51 {
 		return nil, fmt.Errorf("quality (CRF) must be between 0 and 51")
@@ -316,6 +318,9 @@ func (cfg *Config) cliArgs() []string {
 	}
 	if cfg.WorkLocal != "" {
 		a = append(a, "-work-local", cfg.WorkLocal)
+	}
+	if cfg.Crop {
+		a = append(a, "-crop")
 	}
 	if cfg.Scale != "" {
 		a = append(a, "-scale", cfg.Scale)
@@ -1229,6 +1234,15 @@ func (g *guiServer) probe(ctx context.Context, s settings) map[string]any {
 		if d.Interlaced {
 			resp["interlaced"] = d.orderName()
 		}
+		if cfg.Crop && !cfg.CopyVideo { // 576p / 480p: are there black bars to cut?
+			c := detectCrop(ctx, ffmpeg, s.Input, p.Width, p.Height, p.Duration)
+			applyCrop(cfg, p, plan, c)
+			if plan.CropW > 0 {
+				resp["crop"] = fmt.Sprintf("%d×%d", plan.CropW, plan.CropH)
+			} else if c == nil {
+				resp["crop"] = ""
+			}
+		}
 	}
 	if t, err := probeTracks(ctx, ffprobe, s.Input); err != nil {
 		resp["blocker"] = "Could not read the audio and subtitle tracks: " + err.Error()
@@ -1487,6 +1501,9 @@ func friendlyMode(cfg *Config, plan *Plan) string {
 	}
 	if plan.Deint != "" {
 		s += "; " + deintText(plan, 0)
+	}
+	if plan.CropW > 0 {
+		s += fmt.Sprintf("; black bars cropped (%d×%d picture)", plan.CropW, plan.CropH)
 	}
 	if plan.ScaleW > 0 && !cfg.CopyVideo {
 		s += fmt.Sprintf("; resized to %dx%d", plan.ScaleW, plan.ScaleH)

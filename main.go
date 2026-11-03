@@ -83,6 +83,7 @@ Choosing tracks (numbers as the window shows them: audio 1, 2, ...; subtitles 1,
                        data. Never enlarges.
   -denoise <level>     noise reduction: light, medium, strong (fast, CPU), or hq (high quality:
                        on the GPU when it can, else slower on the CPU). Keeps 10-bit HDR intact.
+  -crop                with -scale 576p or 480p: cut black bars first (found by looking at the picture)
   -deinterlace <how>   for interlaced video (old TV, DVDs): smooth (default: a frame per field,
                        50/60 fps), standard (25/30 fps) or off. The picture itself is checked
                        (files are often labelled wrong), in SD files and files marked interlaced.
@@ -185,6 +186,7 @@ func parseArgs() (*Config, bool) {
 	fs.StringVar(&cfg.Scale, "scale", "", "")
 	fs.StringVar(&cfg.Denoise, "denoise", "", "")
 	fs.StringVar(&cfg.Deinterlace, "deinterlace", "", "")
+	fs.BoolVar(&cfg.Crop, "crop", false, "")
 	fs.IntVar(&cfg.SampleSecs, "sample", 0, "")
 	fs.StringVar(&cfg.SampleOriginal, "sample-original", "", "")
 	sampleStartArg := fs.String("sample-start", "", "")
@@ -256,6 +258,10 @@ func parseArgs() (*Config, bool) {
 		cfg.Scale = sc
 	} else {
 		fmt.Fprintln(os.Stderr, "error: -scale must be 2160p, 1440p, 1080p, 720p, 576p or 480p")
+		return cfg, false
+	}
+	if cfg.Crop && !cropAllowed(cfg.Scale) {
+		fmt.Fprintln(os.Stderr, "error: -crop works only with -scale 576p or -scale 480p")
 		return cfg, false
 	}
 	if cfg.Audio == "opus" {
@@ -562,6 +568,24 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 			fmt.Printf("Interlaced video found (%d of %d frames checked, %s); not deinterlaced\n", d.Combed, d.Frames, d.orderName())
 		}
 	}
+	if cfg.Crop && !cfg.CopyVideo && !cfg.DryRun { // 576p / 480p: cut black bars (looked for in the whole film, even for a test)
+		in, dur := cfg.Input, p.Duration
+		if cfg.fullInput != "" {
+			in = cfg.fullInput
+			if fp, err := probeFile(ctx, ffprobe, in); err == nil {
+				dur = fp.Duration
+			}
+		}
+		applyCrop(cfg, p, plan, detectCrop(ctx, ffmpeg, in, p.Width, p.Height, dur))
+		if plan.CropW > 0 {
+			fmt.Println("Black bars:", cropText(p, plan))
+		} else {
+			fmt.Println("Black bars: none to crop")
+		}
+		if plan.Quality != nil { // the picture is smaller: judge the quality again
+			plan.Quality = qualityGuide(cfg, p, plan)
+		}
+	}
 	if err := chooseTracks(ctx, ffprobe, cfg, plan); err != nil {
 		return err
 	}
@@ -692,11 +716,12 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 	}
 	if cfg.sample != "" { // a test: measure it against the same stretch of the original
 		fmt.Println("\nMeasuring the test's quality")
-		w, h := p.Width, p.Height
-		if plan.ScaleW > 0 {
-			w, h = plan.ScaleW, plan.ScaleH
+		w, h := plan.outSize(p)
+		pre := plan.deintFilter() // the original gets the same deinterlacing and cropping, so like is compared with like
+		if c := plan.cropFilter(); c != "" {
+			pre = strings.Trim(pre+","+c, ",")
 		}
-		if line, err := scoreTest(ctx, cfg.Ffmpeg, cfg.Output, cfg.sample, w, h, cfg.Denoise, plan.deintFilter()); err == nil {
+		if line, err := scoreTest(ctx, cfg.Ffmpeg, cfg.Output, cfg.sample, w, h, cfg.Denoise, pre); err == nil {
 			fmt.Println(line)
 		} else {
 			fmt.Println("WARNING: could not measure the test's quality:", err)
@@ -988,6 +1013,9 @@ func describeMode(cfg *Config, plan *Plan) string {
 	m := describeHDR(cfg, plan)
 	if plan.Deint != "" {
 		m += ", " + deintText(plan, 0)
+	}
+	if plan.CropW > 0 {
+		m += fmt.Sprintf(", black bars cropped to %dx%d", plan.CropW, plan.CropH)
 	}
 	if plan.ScaleW > 0 {
 		m += fmt.Sprintf(", resized %dx%d -> %dx%d", plan.SrcW, plan.SrcH, plan.ScaleW, plan.ScaleH)

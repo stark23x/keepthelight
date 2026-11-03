@@ -271,6 +271,7 @@ func prepareSample(ctx context.Context, cfg *Config) error {
 	}
 	cfg.cleanup = append(cfg.cleanup, sample)
 	cfg.sample = sample
+	cfg.fullInput = cfg.Input
 	cfg.Input = sample
 	return nil
 }

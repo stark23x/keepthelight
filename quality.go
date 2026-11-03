@@ -86,10 +86,7 @@ var bppLevels = []struct {
 
 // bitrateGuide judges a video bitrate (bits/s) for the output picture.
 func bitrateGuide(bps float64, cfg *Config, p *Probe, plan *Plan) *QualityGuide {
-	w, h := p.Width, p.Height
-	if plan.ScaleW > 0 {
-		w, h = plan.ScaleW, plan.ScaleH
-	}
+	w, h := plan.outSize(p)
 	fps := outFPS(p, plan)
 	if bps <= 0 || w <= 0 || h <= 0 || fps <= 0 {
 		return nil
