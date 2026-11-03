@@ -6,7 +6,20 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing yet.
+- **TMDB: a "Which one?" window for unclear matches** (requested 2026-11-03), so a show or film with several possible
+  matches no longer needs Edit.
+  - **When it opens:** automatically, once the queue's TMDB lookup has finished, when any title had several possible
+    matches. It can also be opened with a **Choose…** button on any "needs a match" row.
+  - **What it asks:** one question per title, not per file ("Which *The Office*? 22 files"). Several titles step
+    through in turn ("1 of 2").
+  - **What it shows:**
+    - The top 3 results, each with a poster, name, year and one line of description.
+    - An editable title and a **Year** box, with **Search again**.
+    - **Show more**, for the rest of the results.
+    - **Skip**: a skipped title is not asked about again in the same session (its rows keep **Choose…**).
+  - **On choosing:** every waiting file with that title is filled in from the chosen show or film (each episode with
+    its own season and episode), and the choice is remembered, as in 1.25.0.
+  - **The queue keeps going:** clear matches are filled in already, and the queue can run while the window is open.
 
 ## Ideas raised, not yet requested
 
