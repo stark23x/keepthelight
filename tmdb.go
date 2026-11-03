@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -571,6 +572,83 @@ func (g *guiServer) queueTMDBFollow(id int) map[string]any {
 	return r
 }
 
+// ---------- the "Which one?" window ----------
+
+// tmdbAsk is one title the lookup could not settle: several possible matches,
+// or none. The window asks once per title, however many files have it.
+type tmdbAsk struct {
+	Key     string `json:"key"`
+	Kind    string `json:"kind"`
+	Query   string `json:"query"`
+	Year    string `json:"year"`
+	Files   int    `json:"files"`
+	Example string `json:"example"`
+	IDs     []int  `json:"ids"`
+	None    bool   `json:"none"` // nothing was found (rather than several)
+}
+
+// tmdbUnsettled lists the waiting files still needing a match, by title.
+func (g *guiServer) tmdbUnsettled() []tmdbAsk {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	var list []tmdbAsk
+	at := map[string]int{}
+	for _, it := range g.q.items {
+		if it.Editing || !(it.pending() || it.Status == stProblem) || (it.s.Meta != nil && it.s.Meta.Tags["title"] != "") {
+			continue
+		}
+		var m struct {
+			Note string `json:"tmdbNote"`
+		}
+		_ = json.Unmarshal(it.Raw, &m)
+		none := strings.HasPrefix(m.Note, "TMDB: nothing found")
+		if !none && !strings.HasPrefix(m.Note, "TMDB: needs a match") {
+			continue
+		}
+		gs := guessSearch(it.Input, "")
+		key := tmdbPickKey(gs)
+		if key == "" {
+			key = "file|" + it.Input // no title in the name: asked about on its own
+		}
+		i, ok := at[key]
+		if !ok {
+			i, at[key] = len(list), len(list)
+			list = append(list, tmdbAsk{Key: key, Kind: gs.Kind, Query: gs.Query, Year: gs.Year, Example: it.Name, None: none})
+		}
+		list[i].Files++
+		list[i].IDs = append(list[i].IDs, it.ID)
+	}
+	sort.SliceStable(list, func(a, b int) bool { return list[a].Files > list[b].Files })
+	return list
+}
+
+// tmdbChoose settles a title: the choice is remembered, and every waiting file
+// with that title is filled in from it (each episode with its own season and episode).
+func (g *guiServer) tmdbChoose(key string, p tmdbPick) map[string]any {
+	if p.ID <= 0 || (p.Kind != "movie" && p.Kind != "tv") {
+		return failResult("nothing chosen")
+	}
+	var ids []int
+	for _, a := range g.tmdbUnsettled() {
+		if a.Key == key {
+			ids = a.IDs
+		}
+	}
+	if len(ids) == 0 {
+		return failResult("those files are no longer waiting for a match")
+	}
+	if !strings.HasPrefix(key, "file|") {
+		g.rememberTMDB(key, p)
+	} else {
+		g.mu.Lock() // a single file without a title in its name: matched directly
+		g.oneOff = map[string]tmdbPick{key: p}
+		g.mu.Unlock()
+	}
+	r := g.queueTMDB(ids)
+	r["title"] = p.Title
+	return r
+}
+
 // ---------- the queue: matching without asking ----------
 
 // normTitle compares titles loosely: letters and digits only, lower case
@@ -651,7 +729,14 @@ func (g *guiServer) queueTMDB(ids []int) map[string]any {
 	go func() {
 		dir := filepath.Join(appDataDir(), "covers")
 		cleanCovers(dir)
-		lk := &tmdbLookup{key: key, coverDir: dir, picks: g.tmdbPicks(), found: map[string]*tmdbFound{}}
+		picks := g.tmdbPicks()
+		g.mu.Lock()
+		for k, v := range g.oneOff { // a file chosen in the window that has no title in its name
+			picks[k] = v
+		}
+		g.oneOff = nil
+		g.mu.Unlock()
+		lk := &tmdbLookup{key: key, coverDir: dir, picks: picks, found: map[string]*tmdbFound{}}
 		for _, id := range todo {
 			g.mu.Lock()
 			it := g.findItemLocked(id)
@@ -726,10 +811,13 @@ func (lk *tmdbLookup) file(input string) (string, *MetaEdit) {
 	defer cancel()
 	key, coverDir := lk.key, lk.coverDir
 	gs := guessSearch(input, "")
-	if gs.Query == "" {
-		return "TMDB: needs a match (no title in the file name; use Edit)", nil
-	}
 	pk := tmdbPickKey(gs)
+	if pk == "" {
+		pk = "file|" + input
+	}
+	if _, ok := lk.picks[pk]; gs.Query == "" && !ok {
+		return "TMDB: needs a match (no title in the file name; choose it, or use Edit)", nil
+	}
 	fd := lk.found[pk]
 	if fd == nil {
 		fd = &tmdbFound{}
@@ -757,7 +845,7 @@ func (lk *tmdbLookup) file(input string) (string, *MetaEdit) {
 		if fd.n == 0 {
 			return "TMDB: nothing found for \"" + gs.Query + "\" (use Edit to search)", nil
 		}
-		return fmt.Sprintf("TMDB: needs a match (%d possible results for \"%s\"; use Edit to choose, and the other files of that title follow)", fd.n, gs.Query), nil
+		return fmt.Sprintf("TMDB: needs a match (%d possible results for \"%s\"; choose it, and the other files of that title follow)", fd.n, gs.Query), nil
 	}
 	f, err := tmdbDetails(ctx, key, hit.Kind, hit.ID, gs.Season, gs.Episode, coverDir)
 	if err != nil {

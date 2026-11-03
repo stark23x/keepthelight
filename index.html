@@ -344,6 +344,12 @@
   dialog.kdlg { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; width: min(460px, 92vw); }
   dialog.kdlg::backdrop { background: rgba(0,0,0,.55); }
   dialog.kdlg h3 { margin: 0 0 12px; font-size: 15px; }
+  /* the "Which one?" window */
+  dialog.whichdlg { width: min(620px, 94vw); }
+  .whichhead { display: flex; align-items: baseline; gap: 10px; } .whichhead h3 { margin-bottom: 4px; }
+  .whichsearch { margin: 10px 0; align-items: flex-end; flex-wrap: wrap; }
+  #wResults { max-height: 52vh; overflow-y: auto; }
+  #wResults .tres.extra { display: none; } #wResults.all .tres.extra { display: grid; }
   .prof { padding-top: 12px; padding-bottom: 12px; }
   .profstate { color: var(--warn); font-size: 12.5px; margin-left: 8px; white-space: nowrap; }
   .editbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 14px; position: sticky; top: 0; z-index: 5; }
@@ -763,6 +769,20 @@
     <b id="profTagEx"></b> (instead of the "Add to the name" ending)</span></label>
   <div id="profDlgErr" class="note warn hidden" style="margin-top:10px"></div>
   <div class="actions" style="margin-top:14px"><button id="profOk" class="primary">Save</button><button id="profCancel">Cancel</button></div>
+</dialog>
+
+<dialog id="whichDlg" class="kdlg whichdlg" aria-labelledby="whichTitle">
+  <div class="whichhead"><h3 id="whichTitle">Which one?</h3><span class="meta" id="whichStep"></span></div>
+  <div class="hint" id="whichSub"></div>
+  <div class="row whichsearch">
+    <div class="grow"><label for="wQuery">Title</label><input type="text" id="wQuery" spellcheck="false"></div>
+    <div style="width:84px"><label for="wYear">Year</label><input type="text" id="wYear" spellcheck="false" placeholder="any" inputmode="numeric" maxlength="4"></div>
+    <div style="width:96px"><label for="wKind">Kind</label><select id="wKind"><option value="tv">Show</option><option value="movie">Film</option></select></div>
+    <button id="wSearch">Search again</button>
+  </div>
+  <div id="wResults"></div>
+  <button id="wMore" class="linkbtn hidden"></button>
+  <div class="actions" style="margin-top:12px"><button id="wSkip">Skip this one</button><span class="grow"></span><button id="wClose">Close</button></div>
 </dialog>
 
 <dialog id="about" aria-labelledby="aboutTitle">
@@ -2151,8 +2171,84 @@ $('scanTMDB').onchange = () => api('setPref', { name: 'scanTMDB', value: $('scan
 $('qTMDB').onclick = async () => {
   if (!$('tmdbKey').value.trim()) { showError('Add your free TMDB API key in Settings (⚙) first.'); return; }
   const r = await api('queueTMDB', { ids: [] });
-  if (!r.ok) showError(r.error); poll();
+  if (!r.ok) showError(r.error); else tmdbAwaiting = true;
+  poll();
 };
+
+// ---------- "Which one?": titles the lookup could not settle ----------
+// Once a lookup has finished, a title with several possible matches (or none) is
+// asked about once, however many files have it; the choice fills in all of them
+// and is remembered. A skipped title is not asked about again this session.
+let tmdbAwaiting = false, whichAsks = [], whichAt = 0;
+const whichSkipped = new Set();
+function lookupRunning(q) { return (q.items || []).some(it => ((it.settings || {}).tmdbNote || '').includes('looking up')); }
+function whichAfterLookup(q) { // called on each queue update
+  if (!tmdbAwaiting || lookupRunning(q)) return;
+  tmdbAwaiting = false;
+  openWhichOne();
+}
+async function openWhichOne(forId) {
+  const r = await api('tmdbPending', {});
+  if (!r.ok) return;
+  whichAsks = (r.asks || []).filter(a => forId ? a.ids.includes(forId) : !whichSkipped.has(a.key));
+  if (!whichAsks.length) { if (forId) notify('This file no longer needs a match.'); return; }
+  whichAt = 0;
+  if (!$('whichDlg').open) $('whichDlg').showModal();
+  showAsk();
+}
+function showAsk() {
+  const a = whichAsks[whichAt];
+  $('whichStep').textContent = whichAsks.length > 1 ? (whichAt + 1) + ' of ' + whichAsks.length : '';
+  $('whichTitle').textContent = a.query ? 'Which “' + a.query + '”?' : 'Which show or film is this?';
+  $('whichSub').textContent = (a.none ? 'Nothing was found for this title. Change it or the year and search again. ' : 'Several matches were found. ') +
+    a.files + (a.files === 1 ? ' file (' : ' files (for example ') + a.example + '). Your choice fills in ' + (a.files === 1 ? 'it' : 'all of them') +
+    ', each episode with its own details, and is remembered.';
+  $('wQuery').value = a.query || ''; $('wYear').value = a.year || ''; $('wKind').value = a.kind === 'movie' ? 'movie' : 'tv';
+  whichSearch();
+}
+async function whichSearch() {
+  const box = $('wResults'); box.className = ''; box.innerHTML = ''; box.append(el('div', 'hint', 'Searching TMDB…'));
+  $('wMore').classList.add('hidden');
+  const r = await api('tmdbSearch', { kind: $('wKind').value, query: $('wQuery').value.trim(), year: $('wYear').value.trim() });
+  box.innerHTML = '';
+  if (!r.ok) { box.append(el('div', 'note bad', r.error)); return; }
+  const res = r.results || [];
+  if (!res.length) { box.append(el('div', 'hint', 'Nothing found. Try fewer words, another year, or Film instead of Show.')); return; }
+  res.forEach((x, i) => {
+    const row = el('div', 'tres' + (i >= 3 ? ' extra' : ''));
+    let img;
+    if (x.thumb) { img = el('img'); img.src = x.thumb; img.alt = ''; } else img = el('div', 'noimg');
+    const mid = el('div');
+    mid.append(el('div', 'ttl', x.title + (x.year ? ' (' + x.year + ')' : '')), el('div', 'tov', x.overview || 'No description.'));
+    const use = el('button', 'primary', 'This one');
+    use.onclick = () => whichUse(x, use);
+    row.append(img, mid, use);
+    box.append(row);
+  });
+  if (res.length > 3) {
+    $('wMore').textContent = 'Show ' + (res.length - 3) + ' more';
+    $('wMore').classList.remove('hidden');
+  }
+}
+async function whichUse(x, btn) {
+  const a = whichAsks[whichAt];
+  btn.disabled = true; btn.textContent = '…';
+  const title = x.title + (x.year ? ' (' + x.year + ')' : ''); // the year tells shows of the same name apart
+  const r = await api('tmdbChoose', { key: a.key, pick: { kind: x.kind, id: x.id, title } });
+  if (!r.ok) { btn.disabled = false; btn.textContent = 'This one'; showError(r.error); return; }
+  notify(title + ': filling in ' + r.files + (r.files === 1 ? ' file' : ' files') + ' from TMDB.');
+  api('prefs', {}).then(p => { if (p && p.ok) tmdbPicksUI(p.tmdbPicks || 0); });
+  whichNext(); poll();
+}
+function whichNext() {
+  if (++whichAt < whichAsks.length) showAsk(); else $('whichDlg').close();
+}
+$('wMore').onclick = () => { $('wResults').classList.add('all'); $('wMore').classList.add('hidden'); };
+$('wSearch').onclick = whichSearch;
+['wQuery', 'wYear'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); whichSearch(); } }));
+$('wKind').onchange = whichSearch;
+$('wSkip').onclick = () => { whichSkipped.add(whichAsks[whichAt].key); whichNext(); };
+$('wClose').onclick = () => { whichAsks.slice(whichAt).forEach(a => whichSkipped.add(a.key)); $('whichDlg').close(); };
 $('tmdbShow').onclick = () => { const k = $('tmdbKey'); k.type = k.type === 'password' ? 'text' : 'password'; $('tmdbShow').textContent = k.type === 'password' ? 'Show' : 'Hide'; };
 $('tmdbCheck').onclick = async () => {
   const n = $('tmdbNote');
@@ -2329,7 +2425,7 @@ $('scanAdd').onclick = async () => {
   const r = await addToQueue(paths.map(x => scanSettings(x, p)));
   if (r && r.ids && r.ids.length && $('scanTMDB').checked) {
     if (!$('tmdbKey').value.trim()) notify('The files were added, but looking up their metadata needs your TMDB API key (Settings, ⚙).');
-    else { const t = await api('queueTMDB', { ids: r.ids }); if (!t.ok) showError(t.error); }
+    else { const t = await api('queueTMDB', { ids: r.ids }); if (!t.ok) showError(t.error); else tmdbAwaiting = true; }
   }
   if (r && r.added) { scanSel = new Set(); renderScan(); scanButtons(); }
 };
@@ -2493,6 +2589,7 @@ function renderQueue(q) {
   queue = q;
   renderBatch(q.batch);
   renderPlexSum(q);
+  whichAfterLookup(q); // a TMDB lookup has finished: ask about the titles it could not settle
   const list = $('queueList'), seen = new Set();
   q.items.forEach((it, idx) => {
     seen.add(String(it.id));
@@ -2521,13 +2618,16 @@ function renderQueue(q) {
     row.querySelector('.qmini > div').style.width = it.percent + '%';
     if (it.editing) row.querySelector('.qst').textContent = 'Being changed';
     const ownTracks = !!(it.settings && (it.settings.audioTracks || it.settings.subTracks));
+    const tmdbAsk = /^TMDB: (needs a match|nothing found)/.test((it.settings || {}).tmdbNote || '') && !(it.settings.meta && it.settings.meta.tags && it.settings.meta.tags.title);
     const others = q.items.filter(x => x.id !== it.id && ['waiting', 'checking', 'problem'].includes(x.status) && !x.editing).length;
-    const key = it.status + (q.running ? 'r' : '') + (it.editing ? 'e' : '') + (ownTracks && others ? 'o' : '');
+    const key = it.status + (q.running ? 'r' : '') + (it.editing ? 'e' : '') + (ownTracks && others ? 'o' : '') + (tmdbAsk ? 't' : '');
     const btns = row.querySelector('.qbtns');
     if (btns.dataset.key !== key) { // rebuild the buttons only when they change
       btns.dataset.key = key; btns.innerHTML = '';
       if ((it.status === 'waiting' || it.status === 'checking' || it.status === 'problem') && !it.editing)
         btns.append(rowButton('Edit', 'Change the settings, tracks and metadata of this file only', () => startEdit(it)));
+      if (tmdbAsk && (it.status === 'waiting' || it.status === 'checking' || it.status === 'problem') && !it.editing)
+        btns.append(rowButton('Choose…', 'Choose the right show or film on TMDB; every waiting file with this title follows', () => openWhichOne(it.id)));
       if (ownTracks && others && (it.status === 'waiting' || it.status === 'checking' || it.status === 'problem') && !it.editing)
         btns.append(rowButton('Same tracks for others', "Give the waiting files this file's audio and subtitle choices (by track position). " +
           'Only files whose tracks match this one (same number, languages and formats) are changed.', async b => {

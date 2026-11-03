@@ -59,6 +59,7 @@ type job struct {
 }
 
 type guiServer struct {
+	oneOff   map[string]tmdbPick // TMDB: a match chosen for one file with no title in its name (used once)
 	token    string
 	addr     string
 	initial  []string // files given on the command line / dropped on the exe
@@ -789,6 +790,15 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		var b struct{ IDs []int }
 		_ = json.Unmarshal(body, &b)
 		return g.queueTMDB(b.IDs)
+	case "tmdbPending": // the "Which one?" window: titles still needing a match
+		return map[string]any{"ok": true, "asks": g.tmdbUnsettled()}
+	case "tmdbChoose":
+		var b struct {
+			Key  string
+			Pick tmdbPick
+		}
+		_ = json.Unmarshal(body, &b)
+		return g.tmdbChoose(b.Key, b.Pick)
 	case "queueTMDBFollow": // a file was matched by hand: the other episodes of that show follow
 		var b struct{ ID int }
 		_ = json.Unmarshal(body, &b)

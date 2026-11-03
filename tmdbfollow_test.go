@@ -18,27 +18,7 @@ func TestTMDBMatchOneTheRestFollow(t *testing.T) {
 	fakeTools(t)
 	t.Setenv("LOCALAPPDATA", t.TempDir())
 	var searches int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/3/search/tv":
-			atomic.AddInt32(&searches, 1)
-			_, _ = w.Write([]byte(`{"results":[{"id":2316,"name":"The Office","first_air_date":"2005-03-24"},{"id":2996,"name":"The Office","first_air_date":"2001-07-09"}]}`))
-		case r.URL.Path == "/3/tv/2316":
-			_, _ = w.Write([]byte(`{"name":"The Office","first_air_date":"2005-03-24","overview":"Paper."}`))
-		case strings.HasPrefix(r.URL.Path, "/3/tv/2316/season/") && strings.Contains(r.URL.Path, "/episode/"):
-			ep := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
-			_, _ = w.Write([]byte(`{"name":"Episode ` + ep + `","air_date":"2005-04-0` + ep + `","overview":"Things happen."}`))
-		case strings.HasPrefix(r.URL.Path, "/3/tv/2316/season/"):
-			_, _ = w.Write([]byte(`{}`))
-		default:
-			w.WriteHeader(404)
-			_, _ = w.Write([]byte(`{"status_message":"not found"}`))
-		}
-	}))
-	defer srv.Close()
-	oldAPI, oldImg := tmdbAPI, tmdbImages
-	tmdbAPI, tmdbImages = srv.URL+"/3", srv.URL+"/img/"
-	defer func() { tmdbAPI, tmdbImages = oldAPI, oldImg }()
+	officeTMDB(t, &searches)
 
 	dir := t.TempDir()
 	var files []string
@@ -132,3 +112,85 @@ func tmdbLookupFileWith(g *guiServer, input string) (string, *MetaEdit) {
 }
 
 func jsonStr(s string) string { b, _ := json.Marshal(s); return string(b) }
+
+// officeTMDB is a stand-in TMDB with two shows called "The Office" (searches are counted).
+func officeTMDB(t *testing.T, searches *int32) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/3/search/tv":
+			atomic.AddInt32(searches, 1)
+			_, _ = w.Write([]byte(`{"results":[{"id":2316,"name":"The Office","first_air_date":"2005-03-24"},{"id":2996,"name":"The Office","first_air_date":"2001-07-09"}]}`))
+		case r.URL.Path == "/3/tv/2316":
+			_, _ = w.Write([]byte(`{"name":"The Office","first_air_date":"2005-03-24","overview":"Paper."}`))
+		case strings.HasPrefix(r.URL.Path, "/3/tv/2316/season/") && strings.Contains(r.URL.Path, "/episode/"):
+			ep := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
+			_, _ = w.Write([]byte(`{"name":"Episode ` + ep + `","air_date":"2005-04-0` + ep + `","overview":"Things happen."}`))
+		case strings.HasPrefix(r.URL.Path, "/3/tv/2316/season/"):
+			_, _ = w.Write([]byte(`{}`))
+		default:
+			w.WriteHeader(404)
+			_, _ = w.Write([]byte(`{"status_message":"not found"}`))
+		}
+	}))
+	t.Cleanup(srv.Close)
+	oldAPI, oldImg := tmdbAPI, tmdbImages
+	tmdbAPI, tmdbImages = srv.URL+"/3", srv.URL+"/img/"
+	t.Cleanup(func() { tmdbAPI, tmdbImages = oldAPI, oldImg })
+}
+
+// The "Which one?" window: one question per title, and the choice fills in every file with it.
+func TestTMDBWhichOne(t *testing.T) {
+	fakeTools(t)
+	t.Setenv("LOCALAPPDATA", t.TempDir())
+	var searches int32
+	officeTMDB(t, &searches)
+	dir := t.TempDir()
+	var raws []json.RawMessage
+	for i, n := range []string{"The.Office.S01E01.mkv", "The.Office.S01E02.mkv", "The Office S03E04.mkv"} {
+		p := filepath.Join(dir, n)
+		_ = os.WriteFile(p, []byte("x"), 0o644)
+		raws = append(raws, itemSettings(p, filepath.Join(dir, "o"+itoa(i)+"_KTL.mkv")))
+	}
+	g := newGUIServer()
+	g.prefsPath = filepath.Join(t.TempDir(), "settings.json")
+	_ = g.setTMDBKey("k3y")
+	ids, _ := g.queueAdd(raws)
+	g.queueTMDB(nil)
+	waitFor(t, "the lookup", func() bool { a := g.tmdbUnsettled(); return len(a) == 1 && a[0].Files == 3 })
+	ask := g.tmdbUnsettled()[0]
+	if ask.Kind != "tv" || ask.Query != "The Office" || ask.None {
+		t.Errorf("ask: %+v", ask)
+	}
+	if r := g.tmdbChoose("tv|nothing", tmdbPick{Kind: "tv", ID: 2316}); r["ok"] != false {
+		t.Error("an unknown title was accepted")
+	}
+	r := g.tmdbChoose(ask.Key, tmdbPick{Kind: "tv", ID: 2316, Title: "The Office (US)"})
+	if r["files"] != 3 || r["title"] != "The Office (US)" {
+		t.Fatalf("choose: %v", r)
+	}
+	waitFor(t, "the files to be filled in", func() bool {
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		for _, it := range g.q.items {
+			if strings.Contains(string(it.Raw), "looking up") {
+				return false
+			}
+		}
+		return true
+	})
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	for i, want := range []string{"S01E01", "S01E02", "S03E04"} {
+		it := g.findItemLocked(ids[i])
+		var m struct {
+			Meta *MetaEdit `json:"meta"`
+		}
+		_ = json.Unmarshal(it.Raw, &m)
+		if m.Meta == nil || !strings.Contains(m.Meta.Tags["title"], want) {
+			t.Errorf("file %d: %+v", i, m.Meta)
+		}
+	}
+	if _, ok := g.tmdbPicks()[ask.Key]; !ok {
+		t.Error("the choice was not remembered")
+	}
+}
