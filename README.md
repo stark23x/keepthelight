@@ -80,6 +80,10 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   long it took once it is done.
 - **Low priority** (⚙ Settings): other programs come first, so the PC stays responsive while encoding; it
   still runs at full speed when the PC is otherwise idle. Remembered, and takes effect at once.
+- **Crop black bars** (under Resolution, only for 576p and 480p): black bars around the picture (a 4:3 show stored in
+  a 1920×1080 frame, say) are found by looking at five points of the film, cut, and the picture is then shrunk to
+  fit (that show becomes about 640×480, with no bars). Nothing is cut if any part of the film fills more of the
+  frame. Not for Dolby Vision files. Command line: `-crop`.
 - **Resolution** (under Video): shrink the video to fit 4K, 1440p, 1080p, 720p, 576p or 480p, keeping its shape
   (a 3840x1600 film becomes 1920x800 at 1080p, or 854x356 at 480p) and its HDR10, HDR10+ and Dolby Vision data. A
   smaller picture encodes much faster (1080p is about a quarter of the work of 4K). 576p (fits 1024x576) and 480p
@@ -266,7 +270,9 @@ subtitles and container from the target to get a video bitrate, then:
 - **TMDB for the queue:** **Look up metadata on TMDB** (Queue tab), or the check box next to **Add selected to
   queue** in the library scan, looks up each waiting file. Only a clear match is used (one result, or one whose title
   and year match the file's name); it fills in the title, date, description and cover, and the queue list shows what
-  was found. Anything else is marked "needs a match": open it with Edit and pick the right result. When you save it,
+  was found. When a title has several possible matches (or none), a **Which one?** window asks once per title: the
+  top 3 results with posters, a year to narrow it down, **This one** to fill in every waiting file with that title, or
+  **Skip** (such rows keep a **Choose…** button). Matching a file with Edit works too: when you save it,
   every other waiting file with the same title in its name follows (each episode with its own season and episode),
   and the choice is remembered, so the next season matches straight away (**Forget remembered matches** in
   ⚙ Settings). Each title is searched once per lookup. Files whose title was already changed are skipped.

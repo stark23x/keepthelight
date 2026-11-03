@@ -18,6 +18,20 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.27.0 - 2026-11-03
+
+- **TMDB "Which one?" window.** After **Look up metadata on TMDB**, any show or film with several possible matches (or
+  none) gets one small window, asked once per title however many files have it ("Which *The Office*? 22 files").
+  It shows the top 3 results with posters (**Show more** for the rest), and the title, year and show/film can be
+  changed with **Search again**. **This one** fills in every waiting file with that title, each episode with its own
+  details, and remembers the choice. **Skip** leaves it (not asked again this session); rows that still need a match
+  have a **Choose…** button. No more opening each file with Edit.
+- **Crop black bars** (576p and 480p only). A tick box under Resolution, shown only for the two standard-definition
+  sizes: black bars (for example a 4:3 show stored in a 1080p frame) are found by looking at the picture at five
+  points, cut, and the picture is then shrunk to fit, so a 4:3 show in 1920×1080 becomes about 640×480 with no
+  bars. It never cuts into the picture: if any part of the film fills more of the frame, that is kept. Not for
+  Dolby Vision. Command line: `-crop` with `-scale 576p` or `-scale 480p`.
+
 ## 1.26.0 - 2026-11-02
 
 - **Pause / Resume** (next to Cancel while a file is converting). Pause freezes the conversion where it is; Resume

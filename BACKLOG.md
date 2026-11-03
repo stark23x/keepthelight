@@ -6,33 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **Crop black bars, for the SD sizes only** (requested 2026-11-03). A **Crop black bars** tick box under
-  Resolution, shown only when 576p or 480p is chosen; for every other resolution it is hidden and nothing is cropped.
-  - **Default:** ticked when shown. It is part of the Video settings, so it is saved in profiles; `-crop` on the
-    command line, which is accepted only with `-scale 576p` or `-scale 480p`.
-  - **Finding the bars:** the picture is checked at several points (FFmpeg's cropdetect), so opening titles and
-    credits with different bars do not fool it. It crops only when the bars are the same throughout, rounds inwards
-    (never into the picture), and ignores tiny edges of a few pixels.
-  - **Order:** the bars are cut first, and the picture is then shrunk to fit 1024×576 or 854×480, keeping its
-    shape. For example a 4:3 show in a 1920×1080 frame becomes 640×480, with no bars.
-  - **Works with:** deinterlacing (which comes first) and noise reduction.
-  - **Dolby Vision:** files are not cropped, because their scene data would need adjusting too; the log says so.
-  - **Shown in the window:** the Convert tab and the log say what was found ("black bars: 1440×1080 picture in a
-    1920×1080 frame, cropped").
-- **TMDB: a "Which one?" window for unclear matches** (requested 2026-11-03), so a show or film with several possible
-  matches no longer needs Edit.
-  - **When it opens:** automatically, once the queue's TMDB lookup has finished, when any title had several possible
-    matches. It can also be opened with a **Choose…** button on any "needs a match" row.
-  - **What it asks:** one question per title, not per file ("Which *The Office*? 22 files"). Several titles step
-    through in turn ("1 of 2").
-  - **What it shows:**
-    - The top 3 results, each with a poster, name, year and one line of description.
-    - An editable title and a **Year** box, with **Search again**.
-    - **Show more**, for the rest of the results.
-    - **Skip**: a skipped title is not asked about again in the same session (its rows keep **Choose…**).
-  - **On choosing:** every waiting file with that title is filled in from the chosen show or film (each episode with
-    its own season and episode), and the choice is remembered, as in 1.25.0.
-  - **The queue keeps going:** clear matches are filled in already, and the queue can run while the window is open.
+Nothing yet.
 
 ## Ideas raised, not yet requested
 
@@ -44,6 +18,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Done
 
+- 1.27.0: TMDB "Which one?" window; crop black bars (576p and 480p only).
 - 1.26.0: Pause / Resume; Stop after this file; move a queued file to the top or bottom.
 - 1.25.1: fixed the 30-second test of MP4 files with text subtitles.
 - 1.25.0: TMDB: match one file by hand, the rest of that title follows (remembered; Settings can forget).
