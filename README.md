@@ -1,7 +1,130 @@
 # Keep the Light
 
-Windows only transcoder written in Go, that keeps HDR10, HLG, HDR10+ and Dolby Vision intact, with its own window and a command-line version.
-It orchestrates FFmpeg, dovi_tool, MP4Box and (optionally) hdr10plus_tool. It has evolved into those functions, plus many functions that will help you manage your Plex (or Jellyfin or Emby) media server files.
+**Keep the Light** is a free Windows program that makes your video files smaller without losing the things that make
+them look great on a modern TV. It is built for people who keep a movie and TV library on a **Plex** server, and works just as well for Jellyfin
+and Emby.
+
+Most high-end videos today use **HDR** (High Dynamic Range), which gives brighter highlights and richer colours.
+Some also use **HDR10+** or **Dolby Vision**, which adjust the picture scene by scene. Many converting programs throw
+this information away, and the picture ends up looking flat or washed out. Keep the Light keeps it.
+
+It converts videos to **HEVC** (also called H.265), a modern format that often makes files half the size at the same
+quality.
+
+---
+
+## What it can do
+
+### Keep the picture looking right
+- **Keeps HDR10, HLG, HDR10+ and Dolby Vision.** The extra picture information is copied into the new file, so it
+  still looks right on an HDR TV.
+- **Fixes a common Dolby Vision problem.** Many Plex players can't show Dolby Vision "profile 7" (used on 4K Blu-ray
+  discs). Keep the Light converts it to "profile 8.1", which they can.
+- **Checks its own work.** After converting, it looks at the new file to make sure the HDR information made it
+  through.
+
+### Choose the quality and size
+- **Three ways to choose quality:**
+  - **Constant quality:** pick a number, and every scene gets the same quality.
+  - **Target bitrate:** pick how much data per second.
+  - **Target file size:** say "make it 8 GB", and Keep the Light works out the rest.
+- **Quality guide.** A plain-English note under the setting tells you if your choice is too low, about right, or
+  more than you need.
+- **30-second test.** Convert just 30 seconds first, and compare it with the same 30 seconds of the original before
+  doing the whole film. The test is given a quality score.
+- **Smaller resolutions.** Shrink the video to 4K, 1440p, 1080p, 720p, 576p or 480p. The shape of the picture is
+  kept, and HDR and Dolby Vision are kept too.
+- **Crop black bars (576p and 480p only).** Old shows are often stored inside a bigger frame with black bars around
+  them. Keep the Light can find the bars and cut them off.
+- **Noise reduction.** Cleans up grain and "fizz" in the picture. This often makes files smaller too.
+- **Deinterlace.** Old TV shows and DVDs often have striped edges on anything that moves. Keep the Light spots
+  this by looking at the picture itself, and fixes it, either with smooth motion like the original broadcast or at
+  the standard frame rate.
+
+### Fast, using your graphics card
+- **Three encoders:** x265 (on the processor, best quality), NVIDIA NVENC, and Intel QuickSync (both on the graphics
+  card, much faster).
+- **Full-GPU mode.** With NVIDIA or Intel graphics, the whole job can run on the graphics card. Keep the Light tries
+  this automatically and falls back to the normal way if it doesn't work.
+
+### Sound and subtitles
+- **Pick your tracks.** Keep, drop or convert each audio and subtitle track, for example to keep only English.
+- **Rules for many files.** Set up rules once, such as "English audio only, keep forced subtitles", and they apply to
+  every file you add.
+- **Convert audio** to AC-3, E-AC-3, AAC, Opus or FLAC, and mix 7.1 down to 5.1 or stereo.
+- **One track per language.** If a file has the same language twice, keep only the best or the most compatible one.
+- **Add a compatible audio track.** If a film only has TrueHD or DTS sound, which many TVs can't play, Keep the Light
+  adds a copy your TV can play and keeps the original.
+- **Turn subtitles into SRT.** Styled subtitles (ASS) and picture subtitles (PGS, from Blu-rays) can become plain SRT
+  text, which every Plex player can show. PGS is read with free text-recognition software (Tesseract).
+- **Leaves out empty tracks.** Tracks with nothing in them can make a conversion fail, so they are skipped
+  automatically.
+- **Names untitled tracks** from what they are, for example "English AC-3 5.1".
+
+### Movie and show information
+- **Edit the details.** Change the title, date, description, cover picture, track names, languages and chapter names.
+- **Look it up on TMDB.** Fill in the title, date, description and poster from The Movie Database (TMDB), for films
+  and for TV episodes. This needs a free TMDB account.
+- **Whole queues at once.** Look up every file in the queue in one go. When a name could mean several shows, a small
+  **"Which one?"** window asks you once per show, and your answer fills in every episode.
+- **Remembers your choices,** so next season's episodes match by themselves.
+- **"Metadata only" mode.** Change just the details without converting the video at all. This is fast, with no
+  quality loss. It can also replace the original file, which goes to the Recycle Bin.
+
+### Plex-friendly checks
+- **Plex check.** Every file you add is checked for things that would make Plex convert it while you watch. Examples:
+  sound your TV can't play, subtitles Plex has to "burn in", older video formats, and very high bitrates.
+- **Knows your settings.** Each problem is marked as fixed by your settings (✓), still there (⚠), or not fixable.
+  Most problems have a one-click **Fix** button.
+- **Library scan.** Point it at a folder, for example your whole Movies folder. It shows how much space converting
+  each file would save, and which files are likely to cause problems in Plex. Plex extras like trailers and
+  featurettes can be skipped.
+- **Finished files are checked again,** to confirm they are clean.
+
+### The queue
+- **Convert many files one after another.** Add files, a whole folder, or picks from the Library scan.
+- **Progress for everything.** See the whole batch's progress and time left, plus the time left for each file and how
+  long each one took.
+- **Pause and Resume.** Freeze a conversion and carry on later from the same spot.
+- **Stop after this file,** or stop right away.
+- **Reorder files** with up, down, top and bottom buttons.
+- **Change one file** in the queue without affecting the others, or copy one file's track choices to similar files.
+- **Remembers the queue** if you close Keep the Light.
+- **When finished:** play a sound, or put the PC to sleep or shut it down.
+- **Space saved** is shown for each file, for each run, and as a running total.
+
+### Made for real-world setups
+- **Works with network drives and NAS boxes.** It can copy a file to your PC, convert it there, and copy the result
+  back, which is faster and safer over a network.
+- **Handles busy files.** If another program (like a backup app) is holding a file, it waits and tries again
+  instead of failing.
+- **Checks free space** before starting.
+- **Runs in the background politely.** "Low priority" keeps your PC responsive while it works.
+- **Profiles.** Save your favourite settings under a name, such as "4K movies" or "Old TV shows", and use them with
+  one click. Profiles can be exported and imported.
+- **Command-line version** for scripts and automation, with the same features as the window.
+
+### Easy to use
+- **Three tabs:** Convert, Queue and Library scan, with the Start button always at the bottom.
+- **Plain-English help** behind small **?** buttons, and clear warnings that explain what to do.
+- **File pickers remember** the last folder you used.
+- **Right-click copy and paste,** keyboard-friendly controls, and helpful screens when nothing is loaded yet.
+
+---
+
+## What you need
+- **Windows 10 or 11.**
+- **FFmpeg**, a free video toolkit. It has to be downloaded once; Keep the Light shows you where.
+- **For Dolby Vision:** GPAC (free).
+- **For turning picture subtitles into text:** Tesseract OCR (free).
+- **For TMDB lookups:** a free TMDB account and API key.
+
+Keep the Light tells you if anything is missing, with buttons that take you to the download pages. **Setup** below
+explains each step.
+
+*This product uses the TMDB API but is not endorsed or certified by TMDB.*
+
+---
 
 ## Download
 Get the latest version from the [Releases page](https://github.com/stark23x/keepthelight/releases/latest):
