@@ -6,6 +6,19 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
+- **Crop black bars, for the SD sizes only** (requested 2026-11-03). A **Crop black bars** tick box under
+  Resolution, shown only when 576p or 480p is chosen; for every other resolution it is hidden and nothing is cropped.
+  - **Default:** ticked when shown. It is part of the Video settings, so it is saved in profiles; `-crop` on the
+    command line, which is accepted only with `-scale 576p` or `-scale 480p`.
+  - **Finding the bars:** the picture is checked at several points (FFmpeg's cropdetect), so opening titles and
+    credits with different bars do not fool it. It crops only when the bars are the same throughout, rounds inwards
+    (never into the picture), and ignores tiny edges of a few pixels.
+  - **Order:** the bars are cut first, and the picture is then shrunk to fit 1024×576 or 854×480, keeping its
+    shape. For example a 4:3 show in a 1920×1080 frame becomes 640×480, with no bars.
+  - **Works with:** deinterlacing (which comes first) and noise reduction.
+  - **Dolby Vision:** files are not cropped, because their scene data would need adjusting too; the log says so.
+  - **Shown in the window:** the Convert tab and the log say what was found ("black bars: 1440×1080 picture in a
+    1920×1080 frame, cropped").
 - **TMDB: a "Which one?" window for unclear matches** (requested 2026-11-03), so a show or film with several possible
   matches no longer needs Edit.
   - **When it opens:** automatically, once the queue's TMDB lookup has finished, when any title had several possible
