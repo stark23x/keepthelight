@@ -6,7 +6,18 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing yet.
+- **Fix: don't keep work folders when nothing was finished** (reported 2026-11-04). A Dolby Vision job that failed at
+  step 1 (extracting the RPU) still kept "Intermediate files" and the local working copy (22.6 GB on D:). Keep them
+  only when a step has actually finished something worth reusing; otherwise delete them and say so.
+- **Fix: a second try when extracting the Dolby Vision RPU fails** (reported 2026-11-04). A DV 8.1 film failed with
+  FFmpeg "non monotonically increasing dts … 22 >= 22" and dovi_tool "Invalid PPS index": a glitch near the start of
+  that file.
+  - **The retry:** extract again a more careful way: write the video to a temp file with rebuilt timestamps
+    (`-fflags +genpts`) and start at the first clean keyframe, then run dovi_tool on that file.
+  - **If that also fails:** stop with a plain message ("this file's video has a glitch near the start, so its Dolby
+    Vision cannot be read; set Dolby Vision to Drop (plain HDR10) to convert it, or re-mux it with MKVToolNix
+    first").
+  - **To test:** the owner may send the first minute of that file (`dv-sample.mkv` in OneDrive\Claude Dev).
 
 ## Ideas raised, not yet requested
 
