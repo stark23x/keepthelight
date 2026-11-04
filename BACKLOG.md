@@ -17,7 +17,8 @@ next build". Shipped features move to "Done" with their version number. Nothing 
   - **If that also fails:** stop with a plain message ("this file's video has a glitch near the start, so its Dolby
     Vision cannot be read; set Dolby Vision to Drop (plain HDR10) to convert it, or re-mux it with MKVToolNix
     first").
-  - **To test:** the owner may send the first minute of that file (`dv-sample.mkv` in OneDrive\Claude Dev).
+  - **To test:** build and test it without the owner's sample. Make a Dolby Vision test file with a duplicated
+    timestamp near the start, and check that the retry and the plain message work. The owner may send a sample later.
 
 ## Ideas raised, not yet requested
 
