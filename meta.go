@@ -25,6 +25,8 @@ type MetaEdit struct {
 	Chapters    *ChapterEdit      `json:"chapters,omitempty"`
 	Cover       string            `json:"cover,omitempty"`       // image to use as the cover (MKV)
 	RemoveCover bool              `json:"removeCover,omitempty"` // leave the cover out
+
+	plexName string // a TMDB lookup's Plex-style name for the file (not part of the edit)
 }
 
 type TrackMeta struct {

@@ -351,6 +351,10 @@
   .whichhead { display: flex; align-items: baseline; gap: 10px; } .whichhead h3 { margin-bottom: 4px; }
   .whichsearch { margin: 10px 0; align-items: flex-end; flex-wrap: wrap; }
   #wResults { max-height: 52vh; overflow-y: auto; }
+  .plexlist { max-height: 56vh; overflow-y: auto; margin-top: 10px; }
+  .plexrow { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; padding: 6px 4px; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+  .plexrow .from { color: var(--muted); text-decoration: line-through; overflow-wrap: anywhere; }
+  .plexrow .to { overflow-wrap: anywhere; } .plexrow .why { color: var(--warn); grid-column: 2; }
   #wResults .tres.extra { display: none; } #wResults.all .tres.extra { display: grid; }
   .prof { padding-top: 12px; padding-bottom: 12px; }
   .profstate { color: var(--warn); font-size: 12.5px; margin-left: 8px; white-space: nowrap; }
@@ -428,6 +432,9 @@
         <div class="row" style="gap:6px"><div class="grow"><input type="text" id="nameTag" spellcheck="false" value="_KTL" placeholder="nothing"></div>
           <button id="tagReset" class="hidden" title="Use the profile's ending again">↺</button></div></div>
     </div>
+    <label class="check" style="margin-top:8px"><input type="checkbox" id="plexNames"> <span><b>Plex-style names after a TMDB match</b>, such as
+      "Heat (1995) {tmdb-949}.mkv" or "The Office (2005) - S01E02 - Diversity Day.mkv" (no ending added). Only the new file is named so,
+      and nothing is renamed until you have seen it: here, in the Output box; in the queue, with <b>Review names</b>. Remembered.</span></label>
     <div class="hint" style="margin-top:6px">Used for this file and the queue, and remembered.
       <details class="help"><summary>More</summary>Choosing another place with Save as… changes the folder too; saving next to the original sets it back.
       With nothing added to the name, save in another folder or as MP4: a file cannot replace its original.</details></div>
@@ -643,6 +650,7 @@
       <select id="qProfile" class="hidden" style="width:auto" title="Give every file that has not started the settings of a profile"><option value="">Apply a profile to waiting files…</option></select>
       <button id="qTMDB" class="hidden" title="Find each waiting file on TMDB: a clear match fills in its title, date, description and cover; others are marked to choose with Edit">Look up metadata on TMDB</button>
       <button id="qClear" class="hidden">Clear finished</button>
+      <button id="qPlexReview" class="hidden" title="See the Plex-style names offered after TMDB matches, and choose which to use">Review names</button>
       <button id="qClearAll" class="hidden" title="Remove every file from the queue (a file being transcoded goes on)">Clear the queue</button>
     </div>
   </div>
@@ -788,6 +796,14 @@
   <div id="wResults"></div>
   <button id="wMore" class="linkbtn hidden"></button>
   <div class="actions" style="margin-top:12px"><button id="wSkip">Skip this one</button><span class="grow"></span><button id="wClose">Close</button></div>
+</dialog>
+
+<dialog id="plexDlg" class="kdlg whichdlg" aria-labelledby="plexTitle">
+  <h3 id="plexTitle">Plex-style names</h3>
+  <div class="hint">These waiting files can be named the way Plex expects, from their TMDB match. Untick any you want to keep as they are.
+    Only the new files are named so; the originals keep their names.</div>
+  <div id="plexList" class="plexlist"></div>
+  <div class="actions" style="margin-top:12px"><button id="plexApply" class="primary">Apply</button><button id="plexCancel">Cancel</button></div>
 </dialog>
 
 <dialog id="about" aria-labelledby="aboutTitle">
@@ -1724,6 +1740,7 @@ async function restorePrefs() {
   if (typeof r.prefs.scanDir === 'string') $('scanDir').value = r.prefs.scanDir;
   if (typeof r.prefs.scanSub === 'boolean') $('scanSub').checked = r.prefs.scanSub;
   if (typeof r.prefs.scanExtras === 'boolean') $('scanExtras').checked = r.prefs.scanExtras;
+  if (typeof r.prefs.plexNames === 'boolean') $('plexNames').checked = r.prefs.plexNames;
   $('secQueue').open = false; // the queue starts closed; it opens when files are added or some are left from last time
   if (r.tmpDirMissing) {
     const box = $('tmpNote');
@@ -2172,6 +2189,13 @@ async function tmdbUse(x, btn) {
   t.append('Filled in from TMDB: ', a, '. Check the fields below; "Undo all metadata changes" puts back the file\'s own.');
   if (tv && !episode) t.append(' (No season and episode given, so this is the show\'s information.)');
   if (f.note) t.append(el('div', 'hint', f.note));
+  if ($('plexNames').checked && f.plexName) { // the Plex way, shown in the Output box (still editable)
+    const out = $('output').value.trim(), cut = Math.max(out.lastIndexOf('\\'), out.lastIndexOf('/'));
+    const ext = extOf(out) || $('container').value || '.mkv';
+    $('output').value = (cut >= 0 ? out.slice(0, cut + 1) : '') + f.plexName + ext;
+    $('output').dispatchEvent(new Event('change'));
+    t.append(el('div', 'hint', 'The output is named the Plex way: ' + f.plexName + ext + ' (you can change it in the Output box).'));
+  }
   box.append(t);
 }
 $('tKind').onchange = tmdbEpUI;
@@ -2187,6 +2211,41 @@ $('qTMDB').onclick = async () => {
   if (!$('tmdbKey').value.trim()) { showError('Add your free TMDB API key in Settings (⚙) first.'); return; }
   const r = await api('queueTMDB', { ids: [] });
   if (!r.ok) showError(r.error); else tmdbAwaiting = true;
+  poll();
+};
+
+// ---------- Plex-style names (optional) ----------
+// After a TMDB match a file can be named the Plex way. Nothing changes until it has
+// been seen: in the Output box on the Convert tab, and in Review names for the queue.
+$('plexNames').onchange = () => { api('setPref', { name: 'plexNames', value: $('plexNames').checked }); if (queue) renderQueue(queue); };
+function plexOffer(it) {
+  const pn = $('plexNames').checked && it.settings && it.settings.plexName;
+  if (!pn || !['waiting', 'checking', 'problem'].includes(it.status) || it.editing) return '';
+  const ext = (extOf(it.output || '') || '.mkv'), base = (it.output || '').split(/[\\/]/).pop();
+  return base.toLowerCase() === (pn + ext).toLowerCase() ? '' : '→ Plex name: ' + pn + ext;
+}
+$('qPlexReview').onclick = async () => {
+  const r = await api('plexNames', {});
+  if (!r.ok) { showError(r.error); return; }
+  const list = $('plexList'); list.innerHTML = '';
+  (r.names || []).forEach(p => {
+    const row = el('label', 'plexrow'), c = el('input'); c.type = 'checkbox'; c.checked = !p.why; c.disabled = !!p.why; c.dataset.id = p.id;
+    const txt = el('div'); txt.append(el('div', 'from', p.from), el('div', 'to', '→ ' + p.to));
+    row.append(c, txt);
+    if (p.why) row.append(el('div', 'why', 'Keeps its name: ' + p.why));
+    list.append(row);
+  });
+  if (!list.children.length) { notify('No Plex-style names to offer right now.'); return; }
+  $('plexDlg').showModal();
+};
+$('plexCancel').onclick = () => $('plexDlg').close();
+$('plexApply').onclick = async () => {
+  const ids = Array.from($('plexList').querySelectorAll('input:checked')).map(c => +c.dataset.id);
+  $('plexDlg').close();
+  if (!ids.length) return;
+  const r = await api('plexApply', { ids });
+  if (!r.ok) { showError(r.error); return; }
+  notify(r.renamed + (r.renamed === 1 ? ' file' : ' files') + ' will get Plex-style names.' + (r.skipped && r.skipped.length ? '\nKept their names:\n' + r.skipped.join('\n') : ''));
   poll();
 };
 
@@ -2623,7 +2682,7 @@ function renderQueue(q) {
     row.querySelector('.qname').title = it.input + '  →  ' + it.output;
     renderChips(row.querySelector('.qchips'), it); // UI-8
     row.querySelector('.qsub').textContent = settingsText(it.settings); // UI-8: what the file is shows in the chips line
-    row.querySelector('.qnote').textContent = [it.note, it.settings && it.settings.tmdbNote].filter(Boolean).join('  ·  ');
+    row.querySelector('.qnote').textContent = [it.note, it.settings && it.settings.tmdbNote, plexOffer(it)].filter(Boolean).join('  ·  ');
     renderPlexRow(row.querySelector('.qplex'), it);
     row.querySelector('.qst').textContent = it.status === 'running' ? Math.floor(it.percent) + '%' : STATUS_TEXT[it.status];
     // time: left for the running file, expected for a waiting one, taken for a finished one
@@ -2713,6 +2772,9 @@ function renderQueue(q) {
   $('qClear').classList.toggle('hidden', !finished);
   $('qTMDB').classList.toggle('hidden', !(waiting || c.problem));
   $('qClearAll').classList.toggle('hidden', !(waiting || c.problem)); // with only finished files, Clear finished does it
+  const offers = q.items.filter(it => plexOffer(it)).length;
+  $('qPlexReview').classList.toggle('hidden', !offers);
+  $('qPlexReview').textContent = 'Review names (' + offers + ')';
   $('afterWrap').classList.toggle('hidden', !(q.running || waiting > 0 || q.after));
   if (document.activeElement !== $('after')) $('after').value = q.after || '';
   const power = q.powerIn !== undefined;

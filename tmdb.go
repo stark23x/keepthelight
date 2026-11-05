@@ -224,6 +224,7 @@ type tmdbFill struct {
 	Thumb       string `json:"thumb,omitempty"`
 	Link        string `json:"link"` // the TMDB page
 	Note        string `json:"note,omitempty"`
+	PlexName    string `json:"plexName,omitempty"` // the Plex-style file name, without extension ("" for a show without an episode)
 }
 
 // tmdbDetails gets a film, or a show's episode (season, episode > 0) or the
@@ -243,6 +244,7 @@ func tmdbDetails(ctx context.Context, key, kind string, id, season, episode int,
 		}
 		f.Title, f.Date, f.Description, poster = m.Title, m.ReleaseDate, m.Overview, m.PosterPath
 		f.Link = fmt.Sprintf("https://www.themoviedb.org/movie/%d", id)
+		f.PlexName = plexFilmName(m.Title, yearOf(m.ReleaseDate), id)
 	case "tv":
 		var show struct {
 			Name, Overview string
@@ -280,6 +282,7 @@ func tmdbDetails(ctx context.Context, key, kind string, id, season, episode int,
 			}
 			f.Date, f.Description = e.AirDate, e.Overview
 			f.Link += fmt.Sprintf("/episode/%d", episode)
+			f.PlexName = plexEpisodeName(show.Name, yearOf(show.FirstAirDate), season, episode, e.Name)
 		}
 	default:
 		return nil, fmt.Errorf("unknown kind %q", kind)
@@ -766,6 +769,9 @@ func (g *guiServer) queueTMDB(ids []int) map[string]any {
 						m.Cover, m.RemoveCover = meta.Cover, false
 					}
 					setRawField(it, "meta", m)
+					if meta.plexName != "" { // a proposal: only used once confirmed in Review names
+						setRawField(it, "plexName", meta.plexName)
+					}
 				}
 				setRawField(it, "tmdbNote", note)
 				var s settings
@@ -861,6 +867,7 @@ func (lk *tmdbLookup) file(input string) (string, *MetaEdit) {
 	if hit.Year != "" && gs.Kind == "movie" {
 		what += " (" + hit.Year + ")"
 	}
+	m.plexName = f.PlexName
 	if fd.remembered {
 		return "TMDB: " + what + " (as matched before; check it with Edit)", m
 	}

@@ -795,6 +795,12 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		var b struct{ IDs []int }
 		_ = json.Unmarshal(body, &b)
 		return g.queueTMDB(b.IDs)
+	case "plexNames": // Plex-style names offered after TMDB matches
+		return map[string]any{"ok": true, "names": g.plexProposals()}
+	case "plexApply":
+		var b struct{ IDs []int }
+		_ = json.Unmarshal(body, &b)
+		return g.plexApply(b.IDs)
 	case "tmdbPending": // the "Which one?" window: titles still needing a match
 		return map[string]any{"ok": true, "asks": g.tmdbUnsettled()}
 	case "tmdbChoose":

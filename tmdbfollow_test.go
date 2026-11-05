@@ -189,6 +189,13 @@ func TestTMDBWhichOne(t *testing.T) {
 		if m.Meta == nil || !strings.Contains(m.Meta.Tags["title"], want) {
 			t.Errorf("file %d: %+v", i, m.Meta)
 		}
+		var pn struct {
+			PlexName string `json:"plexName"`
+		}
+		_ = json.Unmarshal(it.Raw, &pn)
+		if !strings.HasPrefix(pn.PlexName, "The Office (2005) - "+want+" - Episode") {
+			t.Errorf("file %d: Plex name %q", i, pn.PlexName)
+		}
 	}
 	if _, ok := g.tmdbPicks()[ask.Key]; !ok {
 		t.Error("the choice was not remembered")
