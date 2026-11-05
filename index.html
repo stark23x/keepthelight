@@ -174,6 +174,9 @@
   .qname { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .qsub { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .qnote { font-size: 12px; margin-top: 2px; }
+  input[type="time"] { color-scheme: dark; padding: 5px 8px; }
+  details.sched { margin: 0 0 10px; } details.sched > summary { cursor: pointer; font-size: 13px; text-transform: none; letter-spacing: normal; font-weight: 600; }
+  details.sched > summary .meta { font-weight: 400; margin-left: 6px; }
   .sdone { font-size: 12px; color: var(--ok); margin-top: 2px; }
   /* UI-8: two lines per row; the rest opens on a click */
   .qrow { cursor: pointer; }
@@ -636,6 +639,13 @@
     <div class="tabhead"><h2>Queue</h2><span class="sum" id="sumQueue"></span></div>
     <div class="after hidden" id="afterWrap" style="margin:0 0 10px"><label for="after">When the queue is finished</label>
       <select id="after"><option value="">Do nothing</option><option value="sleep">Sleep</option><option value="shutdown">Shut down</option></select></div>
+    <details class="sched" id="schedBox"><summary>Schedule <span class="meta" id="schedSum">not set</span></summary>
+      <div class="row" style="flex-wrap:wrap; gap:10px 18px; margin-top:8px; align-items:center">
+        <label class="check"><input type="checkbox" id="schedOn"> <span>Start the queue at</span></label><input type="time" id="schedAt" value="01:00" style="width:auto">
+        <label class="check"><input type="checkbox" id="pauseOn"> <span>Pause at</span></label><input type="time" id="pauseAt" value="07:00" style="width:auto">
+        <span class="hint" style="margin:0">and carry on at the start time</span></div>
+      <div class="hint">Keep the Light must be open and the PC awake at those times: it cannot wake a sleeping PC. Pausing keeps the file's
+        progress, as long as Keep the Light stays open. Files from the watch folder (⚙ Settings) can be added at any time.</div></details>
     <div id="qBatch" class="qbatch hidden"><div class="qbtop"><b id="qbTitle"></b><span id="qbEta"></span></div><div class="bar" id="qbBar"><div></div></div></div>
     <div class="qplexsum hidden" id="qPlexSum"></div>
     <div id="emptyQueue" class="emptybox hidden"><div class="ebig">The queue is empty</div>
@@ -740,6 +750,14 @@
         above if it is on this PC, otherwise Windows' temp folder. Not used for tests or metadata-only jobs.</span></label>
       <div class="row" style="margin-top:12px; align-items:center"><span class="hint grow">The full log of every failed file is saved
         automatically (the 50 newest are kept), so a problem can be looked into later.</span><button id="openLogs">Open logs folder</button></div>
+      <div class="rules-title" style="margin-top:16px">Watch folder <span>– videos placed here join the queue by themselves</span></div>
+      <div class="row" style="align-items:flex-end">
+        <div class="grow"><label for="watchDir">Folder</label><div class="row"><div class="grow"><input type="text" id="watchDir" spellcheck="false" placeholder="not set (off)"></div><button id="browseWatch">…</button></div></div>
+        <div style="width:200px"><label for="watchProfile">With the profile</label><select id="watchProfile"><option value="">the current settings</option></select></div></div>
+      <label class="check" style="margin-top:8px"><input type="checkbox" id="watchStart"> <span>Start the queue as soon as they arrive (otherwise at the start
+        time in the queue's Schedule, or when you press Start)</span></label>
+      <div class="hint">A file is added once it has finished copying, and only once. Files made by Keep the Light, or already converted by it, are
+        left alone. This works while Keep the Light is open.</div>
       <div class="rules-title tmdbcredit" style="margin-top:16px"><img class="tmdblogo small" alt="TMDB" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB2aWV3Qm94PSIwIDAgMTkwLjI0IDgxLjUyIj48ZGVmcz48c3R5bGU+LmNscy0xe2ZpbGw6dXJsKCNsaW5lYXItZ3JhZGllbnQpO308L3N0eWxlPjxsaW5lYXJHcmFkaWVudCBpZD0ibGluZWFyLWdyYWRpZW50IiB5MT0iNDAuNzYiIHgyPSIxOTAuMjQiIHkyPSI0MC43NiIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzkwY2VhMSIvPjxzdG9wIG9mZnNldD0iMC41NiIgc3RvcC1jb2xvcj0iIzNjYmVjOSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzAwYjNlNSIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxnIGlkPSJMYXllcl8yIiBkYXRhLW5hbWU9IkxheWVyIDIiPjxnIGlkPSJMYXllcl8xLTIiIGRhdGEtbmFtZT0iTGF5ZXIgMSI+PHBhdGggY2xhc3M9ImNscy0xIiBkPSJNMTA1LjY3LDM2LjA2aDY2LjlBMTcuNjcsMTcuNjcsMCwwLDAsMTkwLjI0LDE4LjRoMEExNy42NywxNy42NywwLDAsMCwxNzIuNTcuNzNoLTY2LjlBMTcuNjcsMTcuNjcsMCwwLDAsODgsMTguNGgwQTE3LjY3LDE3LjY3LDAsMCwwLDEwNS42NywzNi4wNlptLTg4LDQ1aDc2LjlBMTcuNjcsMTcuNjcsMCwwLDAsMTEyLjI0LDYzLjRoMEExNy42NywxNy42NywwLDAsMCw5NC41Nyw0NS43M0gxNy42N0ExNy42NywxNy42NywwLDAsMCwwLDYzLjRIMEExNy42NywxNy42NywwLDAsMCwxNy42Nyw4MS4wNlpNMTAuNDEsMzUuNDJoNy44VjYuOTJoMTAuMVYwSC4zMXY2LjloMTAuMVptMjguMSwwaDcuOFY4LjI1aC4xbDksMjcuMTVoNmw5LjMtMjcuMTVoLjFWMzUuNGg3LjhWMEg2Ni43NmwtOC4yLDIzLjFoLS4xTDUwLjMxLDBIMzguNTFaTTE1Mi40Myw1NS42N2ExNS4wNywxNS4wNywwLDAsMC00LjUyLTUuNTIsMTguNTcsMTguNTcsMCwwLDAtNi42OC0zLjA4LDMzLjU0LDMzLjU0LDAsMCwwLTguMDctMWgtMTEuN3YzNS40aDEyLjc1YTI0LjU4LDI0LjU4LDAsMCwwLDcuNTUtMS4xNUExOS4zNCwxOS4zNCwwLDAsMCwxNDguMTEsNzdhMTYuMjcsMTYuMjcsMCwwLDAsNC4zNy01LjUsMTYuOTEsMTYuOTEsMCwwLDAsMS42My03LjU4QTE4LjUsMTguNSwwLDAsMCwxNTIuNDMsNTUuNjdaTTE0NSw2OC42QTguOCw4LjgsMCwwLDEsMTQyLjM2LDcyYTEwLjcsMTAuNywwLDAsMS00LDEuODIsMjEuNTcsMjEuNTcsMCwwLDEtNSwuNTVoLTQuMDV2LTIxaDQuNmExNywxNywwLDAsMSw0LjY3LjYzLDExLjY2LDExLjY2LDAsMCwxLDMuODgsMS44N0E5LjE0LDkuMTQsMCwwLDEsMTQ1LDU5YTkuODcsOS44NywwLDAsMSwxLDQuNTJBMTEuODksMTEuODksMCwwLDEsMTQ1LDY4LjZabTQ0LjYzLS4xM2E4LDgsMCwwLDAtMS41OC0yLjYyQTguMzgsOC4zOCwwLDAsMCwxODUuNjMsNjRhMTAuMzEsMTAuMzEsMCwwLDAtMy4xNy0xdi0uMWE5LjIyLDkuMjIsMCwwLDAsNC40Mi0yLjgyLDcuNDMsNy40MywwLDAsMCwxLjY4LTUsOC40Miw4LjQyLDAsMCwwLTEuMTUtNC42NSw4LjA5LDguMDksMCwwLDAtMy0yLjcyLDEyLjU2LDEyLjU2LDAsMCwwLTQuMTgtMS4zLDMyLjg0LDMyLjg0LDAsMCwwLTQuNjItLjMzaC0xMy4ydjM1LjRoMTQuNWEyMi40MSwyMi40MSwwLDAsMCw0LjcyLS41LDEzLjUzLDEzLjUzLDAsMCwwLDQuMjgtMS42NSw5LjQyLDkuNDIsMCwwLDAsMy4xLTMsOC41Miw4LjUyLDAsMCwwLDEuMi00LjY4QTkuMzksOS4zOSwwLDAsMCwxODkuNjYsNjguNDdaTTE3MC4yMSw1Mi43Mmg1LjNhMTAsMTAsMCwwLDEsMS44NS4xOCw2LjE4LDYuMTgsMCwwLDEsMS43LjU3LDMuMzksMy4zOSwwLDAsMSwxLjIyLDEuMTMsMy4yMiwzLjIyLDAsMCwxLC40OCwxLjgyLDMuNjMsMy42MywwLDAsMS0uNDMsMS44LDMuNCwzLjQsMCwwLDEtMS4xMiwxLjIsNC45Miw0LjkyLDAsMCwxLTEuNTguNjUsNy41MSw3LjUxLDAsMCwxLTEuNzcuMmgtNS42NVptMTEuNzIsMjBhMy45LDMuOSwwLDAsMS0xLjIyLDEuMyw0LjY0LDQuNjQsMCwwLDEtMS42OC43LDguMTgsOC4xOCwwLDAsMS0xLjgyLjJoLTd2LThoNS45YTE1LjM1LDE1LjM1LDAsMCwxLDIsLjE1LDguNDcsOC40NywwLDAsMSwyLjA1LjU1LDQsNCwwLDAsMSwxLjU3LDEuMTgsMy4xMSwzLjExLDAsMCwxLC42MywyQTMuNzEsMy43MSwwLDAsMSwxODEuOTMsNzIuNzJaIi8+PC9nPjwvZz48L3N2Zz4="><span>TMDB (film and TV information for Metadata) <span>– remembered on this PC</span></span></div>
       <div class="row" style="align-items:flex-end">
         <div class="grow"><label for="tmdbKey">TMDB API key or API read access token</label><input type="password" id="tmdbKey" spellcheck="false" autocomplete="off" placeholder="not set"></div>
@@ -1388,6 +1406,7 @@ function fillProfiles(selected) {
 }
 // the controls that depend on the chosen profile, and whether the form still matches it
 function profileUI() {
+  if (typeof watchProfiles === 'function') watchProfiles(); // the watch folder's choice of profile
   const p = activeProfile();
   ['profUpdate', 'profRename', 'profDelete'].forEach(id => { $(id).disabled = !p; });
   $('profExport').disabled = !profiles.length;
@@ -1755,6 +1774,11 @@ async function restorePrefs() {
   if (typeof r.prefs.scanSub === 'boolean') $('scanSub').checked = r.prefs.scanSub;
   if (typeof r.prefs.scanExtras === 'boolean') $('scanExtras').checked = r.prefs.scanExtras;
   if (typeof r.prefs.plexNames === 'boolean') $('plexNames').checked = r.prefs.plexNames;
+  if (r.prefs.watch) {
+    watchProfiles();
+    $('watchDir').value = r.prefs.watch.dir || ''; $('watchStart').checked = !!r.prefs.watch.start;
+    watchWanted = r.prefs.watch.profile || ''; watchProfiles();
+  }
   $('secQueue').open = false; // the queue starts closed; it opens when files are added or some are left from last time
   if (r.tmpDirMissing) {
     const box = $('tmpNote');
@@ -2195,6 +2219,69 @@ $('plexCheckBtn').onclick = async () => {
   const r = await api('plexCheck', {});
   n.className = 'note ' + (r.ok ? 'info' : 'bad'); n.textContent = r.ok ? r.message : r.error;
 };
+// ---------- the schedule and the watch folder ----------
+let schedLoaded = false;
+function scheduleUI(q) { // what is planned, from the queue's status
+  const s = q.schedule || {};
+  if (!schedLoaded) {
+    schedLoaded = true;
+    $('schedOn').checked = !!s.startOn; if (s.startAt) $('schedAt').value = s.startAt;
+    $('pauseOn').checked = !!s.pauseOn; if (s.pauseAt) $('pauseAt').value = s.pauseAt;
+  }
+  const plan = [q.plan, $('watchDir').value.trim() && 'watching ' + $('watchDir').value.trim()].filter(Boolean).join(' · ');
+  $('schedSum').textContent = plan || 'not set';
+}
+async function saveSchedule() {
+  if ($('pauseOn').checked && !$('schedOn').checked) $('schedOn').checked = true; // it carries on at the start time
+  const r = await api('queueSchedule', { startOn: $('schedOn').checked, startAt: $('schedAt').value, pauseOn: $('pauseOn').checked, pauseAt: $('pauseAt').value });
+  if (!r.ok) showError(r.error); poll();
+}
+['schedOn', 'schedAt', 'pauseOn', 'pauseAt'].forEach(id => $(id).addEventListener('change', saveSchedule));
+// the watch folder: looked at every 30 seconds while the window is open
+let watchWanted = ''; // the remembered profile, until the profiles have loaded
+function watchProfiles() {
+  const sel = $('watchProfile'), cur = sel.value || watchWanted;
+  sel.innerHTML = '<option value="">the current settings</option>';
+  profiles.forEach(p => { const o = el('option', '', p.name); o.value = p.name; sel.append(o); });
+  sel.value = profiles.some(p => p.name === cur) ? cur : '';
+}
+function saveWatch() {
+  api('setPref', { name: 'watch', value: { dir: $('watchDir').value.trim(), profile: $('watchProfile').value, start: $('watchStart').checked } });
+  if (queue) scheduleUI(queue);
+}
+['watchDir', 'watchProfile', 'watchStart'].forEach(id => $(id).addEventListener('change', saveWatch));
+$('browseWatch').onclick = async () => {
+  const r = await api('browse', { kind: 'folder', initial: $('watchDir').value, remember: 'watch' });
+  if (r.ok && r.path) { $('watchDir').value = r.path; saveWatch(); }
+};
+// settings for new files, with a profile (the form is put back as it was)
+function settingsWithProfile(paths, name) {
+  const p = profiles.find(x => x.name === name);
+  if (!p) return paths.map(settingsFor);
+  const keep = settings(), keepFormat = $('container').value;
+  applyFields(withDefaults(p.settings), PROFILE_KEYS);
+  const out = paths.map(settingsFor).map(st => Object.assign(st, { profile: p.name }));
+  applyFields(keep, PROFILE_KEYS); $('container').value = keepFormat;
+  return out;
+}
+let watchBusy = false;
+async function watchLook() {
+  const dir = $('watchDir').value.trim();
+  if (!dir || watchBusy) return;
+  watchBusy = true;
+  try {
+    const r = await api('watchScan', { dir, tag: nameTag() });
+    if (!r.ok || !r.paths || !r.paths.length) return;
+    const a = await api('queueAdd', { items: settingsWithProfile(r.paths, $('watchProfile').value) });
+    if (!a.ok && !(a.ids || []).length) { showError(a.error || 'The watch folder files could not be added.'); return; }
+    const n = (a.ids || r.paths).length;
+    notify(n + (n === 1 ? ' file' : ' files') + ' from the watch folder joined the queue.');
+    if ($('watchStart').checked && !queue.running) await api('queueStart', {});
+    poll();
+  } finally { watchBusy = false; }
+}
+setInterval(watchLook, 30000);
+
 let lastNotice = null; // the first look only takes note (no old message on opening the window)
 $('openLogs').onclick = async () => { const r = await api('openLogs', {}); if (!r.ok) showError(r.error); };
 $('tmdbForget').onclick = async () => { await api('tmdbForget', {}); tmdbPicksUI(0); notify('Remembered TMDB matches forgotten.'); };
@@ -2700,6 +2787,7 @@ function renderQueue(q) {
   renderBatch(q.batch);
   renderPlexSum(q);
   whichAfterLookup(q); // a TMDB lookup has finished: ask about the titles it could not settle
+  scheduleUI(q);
   if (lastNotice === null) lastNotice = q.noticeSeq || 0;
   else if (q.noticeSeq && q.noticeSeq !== lastNotice) { notify(q.notice); lastNotice = q.noticeSeq; }
   const list = $('queueList'), seen = new Set();

@@ -59,6 +59,8 @@ type job struct {
 }
 
 type guiServer struct {
+	sched    schedule            // the queue's start / pause times
+	watch    watchState          // the watch folder
 	oneOff   map[string]tmdbPick // TMDB: a match chosen for one file with no title in its name (used once)
 	token    string
 	addr     string
@@ -438,6 +440,7 @@ func runGUI(initialFiles []string, forceServer bool) (code int) {
 	}
 	defer releaseInstance()
 	g.restoreQueue()
+	go g.scheduler(context.Background())
 	if !forceServer {
 		if hasConsole() {
 			fmt.Printf("Keep the Light %s - opening the window (closing it quits)...\n", version)
@@ -913,6 +916,25 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 			return failResult(err.Error())
 		}
 		return map[string]any{"ok": true, "message": msg}
+	case "queueSchedule": // start / pause times
+		var s schedule
+		_ = json.Unmarshal(body, &s)
+		if err := g.setSchedule(s); err != nil {
+			return failResult(err.Error())
+		}
+		return okResult()
+	case "watchScan": // the watch folder: videos that have finished arriving
+		var b struct{ Dir, Tag string }
+		_ = json.Unmarshal(body, &b)
+		if b.Dir == "" {
+			return map[string]any{"ok": true, "paths": []string{}}
+		}
+		ffprobe, _ := findTool("ffprobe", "")
+		paths, err := g.watchScan(b.Dir, b.Tag, ffprobe)
+		if err != nil {
+			return failResult("the watch folder cannot be read: " + err.Error())
+		}
+		return map[string]any{"ok": true, "paths": paths}
 	case "openLogs": // the folder of saved failure logs
 		_ = os.MkdirAll(logsDir(), 0o755)
 		if err := openFolder(logsDir()); err != nil {

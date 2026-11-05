@@ -1038,7 +1038,7 @@ func (g *guiServer) queueStatusLocked() map[string]any {
 			}
 		}
 	}
-	res := map[string]any{"plexFiles": plexFiles, "plexBad": plexBad, "stopAfter": g.q.stopAfter, "notice": g.q.notice, "noticeSeq": g.q.noticeSeq,
+	res := map[string]any{"schedule": g.sched, "plan": g.sched.text(), "plexFiles": plexFiles, "plexBad": plexBad, "stopAfter": g.q.stopAfter, "notice": g.q.notice, "noticeSeq": g.q.noticeSeq,
 		"items": items, "counts": counts, "running": g.q.running, "index": g.q.index, "batch": g.batchLocked(items),
 		"total": g.q.total, "after": g.q.after, "savedRun": g.q.savedRun, "savedRunText": signedBytes(g.q.savedRun),
 		"savedTotal": g.savedTotal, "savedTotalText": signedBytes(g.savedTotal)}
