@@ -18,6 +18,23 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.29.0 - 2026-11-05
+
+- **Already-converted mark.** Every file whose video Keep the Light encodes gets a small tag ("Keep the Light 1.29.0 ·
+  x265 CRF 18 · 1920×1080"). The library scan shows such files as "✓ Already converted" (with no saving counted, and
+  a filter to list them); on the Convert tab and in the queue they get an "Already converted" badge and a warning,
+  because converting again costs quality and saves little.
+- **Tell Plex when files are ready.** In ⚙ Settings → Plex, enter your Plex server's address and token (kept in
+  Windows' Credential Manager) and press Check. When a queue finishes, Plex is asked to scan the folders of the new
+  files, so they show up straight away. It works out which library holds them even when this PC and the server use
+  different paths (W:\Movies here, D:\PlexRaid01\Movies on the server).
+- **Schedule.** Queue → Schedule: start the queue at a set time (01:00, say), and optionally pause at another (07:00)
+  and carry on at the start time. Keep the Light must be open and the PC awake.
+- **Watch folder.** ⚙ Settings → Watch folder: videos placed there join the queue by themselves (with a chosen
+  profile) once they have finished copying, each only once. Optionally the queue starts at once.
+- **Failure logs.** The full log of every failed file is saved automatically (the 50 newest are kept). **Open logs
+  folder** is in ⚙ Settings, and a failed row has **Saved log**.
+
 ## 1.28.0 - 2026-11-05
 
 - **Plex-style names (optional).** Turn on **Plex-style names after a TMDB match** (under Files) and matched files can

@@ -6,29 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **Mark files that are already converted** (requested 2026-11-05), so a converted file is not converted again by
-  accident (each time costs quality and saves little).
-  - **The tag:** every new file gets a small tag such as "Keep the Light 1.29.0 · x265 CRF 18 · 1080p".
-  - **Library scan:** shows tagged files as "already converted" and leaves them out of the savings estimate.
-  - **Queue and Convert tab:** adding a tagged file gives a warning in the Checks (it can still be converted).
-  - **Visible:** the tag shows in the file details on the Convert tab.
-- **Tell Plex to refresh after a batch** (requested 2026-11-05).
-  - **Setup in ⚙ Settings:** the Plex server address and token (the token kept in Windows Credential Manager, like the
-    TMDB key), with a **Check** button.
-  - **When:** after a queue finishes (and after a single file), Keep the Light asks Plex to rescan just the library
-    folder(s) that contain the new files, so they appear straight away. Off unless set up.
-  - **Failures:** a failed refresh is a note in the log, never an error for the conversion.
-- **Run unattended: a start time and a watch folder** (requested 2026-11-05).
-  - **Start at a set time:** on the Queue tab, "Start the queue at [01:00]". There is also an optional "Pause at
-    [07:00] and carry on at [01:00]" for long batches, using Pause / Resume. The times are remembered.
-  - **Watch folder (optional):** in ⚙ Settings, choose a folder and a profile. Any video placed there is added to the
-    queue with that profile once it has finished copying (its size has stopped changing). It is picked up while Keep
-    the Light is open, and is started at once or at the set start time.
-  - **Visible:** the Queue tab says what is planned ("Starts at 01:00", "Watching D:\To convert").
-- **Keep failure logs automatically** (requested 2026-11-05).
-  - **What is kept:** the full log of every failed or cancelled-with-error job, saved to a Logs folder in Keep the
-    Light's settings folder, named by date and file ("2026-11-05 14-20 Heat (1995).txt"). The 50 newest are kept.
-  - **Where to find them:** **Open logs folder** in ⚙ Settings, and a link on the failed row in the queue.
+Nothing yet.
 
 ## Ideas raised, not yet requested
 
@@ -36,6 +14,7 @@ None at the moment.
 
 ## Done
 
+- 1.29.0: already-converted tag; Plex refresh; schedule and watch folder; failure logs.
 - 1.28.0: optional Plex-style names with Review names; fill in track details from names; TMDB logo; no work folders kept when nothing was finished; a second try for unreadable Dolby Vision data.
 - 1.27.0: TMDB "Which one?" window; crop black bars (576p and 480p only).
 - 1.26.0: Pause / Resume; Stop after this file; move a queued file to the top or bottom.

@@ -84,6 +84,8 @@ quality.
   each file would save, and which files are likely to cause problems in Plex. Plex extras like trailers and
   featurettes can be skipped.
 - **Finished files are checked again,** to confirm they are clean.
+- **Tells Plex** when new files are ready, so they appear straight away (set up once with your Plex server and token).
+- **Marks converted files,** so you are warned before converting a file twice, and the Library scan shows what is done.
 
 ### The queue
 - **Convert many files one after another.** Add files, a whole folder, or picks from the Library scan.
@@ -94,6 +96,8 @@ quality.
 - **Reorder files** with up, down, top and bottom buttons.
 - **Change one file** in the queue without affecting the others, or copy one file's track choices to similar files.
 - **Remembers the queue** if you close Keep the Light.
+- **Schedule:** start the queue at a set time (say 01:00), and pause it in the morning to carry on the next night.
+- **Watch folder:** videos you copy into a chosen folder join the queue by themselves, with the profile you pick.
 - **When finished:** play a sound, or put the PC to sleep or shut it down.
 - **Space saved** is shown for each file, for each run, and as a running total.
 
@@ -103,6 +107,7 @@ quality.
 - **Handles busy files.** If another program (like a backup app) is holding a file, it waits and tries again
   instead of failing.
 - **Checks free space** before starting.
+- **Saves the log of every failed file,** so problems can be looked into later.
 - **Runs in the background politely.** "Low priority" keeps your PC responsive while it works.
 - **Profiles.** Save your favourite settings under a name, such as "4K movies" or "Old TV shows", and use them with
   one click. Profiles can be exported and imported.
