@@ -6,20 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **Plex-style names: dotted, with resolution, codec and HDR kind** (requested 2026-11-05; replaces the
-  bracketed tag idea). The owner's format, with parts joined by dots:
-  - **Episodes:** `The Office (2005).S01E02.Diversity Day.1080p.HEVC.mkv`
-  - **Films:** `Heat (1995).2160p.HEVC.DV.{tmdb-949}.mkv` (the TMDB id last)
-  - **Filled in automatically** from the new file, not the original:
-    - resolution as 2160p, 1440p, 1080p, 720p, 576p or 480p, from the output height after resizing or cropping;
-    - codec as HEVC;
-    - the HDR kind as DV, HDR10+, HDR10 or HLG, only when the new file has it (left out for SDR).
-  - **No other tag text:** this format replaces the current " - " format for Plex-style names.
-  - **Episode titles:** a title's own dots are kept, and characters Windows does not allow are removed. A show
-    without an episode title gives `The Office (2005).S01E02.1080p.HEVC.mkv`.
-  - **Preview:** proposed names show in the Output box, queue rows and Review names before anything is renamed, as
-    now.
-  - **Check:** after building, confirm Plex matches both forms (the SxxEyy and the `{tmdb-}` id are what it uses).
+Nothing yet.
 
 ## Ideas raised, not yet requested
 
@@ -27,6 +14,7 @@ None at the moment.
 
 ## Done
 
+- 1.30.0: Plex-style names in the dotted format with resolution, HEVC and HDR kind (Plex matching to be confirmed by the owner on real files).
 - 1.29.0: already-converted tag; Plex refresh; schedule and watch folder; failure logs.
 - 1.28.0: optional Plex-style names with Review names; fill in track details from names; TMDB logo; no work folders kept when nothing was finished; a second try for unreadable Dolby Vision data.
 - 1.27.0: TMDB "Which one?" window; crop black bars (576p and 480p only).

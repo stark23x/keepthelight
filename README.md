@@ -71,7 +71,8 @@ quality.
   **"Which one?"** window asks you once per show, and your answer fills in every episode.
 - **Remembers your choices,** so next season's episodes match by themselves.
 - **Plex-style names (optional).** Matched files can be named the way Plex expects, such as
-  "The Office (2005) - S01E02 - Diversity Day.mkv". You see every proposed name before anything changes.
+  "The Office (2005).S01E02.Diversity Day.1080p.HEVC.mkv" or "Heat (1995).2160p.HEVC.DV.{tmdb-949}.mkv", with the new
+  file's resolution and HDR kind. You see every proposed name before anything changes.
 - **"Metadata only" mode.** Change just the details without converting the video at all. This is fast, with no
   quality loss. It can also replace the original file, which goes to the Recycle Bin.
 

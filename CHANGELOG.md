@@ -18,6 +18,14 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.30.0 - 2026-11-05
+
+- **Plex-style names in a new format, with the file's details.** Parts are joined by dots, and the resolution, HEVC and
+  the kind of HDR of the new file are added: films `Heat (1995).2160p.HEVC.DV.{tmdb-949}.mkv`, episodes
+  `The Office (2005).S01E02.Diversity Day.1080p.HEVC.mkv`. The resolution is that of the new file (a 4K film made
+  1080p says 1080p; a 1920×800 film counts as 1080p), and the HDR kind is DV, HDR10+, HDR10 or HLG (left out for
+  SDR). As before, nothing is renamed until you have seen the names.
+
 ## 1.29.0 - 2026-11-05
 
 - **Already-converted mark.** Every file whose video Keep the Light encodes gets a small tag ("Keep the Light 1.29.0 ·
