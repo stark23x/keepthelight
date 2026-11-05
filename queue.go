@@ -75,9 +75,11 @@ func (it *queueItem) pending() bool { return it.Status == stWaiting || it.Status
 type batch struct {
 	items     []*queueItem
 	nextID    int
-	running   bool  // the runner is working through the queue
-	stop      bool  // stop: the current file was canceled, the rest do not start
-	stopAfter bool  // stop once the current file is done
+	running   bool   // the runner is working through the queue
+	stop      bool   // stop: the current file was canceled, the rest do not start
+	stopAfter bool   // stop once the current file is done
+	notice    string // a message for the window (Plex refresh), shown once per noticeSeq
+	noticeSeq int
 	only      int   // >0: run only this file (a test), not the rest of the queue
 	savedRun  int64 // space saved by the files finished in this run (bytes; can be negative)
 	index     int   // position of the current file in this run (1-based)
@@ -825,7 +827,22 @@ func (g *guiServer) runQueue() {
 	g.mu.Lock()
 	g.q.running, g.q.only, g.q.stopAfter = false, 0, false
 	closing := g.closing
+	var ready []string // new files for Plex (tests are not)
+	for _, it := range g.q.items {
+		if it.inRun && it.Status == stDone && it.cfg != nil && it.cfg.SampleSecs == 0 {
+			ready = append(ready, it.Output)
+		}
+	}
 	g.mu.Unlock()
+	if len(ready) > 0 && !closing {
+		go func() { // tell Plex, so the files show up now (never an error for the conversions)
+			if note := g.plexRefresh(context.Background(), ready); note != "" {
+				g.mu.Lock()
+				g.q.notice, g.q.noticeSeq = note, g.q.noticeSeq+1
+				g.mu.Unlock()
+			}
+		}()
+	}
 	if !stoppedByUser && !closing && finished > 0 {
 		g.finishedAlert(failed > 0) // before a sleep / shut-down countdown starts
 	}
@@ -1021,7 +1038,7 @@ func (g *guiServer) queueStatusLocked() map[string]any {
 			}
 		}
 	}
-	res := map[string]any{"plexFiles": plexFiles, "plexBad": plexBad, "stopAfter": g.q.stopAfter,
+	res := map[string]any{"plexFiles": plexFiles, "plexBad": plexBad, "stopAfter": g.q.stopAfter, "notice": g.q.notice, "noticeSeq": g.q.noticeSeq,
 		"items": items, "counts": counts, "running": g.q.running, "index": g.q.index, "batch": g.batchLocked(items),
 		"total": g.q.total, "after": g.q.after, "savedRun": g.q.savedRun, "savedRunText": signedBytes(g.q.savedRun),
 		"savedTotal": g.savedTotal, "savedTotalText": signedBytes(g.savedTotal)}

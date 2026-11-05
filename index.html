@@ -762,6 +762,16 @@
       <div class="row" style="margin-top:10px; align-items:center"><span class="hint grow" id="tmdbPicksText">When you match a file by hand, the other files with
         that title follow, and the choice is remembered for later (the next season, say).</span>
         <button id="tmdbForget" class="hidden">Forget remembered matches</button></div>
+      <div class="rules-title" style="margin-top:16px">Plex <span>– tell Plex when new files are ready</span></div>
+      <div class="row" style="align-items:flex-end">
+        <div class="grow"><label for="plexURL">Plex server address</label><input type="text" id="plexURL" spellcheck="false" placeholder="for example 192.168.1.20 (not set)"></div>
+        <div class="grow"><label for="plexToken">Plex token</label><input type="password" id="plexToken" spellcheck="false" autocomplete="off" placeholder="not set"></div>
+        <button id="plexCheckBtn">Check</button></div>
+      <div id="plexNote" class="note hidden"></div>
+      <div class="hint">When set, Keep the Light asks Plex to scan the folders of the new files once the queue has finished, so they show up straight
+        away. The token is how Plex knows it is you: see Plex's article
+        <a href="https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/">Finding an authentication token</a>.
+        It is kept in Windows' Credential Manager. Leave the address empty to turn this off.</div>
       <div class="rules-title" style="margin-top:16px">When a transcode or the queue has finished <span>– remembered</span></div>
       <div class="grid">
         <div><label for="sndDone">Sound when all files are done</label>
@@ -1737,6 +1747,7 @@ async function restorePrefs() {
   if (typeof r.prefs.toolsHidden === 'string') toolsHidden = r.prefs.toolsHidden;
   $('tmdbKey').value = r.tmdbKey || (typeof r.prefs.tmdbKey === 'string' ? r.prefs.tmdbKey : '');
   if (r.tmdbLang) $('tmdbLangSel').value = r.tmdbLang;
+  $('plexURL').value = r.plexURL || ''; $('plexToken').value = ''; $('plexToken').placeholder = r.plexToken ? 'saved (type to change)' : 'not set';
   tmdbPicksUI(r.tmdbPicks || 0);
   if (typeof r.prefs.scanTMDB === 'boolean') $('scanTMDB').checked = r.prefs.scanTMDB;
   tmdbKeyUI();
@@ -2168,6 +2179,23 @@ function tmdbPicksUI(n) {
   $('tmdbForget').classList.toggle('hidden', !n);
   if (n) $('tmdbForget').textContent = 'Forget ' + n + ' remembered ' + (n === 1 ? 'match' : 'matches');
 }
+// Plex: the server address and token; saved when changed, checked on request
+async function plexSave() {
+  const r = await api('plexSet', { url: $('plexURL').value.trim(), token: $('plexToken').value.trim() });
+  if (!r.ok) { showError(r.error); return false; }
+  if ($('plexToken').value.trim()) { $('plexToken').value = ''; $('plexToken').placeholder = 'saved (type to change)'; }
+  if (!$('plexURL').value.trim()) $('plexToken').placeholder = 'not set';
+  return true;
+}
+$('plexURL').addEventListener('change', plexSave);
+$('plexToken').addEventListener('change', plexSave);
+$('plexCheckBtn').onclick = async () => {
+  const n = $('plexNote'); n.className = 'note info'; n.textContent = 'Checking…';
+  if (!(await plexSave())) return;
+  const r = await api('plexCheck', {});
+  n.className = 'note ' + (r.ok ? 'info' : 'bad'); n.textContent = r.ok ? r.message : r.error;
+};
+let lastNotice = null; // the first look only takes note (no old message on opening the window)
 $('openLogs').onclick = async () => { const r = await api('openLogs', {}); if (!r.ok) showError(r.error); };
 $('tmdbForget').onclick = async () => { await api('tmdbForget', {}); tmdbPicksUI(0); notify('Remembered TMDB matches forgotten.'); };
 async function tmdbUse(x, btn) {
@@ -2672,6 +2700,8 @@ function renderQueue(q) {
   renderBatch(q.batch);
   renderPlexSum(q);
   whichAfterLookup(q); // a TMDB lookup has finished: ask about the titles it could not settle
+  if (lastNotice === null) lastNotice = q.noticeSeq || 0;
+  else if (q.noticeSeq && q.noticeSeq !== lastNotice) { notify(q.notice); lastNotice = q.noticeSeq; }
   const list = $('queueList'), seen = new Set();
   q.items.forEach((it, idx) => {
     seen.add(String(it.id));

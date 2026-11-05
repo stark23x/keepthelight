@@ -21,7 +21,12 @@ func recordSounds(t *testing.T) func() []string {
 
 func runToEnd(t *testing.T, g *guiServer, names ...string) {
 	t.Helper()
-	dir := t.TempDir()
+	runToEndIn(t, g, t.TempDir(), names...)
+}
+
+func runToEndIn(t *testing.T, g *guiServer, dir string, names ...string) {
+	t.Helper()
+	_ = os.MkdirAll(dir, 0o755)
 	var raws []json.RawMessage
 	for _, n := range names {
 		p := filepath.Join(dir, n+".mkv")

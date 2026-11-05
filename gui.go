@@ -881,6 +881,38 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 	case "reveal":
 		g.reveal()
 		return okResult()
+	case "plexSet": // the Plex server for refreshing libraries; an empty token leaves the stored one
+		var b struct{ URL, Token string }
+		_ = json.Unmarshal(body, &b)
+		_, old := g.plexServer()
+		if b.Token == "" {
+			b.Token = old
+		}
+		if strings.TrimSpace(b.URL) == "" {
+			b.Token = "" // no server: forget the token too
+		}
+		if err := g.setPlexServer(b.URL, b.Token); err != nil {
+			return failResult("could not store the Plex settings: " + err.Error())
+		}
+		return okResult()
+	case "plexCheck":
+		var b struct{ URL, Token string }
+		_ = json.Unmarshal(body, &b)
+		base, tok := g.plexServer()
+		if b.URL != "" {
+			base = normPlexURL(b.URL)
+		}
+		if b.Token != "" {
+			tok = b.Token
+		}
+		if base == "" || tok == "" {
+			return failResult("enter the Plex server's address and token first")
+		}
+		msg, err := plexCheck(ctx, base, tok)
+		if err != nil {
+			return failResult(err.Error())
+		}
+		return map[string]any{"ok": true, "message": msg}
 	case "openLogs": // the folder of saved failure logs
 		_ = os.MkdirAll(logsDir(), 0o755)
 		if err := openFolder(logsDir()); err != nil {
@@ -979,6 +1011,9 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		return okResult()
 	case "prefs":
 		res := map[string]any{"ok": true, "prefs": g.loadPrefs(), "tmdbKey": g.tmdbKey(), "tmdbLang": tmdbLanguage(), "tmdbPicks": len(g.tmdbPicks())}
+		if u, tok := g.plexServer(); u != "" {
+			res["plexURL"], res["plexToken"] = u, tok != ""
+		}
 		if missing := g.missingTmpDir(); missing != "" {
 			res["tmpDirMissing"] = missing
 		}
