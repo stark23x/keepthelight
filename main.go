@@ -858,13 +858,7 @@ func runDV(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 	dvmp4 := filepath.Join(tmp, "video_dv.mp4")
 
 	fmt.Println("\n[1/5] Extracting Dolby Vision RPU")
-	dargs := []string{}
-	if plan.RPUMode != 0 {
-		dargs = append(dargs, "-m", fmt.Sprint(plan.RPUMode))
-	}
-	dargs = append(dargs, "extract-rpu", "-", "-o", rpu)
-	if err := r.pipe(cfg.Ffmpeg, []string{"-v", "error", "-i", cfg.Input, "-map", "0:v:0", "-c:v", "copy", "-bsf:v", "hevc_mp4toannexb", "-f", "hevc", "-"},
-		dovi, dargs); err != nil {
+	if err := extractRPU(r, cfg, dovi, plan.RPUMode, rpu, tmp); err != nil {
 		return err
 	}
 
