@@ -1309,6 +1309,9 @@ func (g *guiServer) probe(ctx context.Context, s settings) map[string]any {
 			size = st.Size()
 			resp["fileSize"] = size
 		}
+		if p.Converted != "" { // Keep the Light's "already converted" tag
+			resp["converted"] = p.Converted
+		}
 		// the Plex check: what would make Plex convert this file, and what the settings do about it
 		src := plexSrcFromProbe(p, t, size)
 		src.Interlaced = plan.Interlace != nil && plan.Interlace.Interlaced

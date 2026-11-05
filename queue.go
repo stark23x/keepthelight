@@ -634,6 +634,9 @@ func applyProbe(it *queueItem, r map[string]any) {
 	if _, ok := r["interlaced"]; ok {
 		parts = append(parts, "interlaced")
 	}
+	if _, ok := r["converted"]; ok {
+		parts = append(parts, "already converted")
+	}
 	parts = append(parts, fmt.Sprintf("%v×%v", r["width"], r["height"]))
 	if it.Duration > 0 {
 		parts = append(parts, shortDuration(it.Duration))

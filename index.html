@@ -174,6 +174,7 @@
   .qname { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .qsub { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .qnote { font-size: 12px; margin-top: 2px; }
+  .sdone { font-size: 12px; color: var(--ok); margin-top: 2px; }
   /* UI-8: two lines per row; the rest opens on a click */
   .qrow { cursor: pointer; }
   .qrow:not([data-open="1"]) .qsub, .qrow:not([data-open="1"]) .qplex { display: none; }
@@ -676,7 +677,7 @@
       <div id="scanSumLine" class="note info" style="margin:12px 0 10px"></div>
       <div class="row" style="flex-wrap:wrap; gap:8px; margin-bottom:8px">
         <div><label for="scanShow">Show</label>
-          <select id="scanShow"><option value="all">all files</option><option value="worth">worth converting</option><option value="trouble">Plex trouble spots</option></select></div>
+          <select id="scanShow"><option value="all">all files</option><option value="worth">worth converting</option><option value="trouble">Plex trouble spots</option><option value="done">already converted</option></select></div>
         <div style="align-self:flex-end" class="row"><button id="scanSelWorth">Select worth converting</button><button id="scanSelNone">Select none</button></div>
       </div>
       <div id="scanList"></div>
@@ -1821,6 +1822,7 @@ function showInfo(r) {
   if (r.dv) b.appendChild(badge('Dolby Vision ' + r.dv, 'dv'));
   if (r.hdr10plus) b.appendChild(badge('HDR10+', 'plus'));
   if (r.interlaced) b.appendChild(badge('Interlaced (' + r.interlaced + ')', 'warnb'));
+  if (r.converted) { const cb = badge('Already converted', 'warnb'); cb.title = r.converted; b.appendChild(cb); }
   b.appendChild(badge(r.width + '×' + r.height));
   b.appendChild(plainCodec(r.codec, r.pixFmt)); // UI-5
   const bits = [];
@@ -2424,7 +2426,7 @@ function scanSettings(path, p) {
 }
 function scanVisible() {
   const show = $('scanShow').value;
-  return scanItems.filter(it => show === 'all' || (show === 'worth' ? it.worth : (it.issues || []).length));
+  return scanItems.filter(it => show === 'all' || (show === 'worth' ? it.worth : show === 'done' ? !!it.done : (it.issues || []).length));
 }
 function renderScan() {
   const list = $('scanList');
@@ -2440,13 +2442,15 @@ function renderScan() {
     else {
       mid.append(el('div', 'qsub', [it.video, it.kbps ? (it.kbps / 1000).toFixed(1) + ' Mbps' : '', it.audio].filter(Boolean).join(' · ')));
       if (it.folder) mid.append(el('div', 'qsub', 'in ' + it.folder));
+      if (it.done) { const d = el('div', 'sdone', '✓ Already converted by Keep the Light'); d.title = it.done; mid.append(d); }
       (it.issues || []).forEach(x => mid.append(el('div', 'sissue', '⚠ ' + x)));
     }
     const right = el('div', 'ssave');
     if (it.estSize) {
       right.append(el('div', '', it.saving > 0 ? '−' + fmtSize(it.saving) : 'no saving'));
       right.append(el('div', 'qsub', fmtSize(it.size) + ' → ~' + fmtSize(it.estSize)));
-    } else if (it.size) right.append(el('div', 'qsub', fmtSize(it.size)));
+    } else if (it.done) right.append(el('div', 'qsub', fmtSize(it.size) + ' · done'));
+    else if (it.size) right.append(el('div', 'qsub', fmtSize(it.size)));
     r.append(cb, mid, right);
     list.append(r);
   });

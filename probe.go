@@ -29,6 +29,7 @@ type Probe struct {
 	Primaries, Transfer, Space, Range string
 	AvgFPS, RFPS                      string
 	FieldOrder                        string // what the file says: progressive, tt, bb, tb, bt (often wrong in old material)
+	Converted                         string // Keep the Light's "already converted" tag, if the file has one
 	Mastering                         *MasteringDisplay
 	CLL                               *ContentLight
 	DV                                *DoviConfig
@@ -90,8 +91,9 @@ type ffprobeOut struct {
 		SideData      []map[string]any  `json:"side_data_list"`
 	} `json:"streams"`
 	Format struct {
-		Duration string `json:"duration"`
-		BitRate  string `json:"bit_rate"`
+		Duration string            `json:"duration"`
+		BitRate  string            `json:"bit_rate"`
+		Tags     map[string]string `json:"tags"`
 	} `json:"format"`
 	Frames []struct {
 		SideData []map[string]any `json:"side_data_list"`
@@ -119,7 +121,7 @@ func parseProbe(data []byte) (*Probe, error) {
 	p := &Probe{
 		Codec: s.CodecName, PixFmt: s.PixFmt, Width: s.Width, Height: s.Height,
 		Primaries: unk(s.ColorPrim), Transfer: unk(s.ColorTransfer), Space: unk(s.ColorSpace), Range: unk(s.ColorRange),
-		AvgFPS: s.AvgFrameRate, RFPS: s.RFrameRate, FieldOrder: s.FieldOrder,
+		AvgFPS: s.AvgFrameRate, RFPS: s.RFrameRate, FieldOrder: s.FieldOrder, Converted: ktlTagIn(j.Format.Tags),
 	}
 	p.Duration, _ = strconv.ParseFloat(j.Format.Duration, 64)
 	// the video's own bitrate: from the stream, or MKV's statistics tags; else

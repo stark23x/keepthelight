@@ -32,6 +32,7 @@ type scanItem struct {
 	Worth    bool     `json:"worth"`
 	Issues   []string `json:"issues"`
 	Err      string   `json:"err,omitempty"`
+	Done     string   `json:"done,omitempty"` // already converted by Keep the Light: its tag
 
 	height     int    // for the interlacing check
 	fieldOrder string // what the file says
@@ -95,9 +96,10 @@ type scanStream struct {
 type scanProbe struct {
 	Streams []scanStream `json:"streams"`
 	Format  struct {
-		Duration string `json:"duration"`
-		Size     string `json:"size"`
-		BitRate  string `json:"bit_rate"`
+		Duration string            `json:"duration"`
+		Size     string            `json:"size"`
+		BitRate  string            `json:"bit_rate"`
+		Tags     map[string]string `json:"tags"`
 	} `json:"format"`
 }
 
@@ -183,6 +185,9 @@ func analyse(it *scanItem, data []byte) {
 		if audioBps == 0 {
 			videoBps = total * 0.85
 		}
+	}
+	if it.Done = ktlTagIn(p.Format.Tags); it.Done != "" {
+		return // already converted: no saving is expected from doing it again
 	}
 	if it.Duration <= 0 || videoBps <= 0 || it.Size <= 0 || dvProfile == 5 {
 		return

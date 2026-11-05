@@ -802,7 +802,7 @@ func runSimple(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 		args = append(args, meta.Args...)
 		args = append(args, vargs...)
 		if mp4 {
-			args = append(args, "-tag:v", "hvc1", "-movflags", "+faststart")
+			args = append(args, "-tag:v", "hvc1", "-movflags", "+faststart+use_metadata_tags") // keeps the "already converted" tag
 		} else {
 			args = append(args, mkvIndexArgs(cfg, p.Duration)...)
 		}
@@ -976,7 +976,7 @@ func runDV(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 	margs = append(margs, meta.Args...)
 	margs = append(margs, "-c:v", "copy")
 	if mp4 {
-		margs = append(margs, "-tag:v", "dvh1", "-movflags", "+faststart")
+		margs = append(margs, "-tag:v", "dvh1", "-movflags", "+faststart+use_metadata_tags")
 	} else {
 		margs = append(margs, mkvIndexArgs(cfg, p.Duration)...)
 	}

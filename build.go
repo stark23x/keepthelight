@@ -78,6 +78,7 @@ type Plan struct {
 	Interlace    *interlaceInfo // what the check of the picture found (nil: not checked)
 	Deint        string         // "" (no), "smooth" or "standard"
 	FieldOrder   string         // "tff" or "bff"
+	probe        *Probe         // the source, as probed
 	CropW, CropH int            // >0: the black bars are cut, leaving this picture...
 	CropX, CropY int            // ...from this corner
 }
@@ -121,7 +122,10 @@ func isMP4(path string) bool {
 }
 
 func makePlan(cfg *Config, p *Probe) (*Plan, error) {
-	plan := &Plan{Kind: p.Kind()}
+	plan := &Plan{Kind: p.Kind(), probe: p}
+	if p.Converted != "" && !cfg.CopyVideo { // converting a converted file again costs quality and saves little
+		plan.Warnings = append(plan.Warnings, "this file was already converted by Keep the Light ("+p.Converted+"); converting it again costs a little quality each time and saves little space")
+	}
 	if cfg.TargetBytes > 0 && cfg.CopyVideo {
 		return nil, fmt.Errorf("a target file size cannot be used with -copy-video (the video is not re-encoded)")
 	}

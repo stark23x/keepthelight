@@ -182,6 +182,10 @@ func prepareMeta(r *runner, cfg *Config, plan *Plan, src, next int, mp4 bool, di
 		}
 	}
 
+	if tag := ktlTag(cfg, plan.probe, plan); tag != "" { // the "already converted" mark
+		mp.Args = append(mp.Args, "-metadata", ktlTagKey+"="+tag)
+	}
+
 	// chapters
 	switch {
 	case m != nil && m.Chapters != nil && m.Chapters.Remove:
