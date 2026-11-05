@@ -6,18 +6,20 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **Plex-style names: add a tag, the resolution and the codec** (requested 2026-11-05).
-  - **Where it goes:** at the end of the name, in one set of square brackets, which Plex ignores when matching:
-    `Heat (1995) {tmdb-949} [KTL 2160p HEVC DV].mkv`, `The Office (2005) - S01E02 - Diversity Day [1080p HEVC].mkv`.
+- **Plex-style names: dotted, with resolution, codec and HDR kind** (requested 2026-11-05; replaces the
+  bracketed tag idea). The owner's format, with parts joined by dots:
+  - **Episodes:** `The Office (2005).S01E02.Diversity Day.1080p.HEVC.mkv`
+  - **Films:** `Heat (1995).2160p.HEVC.DV.{tmdb-949}.mkv` (the TMDB id last)
   - **Filled in automatically** from the new file, not the original:
     - resolution as 2160p, 1440p, 1080p, 720p, 576p or 480p, from the output height after resizing or cropping;
-    - codec as HEVC (what Keep the Light makes), plus the HDR kind (DV, HDR10+, HDR10, HLG) when kept.
-  - **Your choice:** a tick box each for Tag, Resolution, Codec and HDR, and a text box for the tag (for example
-    "KTL"). Remembered with the other Plex-name settings; nothing ticked means no brackets.
-  - **Preview:** the brackets show in the proposed names (Output box, queue rows and Review names) before anything
-    is renamed, as now.
-  - **Characters:** characters Windows does not allow are removed from the tag, and so are square brackets (they
-    would break the brackets).
+    - codec as HEVC;
+    - the HDR kind as DV, HDR10+, HDR10 or HLG, only when the new file has it (left out for SDR).
+  - **No other tag text:** this format replaces the current " - " format for Plex-style names.
+  - **Episode titles:** a title's own dots are kept, and characters Windows does not allow are removed. A show
+    without an episode title gives `The Office (2005).S01E02.1080p.HEVC.mkv`.
+  - **Preview:** proposed names show in the Output box, queue rows and Review names before anything is renamed, as
+    now.
+  - **Check:** after building, confirm Plex matches both forms (the SxxEyy and the `{tmdb-}` id are what it uses).
 
 ## Ideas raised, not yet requested
 
