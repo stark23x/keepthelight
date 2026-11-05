@@ -20,13 +20,34 @@ next build". Shipped features move to "Done" with their version number. Nothing 
   - **To test:** build and test it without the owner's sample. Make a Dolby Vision test file with a duplicated
     timestamp near the start, and check that the retry and the plain message work. The owner may send a sample later.
 
+- **Plex-style file names, optional, with a preview** (requested 2026-11-05; the owner had earlier chosen no
+  renaming, and now wants it as an option).
+  - **Off by default:** a setting "Name converted files the Plex way after a TMDB match".
+  - **The names:** films `Title (Year) {tmdb-ID}.mkv`; episodes `Show (Year) - S01E02 - Episode title.mkv`. Characters
+    Windows does not allow are left out. The "_KTL" ending is left off, because extra words can confuse Plex's
+    matching.
+  - **Only the new file:** the original keeps its name, and no folders are created or moved.
+  - **Preview first:** nothing is renamed until it has been shown. Each queue row shows its proposed name
+    ("→ The Office (2005) - S01E02 - Diversity Day.mkv"), and a **Review names** window lists every change (old →
+    new) with a tick box each and **Apply**. The Convert tab shows the proposed name in the Output box, still
+    editable.
+  - **Clashes:** if two files would get the same name, or the name already exists, it says so and that file keeps
+    its normal name.
+- **TMDB logo in the About box** (requested 2026-11-05). The owner's SVG is in `assets/tmdb-logo.svg`. Show it small
+  (about 80 px wide) next to the TMDB credit line in About, and also in ⚙ Settings → TMDB. Embedded in the program,
+  not a separate file.
+- **Fill in track details from their names** (requested 2026-11-05).
+  - **What it reads:** when a track's language or flags are missing, they are filled in from words in its name:
+    a language ("English", "Eng", "Français", "Japanese"…), "Commentary" → commentary flag, "SDH" or "hearing
+    impaired" → SDH flag, "Forced" → forced flag.
+  - **Only what is missing:** a language or flag the file already has is never changed.
+  - **A rule:** under track naming, on by default, saved in profiles.
+  - **Visible and editable:** the filled-in values show in Metadata, where they can be changed, and the log lists
+    them.
+
 ## Ideas raised, not yet requested
 
-- Plex-style output names after a TMDB lookup, such as `Title (Year) {tmdb-id}`. The owner chose no renaming
-  (2026-10-27).
-- A TMDB logo in the About box. This is a TMDB attribution requirement, and needs the logo file from the owner.
-- "Fill in from names": set a missing language and the commentary, SDH and forced flags from words in track
-  names. The owner chose naming only (2026-10-28).
+None at the moment.
 
 ## Done
 
