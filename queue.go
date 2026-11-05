@@ -227,7 +227,7 @@ func (g *guiServer) queueRemove(id int) error {
 		return errors.New("this file is being transcoded; cancel it first")
 	}
 	g.q.items = append(g.q.items[:i], g.q.items[i+1:]...)
-	if g.q.running && it.pending() {
+	if g.q.running && (it.pending() || it.Status == stProblem) { // it was counted when added (a check may have found a problem since)
 		g.q.total--
 	}
 	g.mu.Unlock()
