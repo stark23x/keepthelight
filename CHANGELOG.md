@@ -18,6 +18,25 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.28.0 - 2026-11-05
+
+- **Plex-style names (optional).** Turn on **Plex-style names after a TMDB match** (under Files) and matched files can
+  be named the way Plex expects: films `Title (Year) {tmdb-ID}.mkv`, episodes `Show (Year) - S01E02 - Episode
+  title.mkv` (no "_KTL" ending). Nothing is renamed until you have seen it: on the Convert tab the name goes into the
+  Output box, where you can change it; in the queue each row shows its proposed name, and **Review names** lists every
+  change with a tick box and **Apply**. A name that already exists, or that two files would share, is not used. Only
+  the new files are named so; originals keep their names.
+- **Fill in track details from their names** (a rule, on by default): a missing language, or a missing commentary,
+  SDH or forced flag, is filled in from words in the track's name ("English", "Director's Commentary", "SDH"…). What
+  the file already has is kept. Suggestions show in Metadata as "(name)", and the log lists what was filled in.
+- **TMDB logo** in About and in ⚙ Settings → TMDB.
+- **Fixed:** a job that failed before anything was finished (for example at the first Dolby Vision step) kept its work
+  folders, including a full local copy of the film. They are now deleted, and kept only once the video has been
+  encoded.
+- **Fixed:** some Dolby Vision files with a glitch near the start (FFmpeg "non monotonically increasing dts",
+  dovi_tool "Invalid PPS index") stopped at the first step. Keep the Light now tries a second, more careful way; if
+  that also fails, the message says to use **Drop (plain HDR10)** or re-mux the file with MKVToolNix.
+
 ## 1.27.0 - 2026-11-03
 
 - **TMDB "Which one?" window.** After **Look up metadata on TMDB**, any show or film with several possible matches (or

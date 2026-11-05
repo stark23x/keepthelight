@@ -60,6 +60,8 @@ quality.
 - **Leaves out empty tracks.** Tracks with nothing in them can make a conversion fail, so they are skipped
   automatically.
 - **Names untitled tracks** from what they are, for example "English AC-3 5.1".
+- **Fills in missing track details** from track names: a track called "English Commentary" gets the English language
+  and the commentary flag, which Plex uses to pick tracks.
 
 ### Movie and show information
 - **Edit the details.** Change the title, date, description, cover picture, track names, languages and chapter names.
@@ -68,6 +70,8 @@ quality.
 - **Whole queues at once.** Look up every file in the queue in one go. When a name could mean several shows, a small
   **"Which one?"** window asks you once per show, and your answer fills in every episode.
 - **Remembers your choices,** so next season's episodes match by themselves.
+- **Plex-style names (optional).** Matched files can be named the way Plex expects, such as
+  "The Office (2005) - S01E02 - Diversity Day.mkv". You see every proposed name before anything changes.
 - **"Metadata only" mode.** Change just the details without converting the video at all. This is fast, with no
   quality loss. It can also replace the original file, which goes to the Recycle Bin.
 
