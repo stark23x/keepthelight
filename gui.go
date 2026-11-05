@@ -107,6 +107,7 @@ type settings struct {
 	AudioOnePerLang            string    // rule: one audio track per language: "", "best", "compatible"
 	SubNameMode, SubNameWords  string    // rule: keep only / drop subtitles whose name contains these words
 	NameTracks                 bool      // name untitled tracks from what they are
+	FillFromNames              bool      // fill in missing languages and flags from track names
 	AudioChannels              string    // rules: channels for converted tracks: "" (as the source), "5.1", "stereo"
 	SubMode                    string    // rules: "" all matching, "forced", "none"
 	Meta                       *MetaEdit // metadata changes for this file (null = none)
@@ -248,6 +249,7 @@ func (s *settings) toConfig() (*Config, error) {
 		return nil, fmt.Errorf("unknown subtitle name rule")
 	}
 	cfg.NameTracks = s.NameTracks
+	cfg.FillFromNames = s.FillFromNames
 	if !validChannels(s.AudioChannels, false) {
 		return nil, fmt.Errorf("unknown channels option")
 	}
@@ -386,6 +388,9 @@ func (cfg *Config) cliArgs() []string {
 	}
 	if cfg.NameTracks {
 		a = append(a, "-name-tracks")
+	}
+	if cfg.FillFromNames {
+		a = append(a, "-fill-from-names")
 	}
 	if cfg.CopyVideo {
 		a = append(a, "-copy-video")

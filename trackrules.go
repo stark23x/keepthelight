@@ -89,15 +89,15 @@ func nameMatches(t srcTrack, words []string) bool {
 // autoAudioName: "English AC-3 5.1", for the track as it is written.
 func autoAudioName(a outAudio) string {
 	var parts []string
-	if k := langKey(a.Src.Lang); k != "" && k != "und" {
-		parts = append(parts, langName(a.Src.Lang))
+	if l := trackLang(a.Src, a.Meta); !missingLang(l) {
+		parts = append(parts, langName(l))
 	}
 	if a.Codec == "copy" {
 		parts = append(parts, codecName(a.Src), layoutName(a.Src))
 	} else {
 		parts = append(parts, codecNames[a.Codec], outLayout(a))
 	}
-	if isCommentary(a.Src) {
+	if isCommentary(a.Src) || (a.Meta != nil && a.Meta.Commentary != nil && *a.Meta.Commentary) {
 		parts = append(parts, "Commentary")
 	}
 	return strings.Join(strings.Fields(strings.Join(parts, " ")), " ")
@@ -106,8 +106,8 @@ func autoAudioName(a outAudio) string {
 // autoSubName: "English SRT", "English PGS Forced", "English SRT SDH".
 func autoSubName(s outSub) string {
 	var parts []string
-	if k := langKey(s.Src.Lang); k != "" && k != "und" {
-		parts = append(parts, langName(s.Src.Lang))
+	if l := trackLang(s.Src, s.Meta); !missingLang(l) {
+		parts = append(parts, langName(l))
 	}
 	switch {
 	case s.ToSRT || s.Codec == "srt":
@@ -120,7 +120,7 @@ func autoSubName(s outSub) string {
 	if s.Forced {
 		parts = append(parts, "Forced")
 	}
-	if s.Src.Disp["hearing_impaired"] {
+	if s.Src.Disp["hearing_impaired"] || (s.Meta != nil && s.Meta.SDH != nil && *s.Meta.SDH) {
 		parts = append(parts, "SDH")
 	}
 	return strings.Join(parts, " ")

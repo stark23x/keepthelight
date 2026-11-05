@@ -36,6 +36,7 @@ type Config struct {
 	SubNameMode                                  string     // rule: "" or subtitles whose name contains SubNameWords: "keep" (only those) or "drop"
 	SubNameWords                                 []string   // lower case
 	NameTracks                                   bool       // name untitled tracks from what they are ("English AC-3 5.1")
+	FillFromNames                                bool       // fill in missing languages and flags from track names (see fillnames.go)
 	Tesseract                                    string     // where tesseract.exe is ("" = look for it)
 	DV                                           string     // auto | drop
 	CopyVideo                                    bool

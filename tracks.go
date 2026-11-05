@@ -689,6 +689,9 @@ func selectTracks(cfg *Config, t *Tracks, mp4 bool) (audio []outAudio, subs []ou
 	for i := range subs {
 		subs[i].Meta = cfg.Meta.track("s", subs[i].Src.N)
 	}
+	if cfg.FillFromNames { // before naming, so the names use what was filled in
+		warns = append(warns, fillFromNames(audio, subs, cfg.SubSel == nil)...)
+	}
 	if cfg.NameTracks {
 		nameUntitled(audio, subs)
 	}
@@ -1010,6 +1013,13 @@ func trackList(ts []srcTrack, audio bool) []map[string]any {
 		m := map[string]any{"n": t.N, "desc": describe(t, audio), "codec": t.Codec, "lang": t.Lang, "title": t.Title,
 			"default": t.Default(), "forced": t.Forced(), "commentary": isCommentary(t), "channels": t.Channels,
 			"sdhFlag": t.Disp["hearing_impaired"], "commentFlag": t.Disp["comment"], "empty": t.Empty}
+		if l, comm, sdh, forced := nameDetails(t.Title); t.Title != "" { // what "fill in from names" would add
+			if l != "" && missingLang(t.Lang) {
+				m["nameLang"], m["nameLangName"] = l, langName(l)
+			}
+			m["nameFlags"] = map[string]bool{"commentary": comm && audio && !t.Disp["comment"], "sdh": sdh && !audio && !t.Disp["hearing_impaired"],
+				"forced": forced && !audio && !t.Forced()}
+		}
 		if audio {
 			m["mp4ok"] = mp4Audio(t.Codec)
 		} else {

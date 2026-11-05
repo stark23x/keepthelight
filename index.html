@@ -158,7 +158,7 @@
   .rules { border-top: 1px solid var(--line); padding-top: 12px; }
   textarea { width: 100%; box-sizing: border-box; resize: vertical; font: inherit; background: var(--panel2); color: var(--text);
     border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; }
-  .mrow { display: grid; grid-template-columns: 1fr 1.2fr 90px 110px; gap: 8px; align-items: center; margin-bottom: 6px; }
+  .mrow { display: grid; grid-template-columns: 1fr 1.2fr 100px 150px; gap: 8px; align-items: center; margin-bottom: 6px; }
   .mrow .mlabel { color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mrow label.check { margin: 0; white-space: nowrap; }
   .mchaps { max-height: 260px; overflow-y: auto; margin-top: 8px; }
@@ -572,6 +572,9 @@
     <summary><h2 class="sect-title">Metadata</h2><span class="sum" id="sumMeta"></span></summary>
     <label class="check" style="margin-bottom:12px"><input type="checkbox" id="nameTracks"> <span><b>Name untitled tracks</b> from what they are, for example
       "English AC-3 5.1" or "English SRT Forced". Names already set are kept. Also used for the queue; remembered.</span></label>
+    <label class="check" style="margin:-4px 0 12px"><input type="checkbox" id="fillFromNames" checked> <span><b>Fill in track details from their names</b> when they
+      are missing: the language ("English", "Japanese"…) and the commentary, SDH and forced flags. What the file already has is kept, and
+      anything filled in shows below (as a suggestion you can type over). Also used for the queue; remembered.</span></label>
     <div id="metaNoFile" class="hint">Choose a file to see and change its metadata.</div>
     <div id="metaBody" class="hidden">
       <div class="tmdb">
@@ -863,7 +866,7 @@ function settings() {
     targetSize: $('targetNum').value.trim().replace(',', '.') + $('targetUnit').value, retries: +$('retries').value,
     scale: $('scale').value, crop: $('crop').checked, denoise: $('denoise').value, deinterlace: $('deinterlace').value,
     audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, audioChannels: $('audioCh').value, addCompatAudio: $('addCompat').checked, subLang: $('subLang').value.trim(), subMode: $('subMode').value, subToSRT: $('subToSRT').value,
-    audioOnePerLang: $('audioOne').value, subNameMode: $('subNameMode').value, subNameWords: $('subNameWords').value.trim(), nameTracks: $('nameTracks').checked,
+    audioOnePerLang: $('audioOne').value, subNameMode: $('subNameMode').value, subNameWords: $('subNameWords').value.trim(), nameTracks: $('nameTracks').checked, fillFromNames: $('fillFromNames').checked,
     ...trackSettings(),
     meta: metaEdits(), replaceOriginal: replacing(), profile: $('profile').value
   };
@@ -1131,7 +1134,7 @@ function rulesChanged() {
   tracks = null;
   api('setPref', { name: 'trackRules', value: { audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, audioChannels: $('audioCh').value, addCompatAudio: $('addCompat').checked,
     subLang: $('subLang').value.trim(), subMode: $('subMode').value, subToSRT: $('subToSRT').value, audioOnePerLang: $('audioOne').value,
-    subNameMode: $('subNameMode').value, subNameWords: $('subNameWords').value.trim(), nameTracks: $('nameTracks').checked } });
+    subNameMode: $('subNameMode').value, subNameWords: $('subNameWords').value.trim(), nameTracks: $('nameTracks').checked, fillFromNames: $('fillFromNames').checked } });
   updateSummaries(); scheduleProbe(150);
 }
 
@@ -1249,11 +1252,18 @@ function renderMeta() {
     ti.placeholder = planned && planned.name && !src.title ? 'will be named: ' + planned.name : 'no name';
     ti.oninput = () => { v.title = ti.value; updateSummaries(); };
     const la = el('input'); la.type = 'text'; la.value = v.lang; la.placeholder = 'language'; la.spellcheck = false; la.title = 'Language, for example eng, jpn, fre';
+    const fill = $('fillFromNames').checked;
+    if (fill && src.nameLang && !v.lang) { la.placeholder = src.nameLang + ' (name)'; la.title = src.nameLangName + ', from the track name. Type to change it.'; }
     la.oninput = () => { v.lang = la.value; updateSummaries(); };
     const flag = kind === 'a'
       ? checkLabel(v.commentary, 'commentary', e => { v.commentary = e.target.checked; updateSummaries(); })
       : checkLabel(v.sdh, 'SDH', e => { v.sdh = e.target.checked; updateSummaries(); });
     flag.title = kind === 'a' ? 'Marks the track as a commentary' : 'Subtitles for the deaf and hard of hearing';
+    const nf = fill && src.nameFlags || {};
+    if ((kind === 'a' ? nf.commentary && !v.commentary : nf.sdh && !v.sdh)) { // set from the name unless this is ticked by hand
+      flag.querySelector('span').textContent += ' (name)';
+      flag.title += '. The track name says so, so it will be set; turn off "Fill in track details from their names" to leave it.';
+    }
     row.append(lab, ti, la, flag);
     box.append(row);
   });
@@ -1328,7 +1338,7 @@ async function confirmNewFiles(form) {
 // A profile is a named set of the settings below the Files section. It can
 // name converted files after itself ("Film_Plex 4K.mkv").
 const PROFILE_KEYS = ['mode', 'codec', 'preset', 'scale', 'crop', 'denoise', 'deinterlace', 'dv', 'quality', 'crf', 'bitrate', 'targetSize', 'retries',
-  'audio', 'audioBitrate', 'audioChannels', 'audioLang', 'dropCommentary', 'addCompatAudio', 'subLang', 'subMode', 'subToSRT', 'audioOnePerLang', 'subNameMode', 'subNameWords', 'nameTracks', 'masterDisplay', 'maxCLL', 'format'];
+  'audio', 'audioBitrate', 'audioChannels', 'audioLang', 'dropCommentary', 'addCompatAudio', 'subLang', 'subMode', 'subToSRT', 'audioOnePerLang', 'subNameMode', 'subNameWords', 'nameTracks', 'fillFromNames', 'masterDisplay', 'maxCLL', 'format'];
 let profiles = []; // [{ name, useNameTag, settings }]
 function activeProfile() { const n = $('profile').value; return n ? profiles.find(p => p.name === n) || null : null; }
 function profileTag(p) { return '_' + cleanTagText(p.name.trim().replace(/\s+/g, ' ')); }
@@ -1393,6 +1403,7 @@ function applyFields(st, keys) {
   if (has('subNameMode')) $('subNameMode').value = st.subNameMode || '';
   if (has('subNameWords')) $('subNameWords').value = st.subNameWords || '';
   if (has('nameTracks')) $('nameTracks').checked = !!st.nameTracks;
+  if (has('fillFromNames')) $('fillFromNames').checked = !!st.fillFromNames;
   if (has('masterDisplay')) $('master').value = st.masterDisplay;
   if (has('maxCLL')) $('cll').value = st.maxCLL;
   if (has('format') && ['.mkv', '.mp4'].includes(st.format)) $('container').value = st.format;
@@ -1400,7 +1411,7 @@ function applyFields(st, keys) {
 // a profile's format (MKV or MP4) for an output name
 function withFormat(out, p) { return p && p.settings && ['.mkv', '.mp4'].includes(p.settings.format) ? out.replace(/\.[A-Za-z0-9]+$/, '') + p.settings.format : out; }
 // settings added after a profile was saved: their defaults, so older profiles still apply cleanly
-const PROFILE_DEFAULTS = { crop: true, denoise: '', deinterlace: '', addCompatAudio: false, subToSRT: '', audioOnePerLang: '', subNameMode: '', subNameWords: '', nameTracks: false };
+const PROFILE_DEFAULTS = { crop: true, denoise: '', deinterlace: '', addCompatAudio: false, subToSRT: '', audioOnePerLang: '', subNameMode: '', subNameWords: '', nameTracks: false, fillFromNames: true };
 function withDefaults(st) { return Object.assign({}, PROFILE_DEFAULTS, st); }
 function applyProfile(p) {
   if (p) applyFields(withDefaults(p.settings), PROFILE_KEYS);
@@ -1670,7 +1681,7 @@ function updateSummaries() {
   if (typeof profileUI === 'function' && profiles) profileUI();
   const nm = metaChangeCount();
   $('sumMeta').textContent = [!metaFor() ? '' : nm ? nm + (nm === 1 ? ' change' : ' changes') : 'no changes',
-    $('nameTracks').checked && 'untitled tracks named'].filter(Boolean).join('  ·  ');
+    $('nameTracks').checked && 'untitled tracks named', $('fillFromNames').checked && 'details from names'].filter(Boolean).join('  ·  ');
   $('sumSubs').textContent = subSummary();
   const adv = [$('master').value.trim() && 'master display', $('cll').value.trim() && 'MaxCLL/FALL'].filter(Boolean);
   $('sumAdv').textContent = adv.length ? 'override: ' + adv.join(', ') : 'none';
@@ -1740,6 +1751,7 @@ async function restorePrefs() {
     $('audioOne').value = ['', 'best', 'compatible'].includes(tr.audioOnePerLang) ? tr.audioOnePerLang : '';
     $('subNameMode').value = ['', 'keep', 'drop'].includes(tr.subNameMode) ? tr.subNameMode : '';
     $('subNameWords').value = tr.subNameWords || ''; $('nameTracks').checked = !!tr.nameTracks;
+    if (typeof tr.fillFromNames === 'boolean') $('fillFromNames').checked = tr.fillFromNames; // on unless turned off
   }
   const bo = r.prefs.batchOut;
   if (bo && bo.dir) $('qOutDir').value = bo.dir; // the last folder, ready if "in this folder" is chosen again
@@ -1900,7 +1912,8 @@ $('container').addEventListener('change', () => {
 $('targetNum').addEventListener('input', () => scheduleProbe(600));
 $('audio').addEventListener('change', () => { updateVisibility(); rulesChanged(); });
 ['audioLang', 'subLang'].forEach(id => $(id).addEventListener('change', rulesChanged));
-['dropComm', 'subMode', 'subToSRT', 'audioCh', 'addCompat', 'audioOne', 'subNameMode', 'subNameWords', 'nameTracks'].forEach(id => $(id).addEventListener('change', rulesChanged));
+['dropComm', 'subMode', 'subToSRT', 'audioCh', 'addCompat', 'audioOne', 'subNameMode', 'subNameWords', 'nameTracks', 'fillFromNames'].forEach(id => $(id).addEventListener('change', rulesChanged));
+$('fillFromNames').addEventListener('change', () => renderMeta()); // the suggestions shown in Metadata
 $('codec').addEventListener('change', () => { updateVisibility(); scheduleProbe(200); });
 $('crf').addEventListener('input', () => { updateVisibility(); scheduleProbe(500); });
 $('bitrate').addEventListener('input', () => scheduleProbe(700));
@@ -2488,6 +2501,7 @@ function settingsText(st) {
   if (st.nameTracks) {
     parts.push('tracks named');
   }
+  if (st.fillFromNames) parts.push('details from names');
   parts.push(ext);
   return parts.join(' · ');
 }

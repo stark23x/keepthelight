@@ -77,6 +77,7 @@ Choosing tracks (numbers as the window shows them: audio 1, 2, ...; subtitles 1,
   -sub-drop-names <words>  drop subtitles whose name contains one of these words, e.g. "Signs"
                        ("SDH", "forced" and "commentary" also match the tracks' flags)
   -name-tracks         name untitled audio and subtitle tracks from what they are ("English AC-3 5.1")
+  -fill-from-names     fill in a track's missing language and commentary / SDH / forced flags from words in its name
   -dv <auto|drop>      Dolby Vision: auto keeps it (default), drop = plain HDR10
   -scale <size>        shrink the video to fit 2160p, 1440p, 1080p, 720p, 576p or 480p, keeping its shape
                        (3840x1600 -> 1920x800 at 1080p) and its HDR10 / HDR10+ / Dolby Vision
@@ -159,6 +160,7 @@ func parseArgs() (*Config, bool) {
 	subKeepNames := fs.String("sub-keep-names", "", "")
 	subDropNames := fs.String("sub-drop-names", "", "")
 	fs.BoolVar(&cfg.NameTracks, "name-tracks", false, "")
+	fs.BoolVar(&cfg.FillFromNames, "fill-from-names", false, "")
 	fs.StringVar(&cfg.Tesseract, "tesseract", "", "")
 	fs.StringVar(&cfg.AudioChannels, "audio-channels", "", "")
 	fs.BoolVar(&cfg.MetaOnly, "metadata-only", false, "")
