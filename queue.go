@@ -51,15 +51,16 @@ type queueItem struct {
 	Plex      []plexIssue     `json:"plex,omitempty"`      // the Plex check when the file was checked
 	PlexAfter []string        `json:"plexAfter,omitempty"` // the Plex check of the finished file
 
-	s       settings
-	cfg     *Config
-	height  int
-	dv      bool
-	exists  bool // the output already existed when last checked
-	job     *job
-	checked bool
-	started time.Time
-	inRun   bool // started in the current (or last) run: counts toward the batch's progress
+	s           settings
+	cfg         *Config
+	height      int
+	dv          bool
+	exists      bool // the output already existed when last checked
+	job         *job
+	checked     bool
+	started     time.Time
+	inRun       bool   // started in the current (or last) run: counts toward the batch's progress
+	PlexDetails string `json:"plexDetails,omitempty"` // the new file's details for a Plex-style name ("1080p.HEVC")
 }
 
 func (it *queueItem) finished() bool {
@@ -613,6 +614,7 @@ func (g *guiServer) checker() {
 // applyProbe stores what the probe found. Caller holds g.mu.
 func applyProbe(it *queueItem, r map[string]any) {
 	it.checked, it.Plex = true, nil
+	it.PlexDetails, _ = r["plexDetails"].(string)
 	if ok, _ := r["ok"].(bool); !ok {
 		it.Status, it.Note = stProblem, fmt.Sprint(r["error"])
 		return

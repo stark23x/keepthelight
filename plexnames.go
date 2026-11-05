@@ -27,6 +27,15 @@ func plexClean(s string) string {
 	return strings.TrimRight(s, ". ")
 }
 
+// The owner's format, parts joined by dots, with the new file's details where
+// plexDetailsMark stands (filled in once the file has been checked):
+//
+//	The Office (2005).S01E02.Diversity Day.1080p.HEVC.mkv
+//	Heat (1995).2160p.HEVC.DV.{tmdb-949}.mkv
+//
+// ("<" cannot be in a Windows file name, so the mark can never clash with a title.)
+const plexDetailsMark = "<details>"
+
 func plexFilmName(title, year string, id int) string {
 	t := plexClean(title)
 	if t == "" {
@@ -35,8 +44,9 @@ func plexFilmName(title, year string, id int) string {
 	if year != "" {
 		t += " (" + year + ")"
 	}
+	t += "." + plexDetailsMark
 	if id > 0 {
-		t += fmt.Sprintf(" {tmdb-%d}", id)
+		t += fmt.Sprintf(".{tmdb-%d}", id)
 	}
 	return t
 }
@@ -49,11 +59,68 @@ func plexEpisodeName(show, year string, season, episode int, title string) strin
 	if year != "" {
 		s += " (" + year + ")"
 	}
-	s += fmt.Sprintf(" - S%02dE%02d", season, episode)
+	s += fmt.Sprintf(".S%02dE%02d", season, episode)
 	if t := plexClean(title); t != "" {
-		s += " - " + t
+		s += "." + t
 	}
-	return s
+	return s + "." + plexDetailsMark
+}
+
+// plexResolution names a picture's size the usual way, by whichever side is
+// larger for its class (a 1920×800 scope film is 1080p).
+func plexResolution(w, h int) string {
+	switch {
+	case w <= 0 || h <= 0:
+		return ""
+	case w >= 3200 || h >= 1800:
+		return "2160p"
+	case w >= 2200 || h >= 1300:
+		return "1440p"
+	case w >= 1700 || h >= 900:
+		return "1080p"
+	case w >= 1100 || h >= 650:
+		return "720p"
+	case h > 500 || w > 900:
+		return "576p"
+	}
+	return "480p"
+}
+
+// plexHDR is the kind of HDR the new file has ("" for SDR).
+func plexHDR(p *Probe, plan *Plan) string {
+	switch {
+	case plan.UseDV:
+		return "DV"
+	case plan.UseHDR10Plus:
+		return "HDR10+"
+	case plan.Kind == "hlg":
+		return "HLG"
+	case plan.Kind == "hdr10":
+		return "HDR10"
+	}
+	return ""
+}
+
+// plexDetails: "1080p.HEVC", "2160p.HEVC.DV" for the new file.
+func plexDetails(w, h int, hdr string) string {
+	parts := []string{}
+	if r := plexResolution(w, h); r != "" {
+		parts = append(parts, r)
+	}
+	parts = append(parts, "HEVC")
+	if hdr != "" {
+		parts = append(parts, hdr)
+	}
+	return strings.Join(parts, ".")
+}
+
+// plexFinal puts the details into a proposed name (or leaves the mark out
+// when they are not known yet).
+func plexFinal(name, details string) string {
+	if details == "" {
+		name = strings.Replace(name, "."+plexDetailsMark, "", 1)
+	}
+	return strings.Replace(name, plexDetailsMark, details, 1)
 }
 
 // plexRename is one proposed change, for the Review names window.
@@ -83,10 +150,10 @@ func (g *guiServer) plexProposals() []plexRename {
 			PlexName string `json:"plexName"`
 		}
 		_ = json.Unmarshal(it.Raw, &m)
-		if m.PlexName == "" || it.Output == "" {
-			continue
+		if m.PlexName == "" || it.Output == "" || (strings.Contains(m.PlexName, plexDetailsMark) && it.PlexDetails == "") {
+			continue // not checked yet: its size and HDR are not known
 		}
-		to := filepath.Join(filepath.Dir(it.Output), m.PlexName+filepath.Ext(it.Output))
+		to := filepath.Join(filepath.Dir(it.Output), plexFinal(m.PlexName, it.PlexDetails)+filepath.Ext(it.Output))
 		if strings.EqualFold(to, it.Output) {
 			continue // already named so
 		}

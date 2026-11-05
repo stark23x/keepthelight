@@ -193,7 +193,7 @@ func TestTMDBWhichOne(t *testing.T) {
 			PlexName string `json:"plexName"`
 		}
 		_ = json.Unmarshal(it.Raw, &pn)
-		if !strings.HasPrefix(pn.PlexName, "The Office (2005) - "+want+" - Episode") {
+		if !strings.HasPrefix(pn.PlexName, "The Office (2005)."+want+".Episode") || !strings.HasSuffix(pn.PlexName, "."+plexDetailsMark) {
 			t.Errorf("file %d: Plex name %q", i, pn.PlexName)
 		}
 	}

@@ -1369,6 +1369,9 @@ func (g *guiServer) probe(ctx context.Context, s settings) map[string]any {
 		if p.Converted != "" { // Keep the Light's "already converted" tag
 			resp["converted"] = p.Converted
 		}
+		// the new file's details for Plex-style names ("2160p.HEVC.DV")
+		ow, oh := plan.outSize(p)
+		resp["plexDetails"] = plexDetails(ow, oh, plexHDR(p, plan))
 		// the Plex check: what would make Plex convert this file, and what the settings do about it
 		src := plexSrcFromProbe(p, t, size)
 		src.Interlaced = plan.Interlace != nil && plan.Interlace.Interlaced

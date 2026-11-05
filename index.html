@@ -437,7 +437,8 @@
           <button id="tagReset" class="hidden" title="Use the profile's ending again">↺</button></div></div>
     </div>
     <label class="check" style="margin-top:8px"><input type="checkbox" id="plexNames"> <span><b>Plex-style names after a TMDB match</b>, such as
-      "Heat (1995) {tmdb-949}.mkv" or "The Office (2005) - S01E02 - Diversity Day.mkv" (no ending added). Only the new file is named so,
+      "Heat (1995).2160p.HEVC.DV.{tmdb-949}.mkv" or "The Office (2005).S01E02.Diversity Day.1080p.HEVC.mkv": the resolution, HEVC and the
+      kind of HDR are those of the new file (no other ending is added). Only the new file is named so,
       and nothing is renamed until you have seen it: here, in the Output box; in the queue, with <b>Review names</b>. Remembered.</span></label>
     <div class="hint" style="margin-top:6px">Used for this file and the queue, and remembered.
       <details class="help"><summary>More</summary>Choosing another place with Save as… changes the folder too; saving next to the original sets it back.
@@ -2311,10 +2312,10 @@ async function tmdbUse(x, btn) {
   if (f.note) t.append(el('div', 'hint', f.note));
   if ($('plexNames').checked && f.plexName) { // the Plex way, shown in the Output box (still editable)
     const out = $('output').value.trim(), cut = Math.max(out.lastIndexOf('\\'), out.lastIndexOf('/'));
-    const ext = extOf(out) || $('container').value || '.mkv';
-    $('output').value = (cut >= 0 ? out.slice(0, cut + 1) : '') + f.plexName + ext;
+    const ext = extOf(out) || $('container').value || '.mkv', name = plexFinalName(f.plexName, info && info.plexDetails);
+    $('output').value = (cut >= 0 ? out.slice(0, cut + 1) : '') + name + ext;
     $('output').dispatchEvent(new Event('change'));
-    t.append(el('div', 'hint', 'The output is named the Plex way: ' + f.plexName + ext + ' (you can change it in the Output box).'));
+    t.append(el('div', 'hint', 'The output is named the Plex way: ' + name + ext + ' (you can change it in the Output box).'));
   }
   box.append(t);
 }
@@ -2338,9 +2339,15 @@ $('qTMDB').onclick = async () => {
 // After a TMDB match a file can be named the Plex way. Nothing changes until it has
 // been seen: in the Output box on the Convert tab, and in Review names for the queue.
 $('plexNames').onchange = () => { api('setPref', { name: 'plexNames', value: $('plexNames').checked }); if (queue) renderQueue(queue); };
+// a proposed name with the new file's details ("1080p.HEVC.DV") in their place
+function plexFinalName(name, details) {
+  return details ? name.replace('<details>', details) : name.replace('.<details>', '');
+}
 function plexOffer(it) {
-  const pn = $('plexNames').checked && it.settings && it.settings.plexName;
-  if (!pn || !['waiting', 'checking', 'problem'].includes(it.status) || it.editing) return '';
+  const raw = $('plexNames').checked && it.settings && it.settings.plexName;
+  if (!raw || !['waiting', 'checking', 'problem'].includes(it.status) || it.editing) return '';
+  if (raw.includes('<details>') && !it.plexDetails) return ''; // not checked yet
+  const pn = plexFinalName(raw, it.plexDetails);
   const ext = (extOf(it.output || '') || '.mkv'), base = (it.output || '').split(/[\\/]/).pop();
   return base.toLowerCase() === (pn + ext).toLowerCase() ? '' : '→ Plex name: ' + pn + ext;
 }
