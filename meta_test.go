@@ -79,7 +79,7 @@ func TestPrepareMeta(t *testing.T) {
 	// removing: no chapters, no cover; MP4 has no attachments at all
 	cfg.Meta = &MetaEdit{Chapters: &ChapterEdit{Remove: true}, RemoveCover: true}
 	mp, _ = prepareMeta(r, cfg, plan, 0, 1, true, "/tmp/x")
-	if a = strings.Join(mp.Args, " "); a != "-map_metadata 0 -map_chapters -1" {
+	if a = strings.Join(mp.Args, " "); a != "-map_metadata 0 -metadata "+ktlTagKey+"="+ktlTag(cfg, plan.probe, plan)+" -map_chapters -1" {
 		t.Errorf("remove / mp4: %s", a)
 	}
 }
