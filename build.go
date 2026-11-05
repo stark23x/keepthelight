@@ -54,6 +54,7 @@ type Config struct {
 	cleanup                                      []string       // files to remove when the job ends (a test's sample)
 	sample                                       string         // a test's cut of the original
 	fullInput                                    string         // a test: the whole original (the bars are found in it, not only in the cut)
+	encoded                                      bool           // the video has been encoded: work folders are worth keeping if a later step fails
 	replaceFinal                                 string         // command line -replace-original: the name the result finally gets
 }
 

@@ -534,9 +534,12 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 	}
 	if lw != nil {
 		defer func() {
-			if retErr != nil && lw.dir != "" { // keep any finished work
+			switch {
+			case retErr != nil && lw.dir != "" && cfg.encoded: // keep finished work
 				lw.keep = true
 				fmt.Fprintln(os.Stderr, "\nThe local working folder was KEPT, so finished work is not lost:\n  "+lw.dir)
+			case retErr != nil && lw.dir != "":
+				fmt.Fprintln(os.Stderr, "\nThe local working folder was deleted (nothing had been finished yet).")
 			}
 			lw.cleanup()
 		}()
@@ -673,8 +676,12 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 		succeeded := false
 		defer func() {
 			switch {
-			case !succeeded:
+			case !succeeded && cfg.encoded:
 				fmt.Fprintln(os.Stderr, "\nIntermediate files were KEPT so finished work is not lost:\n  "+tmp)
+			case !succeeded && cfg.Keep:
+				fmt.Fprintln(os.Stderr, "\nIntermediate files were kept (-keep):\n  "+tmp)
+			case !succeeded:
+				removeTemp(tmp) // nothing was finished: nothing worth keeping
 			case !cfg.Keep:
 				removeTemp(tmp)
 			}
@@ -693,6 +700,7 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 	if err != nil {
 		return err
 	}
+	cfg.encoded = true
 	markOK()
 	if cfg.DryRun {
 		return nil
@@ -886,6 +894,7 @@ func runDV(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 		return append(args, "-f", "hevc", out)
 	}
 	inject := func(from, to string) error {
+		cfg.encoded = true // the base layer is done: worth keeping if a later step fails
 		fmt.Println("\n[3/5] Injecting RPU into the new stream")
 		return r.run(dovi, "inject-rpu", "-i", from, "--rpu-in", rpu, "-o", to)
 	}

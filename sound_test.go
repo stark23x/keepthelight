@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 )
 
 // recordSounds replaces the player and returns what it was asked to play.
@@ -42,6 +43,13 @@ func runToEnd(t *testing.T, g *guiServer, names ...string) {
 	waitFor(t, "the queue to finish", func() bool { g.mu.Lock(); defer g.mu.Unlock(); return !g.q.running })
 }
 
+// waitSounds: the sound is played just after the queue ends, so give it a moment.
+func waitSounds(t *testing.T, played func() []string, n int) {
+	t.Helper()
+	for end := time.Now().Add(3 * time.Second); len(played()) < n && time.Now().Before(end); time.Sleep(10 * time.Millisecond) {
+	}
+}
+
 func TestSoundOncePerRun(t *testing.T) {
 	fakeTools(t)
 	played := recordSounds(t)
@@ -49,10 +57,12 @@ func TestSoundOncePerRun(t *testing.T) {
 	g.prefsPath = filepath.Join(t.TempDir(), "settings.json")
 
 	runToEnd(t, g, "one", "two", "three") // a queue: one sound, after the last file
+	waitSounds(t, played, 1)
 	if p := played(); len(p) != 1 || p[0] != defaultSounds.Done {
 		t.Fatalf("all done: %v", p)
 	}
 	runToEnd(t, g, "good", "bad") // a file failed: the failure sound
+	waitSounds(t, played, 2)
 	if p := played(); len(p) != 2 || p[1] != defaultSounds.Fail {
 		t.Fatalf("with a failure: %v", p)
 	}
@@ -65,6 +75,7 @@ func TestSoundOncePerRun(t *testing.T) {
 		t.Fatalf("none must be silent: %v", p)
 	}
 	runToEnd(t, g, "bad2")
+	waitSounds(t, played, 3)
 	if p := played(); len(p) != 3 || p[2] != "file:/x/alarm.wav" {
 		t.Fatalf("own sound: %v", p)
 	}
