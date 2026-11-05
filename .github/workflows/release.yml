@@ -4,6 +4,8 @@
 # and source zips, and SHA-256 checksums. A push to main that changes VERSION
 # creates a draft release (and its tag) with these files; publish it on GitHub
 # when ready. Run by hand (Actions tab), it builds the files without a release.
+# A push that changes only this file rebuilds the current VERSION (for example
+# after a failed run), replacing that draft release's files.
 name: release
 
 on:
