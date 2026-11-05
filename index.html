@@ -737,6 +737,8 @@
       <label class="check" style="margin-top:10px"><input type="checkbox" id="workLocal"> <span><b>Work locally with network files</b> – network files (your RAID shares)
         are copied to this PC, converted here, and the result copied back, so a network hiccup cannot break a long conversion. Uses the temp folder
         above if it is on this PC, otherwise Windows' temp folder. Not used for tests or metadata-only jobs.</span></label>
+      <div class="row" style="margin-top:12px; align-items:center"><span class="hint grow">The full log of every failed file is saved
+        automatically (the 50 newest are kept), so a problem can be looked into later.</span><button id="openLogs">Open logs folder</button></div>
       <div class="rules-title tmdbcredit" style="margin-top:16px"><img class="tmdblogo small" alt="TMDB" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB2aWV3Qm94PSIwIDAgMTkwLjI0IDgxLjUyIj48ZGVmcz48c3R5bGU+LmNscy0xe2ZpbGw6dXJsKCNsaW5lYXItZ3JhZGllbnQpO308L3N0eWxlPjxsaW5lYXJHcmFkaWVudCBpZD0ibGluZWFyLWdyYWRpZW50IiB5MT0iNDAuNzYiIHgyPSIxOTAuMjQiIHkyPSI0MC43NiIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzkwY2VhMSIvPjxzdG9wIG9mZnNldD0iMC41NiIgc3RvcC1jb2xvcj0iIzNjYmVjOSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzAwYjNlNSIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxnIGlkPSJMYXllcl8yIiBkYXRhLW5hbWU9IkxheWVyIDIiPjxnIGlkPSJMYXllcl8xLTIiIGRhdGEtbmFtZT0iTGF5ZXIgMSI+PHBhdGggY2xhc3M9ImNscy0xIiBkPSJNMTA1LjY3LDM2LjA2aDY2LjlBMTcuNjcsMTcuNjcsMCwwLDAsMTkwLjI0LDE4LjRoMEExNy42NywxNy42NywwLDAsMCwxNzIuNTcuNzNoLTY2LjlBMTcuNjcsMTcuNjcsMCwwLDAsODgsMTguNGgwQTE3LjY3LDE3LjY3LDAsMCwwLDEwNS42NywzNi4wNlptLTg4LDQ1aDc2LjlBMTcuNjcsMTcuNjcsMCwwLDAsMTEyLjI0LDYzLjRoMEExNy42NywxNy42NywwLDAsMCw5NC41Nyw0NS43M0gxNy42N0ExNy42NywxNy42NywwLDAsMCwwLDYzLjRIMEExNy42NywxNy42NywwLDAsMCwxNy42Nyw4MS4wNlpNMTAuNDEsMzUuNDJoNy44VjYuOTJoMTAuMVYwSC4zMXY2LjloMTAuMVptMjguMSwwaDcuOFY4LjI1aC4xbDksMjcuMTVoNmw5LjMtMjcuMTVoLjFWMzUuNGg3LjhWMEg2Ni43NmwtOC4yLDIzLjFoLS4xTDUwLjMxLDBIMzguNTFaTTE1Mi40Myw1NS42N2ExNS4wNywxNS4wNywwLDAsMC00LjUyLTUuNTIsMTguNTcsMTguNTcsMCwwLDAtNi42OC0zLjA4LDMzLjU0LDMzLjU0LDAsMCwwLTguMDctMWgtMTEuN3YzNS40aDEyLjc1YTI0LjU4LDI0LjU4LDAsMCwwLDcuNTUtMS4xNUExOS4zNCwxOS4zNCwwLDAsMCwxNDguMTEsNzdhMTYuMjcsMTYuMjcsMCwwLDAsNC4zNy01LjUsMTYuOTEsMTYuOTEsMCwwLDAsMS42My03LjU4QTE4LjUsMTguNSwwLDAsMCwxNTIuNDMsNTUuNjdaTTE0NSw2OC42QTguOCw4LjgsMCwwLDEsMTQyLjM2LDcyYTEwLjcsMTAuNywwLDAsMS00LDEuODIsMjEuNTcsMjEuNTcsMCwwLDEtNSwuNTVoLTQuMDV2LTIxaDQuNmExNywxNywwLDAsMSw0LjY3LjYzLDExLjY2LDExLjY2LDAsMCwxLDMuODgsMS44N0E5LjE0LDkuMTQsMCwwLDEsMTQ1LDU5YTkuODcsOS44NywwLDAsMSwxLDQuNTJBMTEuODksMTEuODksMCwwLDEsMTQ1LDY4LjZabTQ0LjYzLS4xM2E4LDgsMCwwLDAtMS41OC0yLjYyQTguMzgsOC4zOCwwLDAsMCwxODUuNjMsNjRhMTAuMzEsMTAuMzEsMCwwLDAtMy4xNy0xdi0uMWE5LjIyLDkuMjIsMCwwLDAsNC40Mi0yLjgyLDcuNDMsNy40MywwLDAsMCwxLjY4LTUsOC40Miw4LjQyLDAsMCwwLTEuMTUtNC42NSw4LjA5LDguMDksMCwwLDAtMy0yLjcyLDEyLjU2LDEyLjU2LDAsMCwwLTQuMTgtMS4zLDMyLjg0LDMyLjg0LDAsMCwwLTQuNjItLjMzaC0xMy4ydjM1LjRoMTQuNWEyMi40MSwyMi40MSwwLDAsMCw0LjcyLS41LDEzLjUzLDEzLjUzLDAsMCwwLDQuMjgtMS42NSw5LjQyLDkuNDIsMCwwLDAsMy4xLTMsOC41Miw4LjUyLDAsMCwwLDEuMi00LjY4QTkuMzksOS4zOSwwLDAsMCwxODkuNjYsNjguNDdaTTE3MC4yMSw1Mi43Mmg1LjNhMTAsMTAsMCwwLDEsMS44NS4xOCw2LjE4LDYuMTgsMCwwLDEsMS43LjU3LDMuMzksMy4zOSwwLDAsMSwxLjIyLDEuMTMsMy4yMiwzLjIyLDAsMCwxLC40OCwxLjgyLDMuNjMsMy42MywwLDAsMS0uNDMsMS44LDMuNCwzLjQsMCwwLDEtMS4xMiwxLjIsNC45Miw0LjkyLDAsMCwxLTEuNTguNjUsNy41MSw3LjUxLDAsMCwxLTEuNzcuMmgtNS42NVptMTEuNzIsMjBhMy45LDMuOSwwLDAsMS0xLjIyLDEuMyw0LjY0LDQuNjQsMCwwLDEtMS42OC43LDguMTgsOC4xOCwwLDAsMS0xLjgyLjJoLTd2LThoNS45YTE1LjM1LDE1LjM1LDAsMCwxLDIsLjE1LDguNDcsOC40NywwLDAsMSwyLjA1LjU1LDQsNCwwLDAsMSwxLjU3LDEuMTgsMy4xMSwzLjExLDAsMCwxLC42MywyQTMuNzEsMy43MSwwLDAsMSwxODEuOTMsNzIuNzJaIi8+PC9nPjwvZz48L3N2Zz4="><span>TMDB (film and TV information for Metadata) <span>– remembered on this PC</span></span></div>
       <div class="row" style="align-items:flex-end">
         <div class="grow"><label for="tmdbKey">TMDB API key or API read access token</label><input type="password" id="tmdbKey" spellcheck="false" autocomplete="off" placeholder="not set"></div>
@@ -2164,6 +2166,7 @@ function tmdbPicksUI(n) {
   $('tmdbForget').classList.toggle('hidden', !n);
   if (n) $('tmdbForget').textContent = 'Forget ' + n + ' remembered ' + (n === 1 ? 'match' : 'matches');
 }
+$('openLogs').onclick = async () => { const r = await api('openLogs', {}); if (!r.ok) showError(r.error); };
 $('tmdbForget').onclick = async () => { await api('tmdbForget', {}); tmdbPicksUI(0); notify('Remembered TMDB matches forgotten.'); };
 async function tmdbUse(x, btn) {
   const m = metaFor(); if (!m) return;
@@ -2722,6 +2725,10 @@ function renderQueue(q) {
           rowButton('↓', 'Move down', () => api('queueMove', { id: it.id, dir: 1 }).then(poll)),
           rowButton('⤓', 'Move to the bottom', () => api('queueMove', { id: it.id, dir: 2 }).then(poll)));
       }
+      if (it.status === 'failed' && it.logFile)
+        btns.append(rowButton('Saved log', 'Open the log saved for this file (in the Logs folder)', async () => {
+          const r = await api('openLog', { id: it.id }); if (!r.ok) showError(r.error);
+        }));
       if (it.status === 'failed' || it.status === 'done' || it.status === 'canceled') {
         btns.append(rowButton('Log', 'Show the log of this file', async () => {
           const old = row.querySelector('.qlogwrap');

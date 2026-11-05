@@ -47,6 +47,7 @@ type queueItem struct {
 	ETA       string          `json:"eta,omitempty"`       // running: "about 25 min left"
 	Est       string          `json:"est,omitempty"`       // waiting: "about 40 min"
 	Took      float64         `json:"took,omitempty"`      // finished: seconds it took
+	LogFile   string          `json:"logFile,omitempty"`   // a failed job's saved log
 	Plex      []plexIssue     `json:"plex,omitempty"`      // the Plex check when the file was checked
 	PlexAfter []string        `json:"plexAfter,omitempty"` // the Plex check of the finished file
 
@@ -745,7 +746,7 @@ func (g *guiServer) runQueue() {
 			g.saveQueue()
 			continue
 		}
-		it.Status, it.Note, it.Percent, it.Took, it.PlexAfter = stRunning, "", 0, 0, nil
+		it.Status, it.Note, it.Percent, it.Took, it.PlexAfter, it.LogFile = stRunning, "", 0, 0, nil, ""
 		it.started, it.inRun = g.clock(), true
 		cfg, duration := *it.cfg, it.Duration
 		g.mu.Unlock()
@@ -759,6 +760,7 @@ func (g *guiServer) runQueue() {
 		if err != nil {
 			g.mu.Lock()
 			it.Status, it.Note = stFailed, err.Error()
+			it.LogFile = saveFailureLog(it.Name, it.Input, it.Output, "", []string{"ERROR: " + err.Error()}, g.clock())
 			g.mu.Unlock()
 			continue
 		}
@@ -798,6 +800,11 @@ func (g *guiServer) runQueue() {
 			it.Status, it.Note = stFailed, lastError(j.lines)
 			finished++
 			failed++
+			args := ""
+			if j.cmd != nil && len(j.cmd.Args) > 1 {
+				args = strings.Join(j.cmd.Args[1:], " ")
+			}
+			it.LogFile = saveFailureLog(it.Name, it.Input, it.Output, args, j.lines, g.clock())
 		}
 		if sp := finishedSpeed(it, j, duration); sp > 0 && !it.cfg.CopyVideo {
 			if g.q.speeds == nil {

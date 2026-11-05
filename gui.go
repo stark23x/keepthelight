@@ -881,6 +881,29 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 	case "reveal":
 		g.reveal()
 		return okResult()
+	case "openLogs": // the folder of saved failure logs
+		_ = os.MkdirAll(logsDir(), 0o755)
+		if err := openFolder(logsDir()); err != nil {
+			return failResult(err.Error())
+		}
+		return okResult()
+	case "openLog": // one failed file's log
+		var b struct{ ID int }
+		_ = json.Unmarshal(body, &b)
+		g.mu.Lock()
+		it := g.findItemLocked(b.ID)
+		p := ""
+		if it != nil {
+			p = it.LogFile
+		}
+		g.mu.Unlock()
+		if p == "" || !fileExists(p) || !strings.HasPrefix(p, logsDir()) {
+			return failResult("that log is no longer there")
+		}
+		if err := openURL(p); err != nil {
+			return failResult(err.Error())
+		}
+		return okResult()
 	case "ping":
 		return okResult()
 	case "bye":
