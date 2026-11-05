@@ -6,7 +6,18 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing yet.
+- **Plex-style names: add a tag, the resolution and the codec** (requested 2026-11-05).
+  - **Where it goes:** at the end of the name, in one set of square brackets, which Plex ignores when matching:
+    `Heat (1995) {tmdb-949} [KTL 2160p HEVC DV].mkv`, `The Office (2005) - S01E02 - Diversity Day [1080p HEVC].mkv`.
+  - **Filled in automatically** from the new file, not the original:
+    - resolution as 2160p, 1440p, 1080p, 720p, 576p or 480p, from the output height after resizing or cropping;
+    - codec as HEVC (what Keep the Light makes), plus the HDR kind (DV, HDR10+, HDR10, HLG) when kept.
+  - **Your choice:** a tick box each for Tag, Resolution, Codec and HDR, and a text box for the tag (for example
+    "KTL"). Remembered with the other Plex-name settings; nothing ticked means no brackets.
+  - **Preview:** the brackets show in the proposed names (Output box, queue rows and Review names) before anything
+    is renamed, as now.
+  - **Characters:** characters Windows does not allow are removed from the tag, and so are square brackets (they
+    would break the brackets).
 
 ## Ideas raised, not yet requested
 
