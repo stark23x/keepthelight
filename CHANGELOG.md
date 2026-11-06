@@ -18,6 +18,21 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.31.0 - 2026-11-06
+
+- **Track names in English.** With **Name untitled tracks** on, a track named only in its own language ("日本語",
+  "한국어", "Русский", "Deutsch") is given the English name instead ("Japanese AC-3 5.1"), because Plex shows the name
+  as it is. Names that say more ("日本語 コメンタリー") are kept, and so is a name whose language the track does not
+  have. Metadata shows the planned name, and you can type another.
+- **More language names.** About 100 languages now show their English name, including Cantonese (`yue`) and
+  Mandarin (`cmn`), which used to show only as their codes.
+- **Track names for a whole season.** After you Edit an episode in the queue and rename its tracks, saving asks
+  whether the other waiting episodes of that show should get the same track names (with the tracks' languages,
+  commentary / SDH marks and track choices). Only episodes whose tracks are laid out the same way are changed; each
+  keeps its own title, description and picture. **Same tracks for others** now copies track names too.
+- **Fixed:** the planned track names in Metadata did not update after turning on **Name untitled tracks**.
+- README: a "New since version 1.27" section, and the reference sections now cover every newer feature.
+
 ## 1.30.0 - 2026-11-05
 
 - **Plex-style names in a new format, with the file's details.** Parts are joined by dots, and the resolution, HEVC and

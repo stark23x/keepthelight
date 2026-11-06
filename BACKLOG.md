@@ -6,19 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **Track names in English, not the language's own script.** When a track's existing name is only a language
-  written in its own script ("日本語", "한국어", "Русский", "Deutsch"), replace it with the English automatic name
-  ("Japanese AC-3 5.1"). Names with anything more in them (for example "日本語 コメンタリー") are left alone. The
-  new name shows in the track list before converting and can be typed over. Also add the language codes that are
-  missing from the list (such as `yue` Cantonese and `cmn` Mandarin) so they come out as English words, not codes.
-
-- **Track names follow through a series in the queue.** When you edit one episode in the queue and change its track
-  names, Keep the Light offers, on saving, to give the same names to the other waiting episodes of that show
-  ("Use these track names for the other 9 episodes of The Office?"). The track language, commentary/SDH marks and
-  track choices go with them. Only episodes whose tracks are laid out the same way (same kinds, in the same order)
-  are changed; the others are listed and left alone. Each episode's own title, description and poster are never
-  copied. "Same show" means the TMDB match, or the show name in the file name when there is no match. The existing
-  "Use these tracks for the others" button should copy the track names too.
+Nothing yet.
 
 ## Ideas raised, not yet requested
 
@@ -26,6 +14,7 @@ None at the moment.
 
 ## Done
 
+- 1.31.0: track names in English instead of the language's own script, more language names (yue, cmn and others); track names follow through a series in the queue; new README "New since version 1.27" section.
 - 1.30.0: Plex-style names in the dotted format with resolution, HEVC and HDR kind (Plex matching to be confirmed by the owner on real files).
 - 1.29.0: already-converted tag; Plex refresh; schedule and watch folder; failure logs.
 - 1.28.0: optional Plex-style names with Review names; fill in track details from names; TMDB logo; no work folders kept when nothing was finished; a second try for unreadable Dolby Vision data.

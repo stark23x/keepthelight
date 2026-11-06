@@ -13,6 +13,30 @@ quality.
 
 ---
 
+## New since version 1.27
+
+- **Plex-style names.** After a TMDB match, the new file can be named the way Plex expects, with the details of the
+  new file added: `Heat (1995).2160p.HEVC.DV.{tmdb-949}.mkv` or `The Office (2005).S01E02.Diversity Day.1080p.HEVC.mkv`.
+  Plex reads the `{tmdb-949}` part and the `S01E02` part to know exactly which film or episode it is. This is optional,
+  and nothing is renamed until you have seen and approved the names.
+- **Track details from track names.** Many files have a track called "English" or "Director's Commentary" without
+  the language or commentary mark set. Plex uses those marks to choose the right track, so Keep the Light fills in
+  what the name says.
+- **Track names in English.** A track named only in its own language, such as "日本語" or "Deutsch", is renamed in
+  English, such as "Japanese AC-3 5.1", so you can read it in Plex.
+- **Track names for a whole season.** Rename the tracks of one episode in the queue, and Keep the Light offers to
+  give the other episodes of that show the same names.
+- **Tells Plex when new files are ready.** When the queue finishes, Plex is asked to look at the new files at once,
+  instead of at its next scheduled scan.
+- **Marks converted files.** Every file Keep the Light converts carries a small note inside it. You are warned
+  before converting a file twice (which costs quality and saves little), and the Library scan shows what is done.
+- **Schedule.** Start the queue at a set time, for example 01:00, and pause it in the morning to carry on the next
+  night.
+- **Watch folder.** Videos you copy into a chosen folder join the queue by themselves.
+- **Logs of failed files are kept,** so a problem can be looked into later.
+
+---
+
 ## What it can do
 
 ### Keep the picture looking right
@@ -59,7 +83,8 @@ quality.
   text, which every Plex player can show. PGS is read with free text-recognition software (Tesseract).
 - **Leaves out empty tracks.** Tracks with nothing in them can make a conversion fail, so they are skipped
   automatically.
-- **Names untitled tracks** from what they are, for example "English AC-3 5.1".
+- **Names untitled tracks** from what they are, for example "English AC-3 5.1". A track named only in its own
+  language ("日本語") gets the English name.
 - **Fills in missing track details** from track names: a track called "English Commentary" gets the English language
   and the commentary flag, which Plex uses to pick tracks.
 
@@ -95,7 +120,8 @@ quality.
 - **Pause and Resume.** Freeze a conversion and carry on later from the same spot.
 - **Stop after this file,** or stop right away.
 - **Reorder files** with up, down, top and bottom buttons.
-- **Change one file** in the queue without affecting the others, or copy one file's track choices to similar files.
+- **Change one file** in the queue without affecting the others, or copy one file's track choices and track names
+  to similar files. Rename one episode's tracks, and the rest of the season can follow.
 - **Remembers the queue** if you close Keep the Light.
 - **Schedule:** start the queue at a set time (say 01:00), and pause it in the morning to carry on the next night.
 - **Watch folder:** videos you copy into a chosen folder join the queue by themselves, with the profile you pick.
@@ -257,6 +283,15 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
 - **Space saved:** each finished file shows its size before and after ("18.7 GB → 9.2 GB · saved 9.5 GB (51%)"),
   the Queue heading adds up the run, and a single running total ("4.2 TB saved in total") is kept for this PC.
   No history is stored.
+- **Already converted:** every file whose video Keep the Light encodes gets a small tag inside it ("Keep the Light
+  1.31.0 · x265 CRF 18 · 1920×1080"). The library scan shows such files as "✓ Already converted" (with no saving
+  counted, and a filter to list them); on the Convert tab and in the queue they get an **Already converted** badge
+  and a warning, because converting a converted file again costs quality and saves little.
+- **Tell Plex when files are ready** (⚙ Settings → Plex): enter your Plex server's address and token and press
+  **Check**. When a queue finishes, Plex is asked to scan the folders of the new files, so they show up straight
+  away instead of at its next scheduled scan. Keep the Light works out which library holds them even when this PC
+  and the server see the same drive by different paths (`W:\Movies` here, `D:\PlexRaid01\Movies` on the server).
+  The token is kept in Windows' Credential Manager. If Plex cannot be reached, the queue still finishes normally.
 - **Plex check** (automatic): every file added to Convert or the Queue is checked for the things likely to make
   Plex convert it while you watch (the same checks as the library scan, below), so problems show up without
   scanning the library. Because the check knows your settings, each problem is marked as **fixed** by them (for
@@ -304,11 +339,22 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   as it was; either way the window goes back to the Queue tab, at that file. While it is being changed it waits; the
   queue goes on with the other files. **Apply a profile to waiting files** (Queue) and **Use current settings for
   waiting files** ask whether files with their own changes keep them.
-- **Same tracks for others** (on a queued file with its own track choices): gives the other waiting files the same
-  audio and subtitle choices, by track position (which tracks are kept, converted or dropped, the default and forced
-  flags, SRT conversion). Only files whose tracks match (same number of tracks, languages and formats) are changed;
-  the others are listed and left as they were. Handy for a season: set up one episode with Edit, then apply it to
-  the rest.
+- **Same tracks for others** (on a queued file with its own track choices or track names): gives the other waiting
+  files the same audio and subtitle choices and track names, by track position (which tracks are kept, converted or
+  dropped, the default and forced flags, SRT conversion, and each track's name, language and commentary / SDH mark).
+  Only files whose tracks match (same number of tracks, languages and formats) are changed; the others are listed
+  and left as they were. Each file keeps its own title, description and cover.
+- **Track names for a whole season:** when you **Edit** an episode in the queue, rename its tracks and save, Keep the
+  Light asks "Use these track names for the other 9 waiting episodes of The Office?". Yes gives those episodes the
+  same track names, languages, commentary / SDH marks and track choices; only episodes whose tracks are laid out the
+  same way are changed, and the others are listed. "The same show" is worked out from the file names (the TMDB
+  match, when there is one, gives the show's name). Each episode keeps its own title, description and picture.
+- **Schedule** (Queue tab): start the queue at a set time (01:00, say), and optionally pause it at another (07:00)
+  and carry on at the start time the next day. Keep the Light must be open and the PC awake.
+- **Watch folder** (⚙ Settings): videos placed in a chosen folder join the queue by themselves, with the profile you
+  pick, once they have finished copying (a file is added once, never twice). Optionally the queue starts at once.
+- **Saved logs of failed files:** the full log of every failed file is saved automatically (the 50 newest are
+  kept). **Open logs folder** is in ⚙ Settings, and a failed row has **Saved log**.
 - **Clear the queue** removes every file from the queue (after asking); a file being transcoded goes on. **Clear
   finished** removes only the finished ones.
 - **Sound when finished** (⚙ Settings, remembered): when a transcode or the whole queue is done, Keep the Light
@@ -410,6 +456,17 @@ subtitles and container from the target to get a video bitrate, then:
   and the choice is remembered, so the next season matches straight away (**Forget remembered matches** in
   ⚙ Settings). Each title is searched once per lookup. Files whose title was already changed are skipped.
   This product uses the TMDB API but is not endorsed or certified by TMDB.
+- **Plex-style names** (optional: **Plex-style names after a TMDB match**, under Files): a file matched on TMDB can
+  be named the way Plex expects, with the new file's resolution, `HEVC` and its kind of HDR:
+  - films: `Heat (1995).2160p.HEVC.DV.{tmdb-949}.mkv`
+  - episodes: `The Office (2005).S01E02.Diversity Day.1080p.HEVC.mkv`
+
+  The resolution is the new file's (a 4K film made 1080p says 1080p; a wide 1920×800 film counts as 1080p). The HDR
+  kind is DV, HDR10+, HDR10 or HLG, and is left out for ordinary (SDR) video. There is no "_KTL" ending. Nothing is
+  renamed until you have seen it: on the Convert tab the name goes into the Output box, where you can change it; in
+  the queue each row shows its proposed name, and **Review names** lists every change with a tick box and **Apply**.
+  A name that already exists, or that two files would share, is not used. Only the new files are named so; the
+  originals keep their names.
 - **Metadata only** (under Video) copies every kept stream unchanged into a new file with the new metadata: no
   re-encoding, so the quality is identical, and it takes about as long as copying the file. Audio tracks can be kept
   or dropped but not converted. A new file is always written (FFmpeg cannot change a file in place), so Keep the
@@ -432,7 +489,16 @@ subtitles and container from the target to get a video bitrate, then:
   to…** changes every track at once.
 - **Name untitled tracks** (Metadata, remembered, also for the queue and in profiles): tracks without a name get
   one from what they are as written: "English AC-3 5.1", "English TrueHD Atmos 7.1", "English SRT Forced". Names
-  already set are kept; the Metadata section shows the planned names.
+  already set are kept; the Metadata section shows the planned names. The one exception: a name that is only the
+  language in its own words ("日本語", "한국어", "Русский", "Deutsch", "Español") is replaced with the English name
+  ("Japanese AC-3 5.1"), because Plex shows the name as it is. A name that says more ("日本語 コメンタリー") is
+  kept, and so is one whose language the track does not have. Type a name in Metadata to keep another.
+- **Fill in track details from their names** (a rule, on by default): a missing language, or a missing commentary,
+  SDH or forced mark, is filled in from words in the track's name ("English", "Director's Commentary", "SDH",
+  "日本語"…). Plex uses these marks to pick tracks. What the file already has is kept. Suggestions show in Metadata
+  as "(name)", and the log lists what was filled in.
+- **Language names:** tracks show the English name of their language for about 100 languages, including Cantonese
+  (`yue`) and Mandarin (`cmn`), which are kept apart from each other.
 - **Subtitles to SRT:** ASS/SSA (styled text) and PGS (Blu-ray picture subtitles) tracks can be converted to plain
   SRT, which every Plex player shows without Plex burning them into the picture. Per track: **as is**, **→ SRT**
   (replaces it) or **as is + SRT** (an SRT copy next to it, named "… (SRT)"); for the queue, the rule **Convert
@@ -466,7 +532,8 @@ subtitles and container from the target to get a video bitrate, then:
 - If a run fails after the long encode (Dolby Vision / HDR10+ modes), the temporary folder is kept and its path is printed, so finished work is not deleted.
 
 ## Limits
-- No cropping. Resizing keeps the frame count, so it never changes the frame rate.
+- Black bars are cropped only at 576p and 480p, and never in Dolby Vision files. Resizing keeps the frame count, so
+  it never changes the frame rate (deinterlacing with smooth motion doubles it on purpose).
 - GPU decoding uses the GPU that runs the main display (Direct3D 11). The decoded frames are copied back to the
   CPU, which costs a little but keeps everything else exactly as without it.
 - Dolby Vision mode assumes constant frame rate.
