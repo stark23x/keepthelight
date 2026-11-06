@@ -6,7 +6,11 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing yet.
+- **Track names in English, not the language's own script.** When a track's existing name is only a language
+  written in its own script ("日本語", "한국어", "Русский", "Deutsch"), replace it with the English automatic name
+  ("Japanese AC-3 5.1"). Names with anything more in them (for example "日本語 コメンタリー") are left alone. The
+  new name shows in the track list before converting and can be typed over. Also add the language codes that are
+  missing from the list (such as `yue` Cantonese and `cmn` Mandarin) so they come out as English words, not codes.
 
 ## Ideas raised, not yet requested
 
