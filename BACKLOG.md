@@ -12,6 +12,14 @@ next build". Shipped features move to "Done" with their version number. Nothing 
   new name shows in the track list before converting and can be typed over. Also add the language codes that are
   missing from the list (such as `yue` Cantonese and `cmn` Mandarin) so they come out as English words, not codes.
 
+- **Track names follow through a series in the queue.** When you edit one episode in the queue and change its track
+  names, Keep the Light offers, on saving, to give the same names to the other waiting episodes of that show
+  ("Use these track names for the other 9 episodes of The Office?"). The track language, commentary/SDH marks and
+  track choices go with them. Only episodes whose tracks are laid out the same way (same kinds, in the same order)
+  are changed; the others are listed and left alone. Each episode's own title, description and poster are never
+  copied. "Same show" means the TMDB match, or the show name in the file name when there is no match. The existing
+  "Use these tracks for the others" button should copy the track names too.
+
 ## Ideas raised, not yet requested
 
 None at the moment.
