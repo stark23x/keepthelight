@@ -306,7 +306,78 @@ func (g *guiServer) queueClearAll() int {
 // queueCopyTracks gives the waiting files the track choices of one file (its
 // audio and subtitle tracks, by position), when their tracks are laid out the
 // same way. Files that differ are left as they are and named in the reply.
-func (g *guiServer) queueCopyTracks(id int) map[string]any {
+func (g *guiServer) queueCopyTracks(id int) map[string]any { return g.copyTracks(id, false) }
+
+// queueSeriesTracks gives the other waiting episodes of the same show the
+// track choices and track names of one episode (after an Edit).
+func (g *guiServer) queueSeriesTracks(id int) map[string]any { return g.copyTracks(id, true) }
+
+// trackMetaOnly is a file's track names, languages and flags, without its own
+// title, description, cover or chapters.
+func trackMetaOnly(m *MetaEdit) []TrackMeta {
+	if m == nil {
+		return nil
+	}
+	return m.Tracks
+}
+
+// seriesKey is the show a file is an episode of ("" for a film or no title):
+// the same key the TMDB lookup remembers its matches by.
+func seriesKey(input string) string {
+	gs := guessSearch(input, "")
+	if gs.Kind != "tv" {
+		return ""
+	}
+	return tmdbPickKey(gs)
+}
+
+// seriesTitle is the show's name for the window: TMDB's when it was matched.
+func (g *guiServer) seriesTitle(input string) string {
+	if p, ok := g.tmdbPicks()[seriesKey(input)]; ok && p.Title != "" {
+		return p.Title
+	}
+	return guessSearch(input, "").Query
+}
+
+// seriesOffer: after an Edit that named tracks, how many other waiting
+// episodes of the same show could be given the same names (0: no offer).
+func (g *guiServer) seriesOffer(id int, before []TrackMeta) map[string]any {
+	g.mu.Lock()
+	it := g.findItemLocked(id)
+	if it == nil {
+		g.mu.Unlock()
+		return nil
+	}
+	after := trackMetaOnly(it.s.Meta)
+	key, input := seriesKey(it.Input), it.Input
+	named := false
+	for _, t := range after {
+		if t.Title != nil {
+			named = true
+		}
+	}
+	n := 0
+	if key != "" && named && !sameTrackMeta(before, after) {
+		for _, x := range g.q.items {
+			if x != it && (x.pending() || x.Status == stProblem) && !x.Editing && seriesKey(x.Input) == key {
+				n++
+			}
+		}
+	}
+	g.mu.Unlock()
+	if n == 0 {
+		return nil
+	}
+	return map[string]any{"show": g.seriesTitle(input), "files": n}
+}
+
+func sameTrackMeta(a, b []TrackMeta) bool {
+	x, _ := json.Marshal(a)
+	y, _ := json.Marshal(b)
+	return string(x) == string(y)
+}
+
+func (g *guiServer) copyTracks(id int, sameShow bool) map[string]any {
 	ffprobe, err := findTool("ffprobe", "")
 	if err != nil {
 		return failResult("ffprobe was not found")
@@ -317,23 +388,33 @@ func (g *guiServer) queueCopyTracks(id int) map[string]any {
 		g.mu.Unlock()
 		return failResult("That file is no longer in the queue.")
 	}
-	if src.s.AudioTracks == nil && src.s.SubTracks == nil {
+	srcNames := trackMetaOnly(src.s.Meta)
+	ownChoice := src.s.AudioTracks != nil || src.s.SubTracks != nil
+	if !ownChoice && len(srcNames) == 0 {
 		g.mu.Unlock()
-		return failResult("This file has no track choices of its own: Edit it, choose its tracks, and save it first.")
+		return failResult("This file has no track choices or track names of its own: Edit it, choose or name its tracks, and save it first.")
 	}
 	srcIn, srcSettings := src.Input, src.s
+	show := seriesKey(src.Input)
+	if sameShow && show == "" {
+		g.mu.Unlock()
+		return failResult("Keep the Light cannot tell which show this file is an episode of.")
+	}
 	type target struct {
 		it    *queueItem
 		input string
 	}
 	var targets []target
 	for _, it := range g.q.items {
-		if it != src && (it.pending() || it.Status == stProblem) && !it.Editing {
+		if it != src && (it.pending() || it.Status == stProblem) && !it.Editing && (!sameShow || seriesKey(it.Input) == show) {
 			targets = append(targets, target{it, it.Input})
 		}
 	}
 	g.mu.Unlock()
 	if len(targets) == 0 {
+		if sameShow {
+			return failResult("There are no other waiting episodes of this show.")
+		}
 		return failResult("There are no other waiting files.")
 	}
 	ctx := context.Background()
@@ -372,8 +453,27 @@ func (g *guiServer) queueCopyTracks(id int) map[string]any {
 		}
 		var m map[string]any
 		_ = json.Unmarshal(it.Raw, &m)
-		m["audioTracks"], m["subTracks"] = srcSettings.AudioTracks, srcSettings.SubTracks
-		m["audioDefault"], m["subDefault"] = srcSettings.AudioDefault, srcSettings.SubDefault
+		if ownChoice {
+			m["audioTracks"], m["subTracks"] = srcSettings.AudioTracks, srcSettings.SubTracks
+			m["audioDefault"], m["subDefault"] = srcSettings.AudioDefault, srcSettings.SubDefault
+		}
+		// the track names, languages and flags (by position, like the choices);
+		// the file's own title, description, cover and chapters stay
+		var meta *MetaEdit
+		if mb, err := json.Marshal(m["meta"]); err == nil && string(mb) != "null" {
+			_ = json.Unmarshal(mb, &meta)
+		}
+		if meta == nil {
+			meta = &MetaEdit{}
+		}
+		if len(srcNames) > 0 { // a file without names of its own takes away nobody's names
+			meta.Tracks = append([]TrackMeta(nil), srcNames...)
+		}
+		if meta.empty() {
+			delete(m, "meta")
+		} else {
+			m["meta"] = meta
+		}
 		b, _ := json.Marshal(m)
 		var s settings
 		_ = json.Unmarshal(b, &s)
@@ -551,12 +651,17 @@ func (g *guiServer) queueEditSave(id int, raw json.RawMessage) map[string]any {
 		g.mu.Unlock()
 		return failResult("That file has started or is no longer in the queue, so the changes could not be saved.")
 	}
+	before := trackMetaOnly(it.s.Meta)
 	it.Raw, it.s, it.cfg, it.Output, it.Input = raw, s, cfg, cfg.Output, cfg.Input
 	it.Status, it.Note, it.checked, it.Editing = stChecking, "", false, false
 	g.mu.Unlock()
 	g.kickChecker()
 	g.saveQueue()
-	return okResult()
+	r := okResult()
+	if offer := g.seriesOffer(id, before); offer != nil {
+		r["seriesOffer"] = offer // the window asks whether the other episodes get the same track names
+	}
+	return r
 }
 
 func (g *guiServer) queueEditCancel(id int) map[string]any {

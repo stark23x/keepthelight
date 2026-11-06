@@ -35,10 +35,37 @@ var nameLangs = map[string]string{
 	"greek": "gre", "ελληνικά": "gre", "gre": "gre", "ell": "gre",
 	"czech": "cze", "čeština": "cze", "cze": "cze", "ces": "cze",
 	"hungarian": "hun", "magyar": "hun", "hun": "hun",
-	"thai": "tha", "tha": "tha",
+	"thai": "tha", "ไทย": "tha", "tha": "tha",
+	"українська": "ukr", "ukrainian": "ukr", "ukr": "ukr",
+	"हिन्दी": "hin", "العربية": "ara", "עברית": "heb",
 }
 
-var reNameWords = regexp.MustCompile(`[\p{L}]+`)
+// nativeNames are languages written in their own words. A track named only
+// that ("日本語", "Deutsch") is given the English automatic name instead
+// ("Japanese AC-3 5.1"). Words that say more than the language ("Latino",
+// "Castellano", the Chinese dialect names) are not here, so those names stay.
+var nativeNames = map[string]bool{
+	"français": true, "francais": true, "deutsch": true, "español": true, "espanol": true, "italiano": true,
+	"português": true, "portugues": true, "nederlands": true, "svenska": true, "norsk": true, "dansk": true,
+	"suomi": true, "polski": true, "русский": true, "日本語": true, "한국어": true, "中文": true, "türkçe": true,
+	"ελληνικά": true, "čeština": true, "magyar": true, "ไทย": true, "українська": true, "हिन्दी": true,
+	"العربية": true, "עברית": true,
+}
+
+// nativeOnly says whether a track name is only a language in its own words
+// (brackets and spaces aside), and that language is the track's own: when the
+// track has no language, the name is the only place it is said, so it stays.
+func nativeOnly(name, lang string) bool {
+	low := strings.ToLower(strings.TrimSpace(name))
+	words := reNameWords.FindAllString(low, -1)
+	if len(words) != 1 || !nativeNames[words[0]] {
+		return false
+	}
+	rest := strings.Trim(strings.Replace(low, words[0], "", 1), " ()[]【】「」-_.:|")
+	return rest == "" && !missingLang(lang) && nameLangs[words[0]] == langKey(lang)
+}
+
+var reNameWords = regexp.MustCompile(`[\p{L}\p{M}]+`) // \p{M}: the vowel signs of Hindi and Thai
 
 // nameDetails reads a track name: its language (only when exactly one is named:
 // "English / Spanish" says nothing), and whether it says commentary, SDH or forced.

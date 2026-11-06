@@ -108,7 +108,7 @@ func TestNameUntitled(t *testing.T) {
 	for _, x := range s {
 		got = append(got, x.Title)
 	}
-	if strings.Join(got, "|") != "English PGS Forced|French ASS|French SRT|English SRT SDH|" {
+	if strings.Join(got, "|") != "English PGS Forced|French ASS|French SRT|English SRT SDH|Spanish SRT" { // "Español" is only the language in its own words: it gets the English name
 		t.Errorf("subs: %q", got)
 	}
 	// a track without a name and nothing converted

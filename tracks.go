@@ -302,6 +302,27 @@ var languages = map[string][]string{
 	"vie": {"vi", "vietnamese"}, "tam": {"ta", "tamil"}, "tel": {"te", "telugu"}, "per": {"fa", "fas", "persian", "farsi"},
 	"cat": {"ca", "catalan"}, "baq": {"eu", "eus", "basque"}, "glg": {"gl", "galician"}, "est": {"et", "estonian"},
 	"lav": {"lv", "latvian"}, "lit": {"lt", "lithuanian"}, "fil": {"tl", "tgl", "filipino", "tagalog"},
+	"afr": {"af", "afrikaans"}, "alb": {"sq", "sqi", "albanian"}, "amh": {"am", "amharic"}, "arm": {"hy", "hye", "armenian"},
+	"aze": {"az", "azerbaijani"}, "bel": {"be", "belarusian"}, "ben": {"bn", "bengali", "bangla"}, "bos": {"bs", "bosnian"},
+	"bur": {"my", "mya", "burmese"}, "geo": {"ka", "kat", "georgian"}, "guj": {"gu", "gujarati"}, "kan": {"kn", "kannada"},
+	"kaz": {"kk", "kazakh"}, "khm": {"km", "khmer"}, "kur": {"ku", "kurdish"}, "lao": {"lo", "lao"}, "lat": {"la", "latin"},
+	"mac": {"mk", "mkd", "macedonian"}, "mal": {"ml", "malayalam"}, "mar": {"mr", "marathi"}, "mon": {"mn", "mongolian"},
+	"nep": {"ne", "nepali"}, "pan": {"pa", "punjabi"}, "pus": {"ps", "pashto"}, "sin": {"si", "sinhala"},
+	"som": {"so", "somali"}, "swa": {"sw", "swahili"}, "tib": {"bo", "bod", "tibetan"}, "urd": {"ur", "urdu"},
+	"uzb": {"uz", "uzbek"}, "wel": {"cy", "cym", "welsh"}, "gle": {"ga", "irish"}, "gla": {"gd", "gaelic", "scottish gaelic"},
+	"epo": {"eo", "esperanto"}, "yid": {"yi", "yiddish"}, "zul": {"zu", "zulu"}, "xho": {"xh", "xhosa"},
+	"ltz": {"lb", "luxembourgish"}, "mlt": {"mt", "maltese"}, "fao": {"fo", "faroese"}, "tat": {"tt", "tatar"},
+	"kir": {"ky", "kyrgyz"}, "tgk": {"tg", "tajik"}, "tuk": {"tk", "turkmen"}, "hat": {"ht", "haitian creole"},
+	"haw": {"hawaiian"}, "mao": {"mi", "mri", "maori"}, "nav": {"nv", "navajo"},
+}
+
+// dialectNames are names for codes that are kept apart from their main
+// language (Cantonese and Mandarin are both Chinese, but "one track per
+// language" must not treat them as the same), and for the special codes.
+var dialectNames = map[string]string{
+	"yue": "Cantonese", "cmn": "Mandarin", "nan": "Min Nan", "hak": "Hakka", "wuu": "Wu", "hsn": "Xiang",
+	"zxx": "No language", "mul": "Several languages", "mis": "Other language", "sgn": "Sign language",
+	"ase": "American Sign Language", "bfi": "British Sign Language",
 }
 
 var langKeys = func() map[string]string {
@@ -331,6 +352,9 @@ func langName(code string) string {
 	k := langKey(code)
 	if k == "" || k == "und" {
 		return "Unknown language"
+	}
+	if n, ok := dialectNames[k]; ok {
+		return n
 	}
 	if alts, ok := languages[k]; ok {
 		n := alts[len(alts)-1]
@@ -1013,6 +1037,9 @@ func trackList(ts []srcTrack, audio bool) []map[string]any {
 		m := map[string]any{"n": t.N, "desc": describe(t, audio), "codec": t.Codec, "lang": t.Lang, "title": t.Title,
 			"default": t.Default(), "forced": t.Forced(), "commentary": isCommentary(t), "channels": t.Channels,
 			"sdhFlag": t.Disp["hearing_impaired"], "commentFlag": t.Disp["comment"], "empty": t.Empty}
+		if t.Title != "" && nativeOnly(t.Title, t.Lang) {
+			m["nativeName"] = true // named only in its own language: it gets the English name
+		}
 		if l, comm, sdh, forced := nameDetails(t.Title); t.Title != "" { // what "fill in from names" would add
 			if l != "" && missingLang(t.Lang) {
 				m["nameLang"], m["nameLangName"] = l, langName(l)

@@ -127,18 +127,20 @@ func autoSubName(s outSub) string {
 }
 
 // nameUntitled gives tracks without a name one built from what they are.
-// Names already set (in the file, by the user, or by a conversion) are kept.
+// Names already set (in the file, by the user, or by a conversion) are kept,
+// except a name that is only the language in its own words ("日本語"), which
+// becomes the English name ("Japanese AC-3 5.1").
 func nameUntitled(audio []outAudio, subs []outSub) {
 	for i := range audio {
 		a := &audio[i]
-		if a.Src.Title == "" && a.Title == "" && (a.Meta == nil || a.Meta.Title == nil) {
+		if (a.Src.Title == "" || nativeOnly(a.Src.Title, trackLang(a.Src, a.Meta))) && a.Title == "" && (a.Meta == nil || a.Meta.Title == nil) {
 			a.Title = autoAudioName(*a)
 		}
 	}
 	for i := range subs {
 		s := &subs[i]
 		auto := s.Title == "" || (s.Added && s.Src.Title == "") // the copy's plain "SRT"
-		if s.Src.Title == "" && auto && (s.Meta == nil || s.Meta.Title == nil) {
+		if (s.Src.Title == "" || nativeOnly(s.Src.Title, trackLang(s.Src, s.Meta))) && auto && (s.Meta == nil || s.Meta.Title == nil) {
 			s.Title = autoSubName(*s)
 		}
 	}

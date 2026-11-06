@@ -583,7 +583,8 @@
 <details class="card sect" id="secMeta" data-key="metadata">
     <summary><h2 class="sect-title">Metadata</h2><span class="sum" id="sumMeta"></span></summary>
     <label class="check" style="margin-bottom:12px"><input type="checkbox" id="nameTracks"> <span><b>Name untitled tracks</b> from what they are, for example
-      "English AC-3 5.1" or "English SRT Forced". Names already set are kept. Also used for the queue; remembered.</span></label>
+      "English AC-3 5.1" or "English SRT Forced". Names already set are kept, except a name that is only the language in its own
+      words, such as "日本語" or "Deutsch", which becomes the English name. Also used for the queue; remembered.</span></label>
     <label class="check" style="margin:-4px 0 12px"><input type="checkbox" id="fillFromNames" checked> <span><b>Fill in track details from their names</b> when they
       are missing: the language ("English", "Japanese"…) and the commentary, SDH and forced flags. What the file already has is kept, and
       anything filled in shows below (as a suggestion you can type over). Also used for the queue; remembered.</span></label>
@@ -1295,10 +1296,14 @@ function renderMeta() {
   rows.forEach(([kind, n, src]) => {
     const v = m.tracks[kind + n], row = el('div', 'mrow');
     const lab = el('div', 'mlabel', (kind === 'a' ? 'Audio ' : 'Subtitle ') + n + ' · ' + src.desc); lab.title = src.desc;
-    const ti = el('input'); ti.type = 'text'; ti.value = v.title; ti.spellcheck = false;
+    const o = m.src.tracks[kind + n] || {};
+    // named only in its own language ("日本語") and not changed here: shown empty, as it gets the English name
+    const swap = src.nativeName && $('nameTracks').checked && v.title === o.title;
+    const ti = el('input'); ti.type = 'text'; ti.value = swap ? '' : v.title; ti.spellcheck = false;
     const ch = info && (kind === 'a' ? info.audioChoice : info.subChoice), planned = ch && ch.tracks.find(x => x.n === n);
-    ti.placeholder = planned && planned.name && !src.title ? 'will be named: ' + planned.name : 'no name';
-    ti.oninput = () => { v.title = ti.value; updateSummaries(); };
+    ti.placeholder = planned && planned.name && (!src.title || src.nativeName) ? 'will be named: ' + planned.name : 'no name';
+    if (src.nativeName && planned && planned.name) ti.title = 'Named "' + src.title + '" in the file. It will be named in English instead; type a name to keep another.';
+    ti.oninput = () => { v.title = ti.value || (swap ? o.title : ''); updateSummaries(); };
     const la = el('input'); la.type = 'text'; la.value = v.lang; la.placeholder = 'language'; la.spellcheck = false; la.title = 'Language, for example eng, jpn, fre';
     const fill = $('fillFromNames').checked;
     if (fill && src.nameLang && !v.lang) { la.placeholder = src.nameLang + ' (name)'; la.title = src.nameLangName + ', from the track name. Type to change it.'; }
@@ -1606,9 +1611,11 @@ async function startEdit(it) {
 }
 async function endEdit(save) {
   if (!editing) return;
+  let offer = null;
   if (save) {
     const r = await api('queueEditSave', { id: editing.id, settings: settings() });
     if (!r.ok) { showError(r.error); return; }
+    offer = r.seriesOffer;
   } else await api('queueEditCancel', { id: editing.id });
   const snap = editing.snapshot, editedId = editing.id, picked = save && editing.tmdbPicked;
   editing = null; pendingLoad = null;
@@ -1622,6 +1629,23 @@ async function endEdit(save) {
   await poll();
   const row = $('queueList').querySelector('[data-id="' + editedId + '"]');
   if (row) { row.scrollIntoView({ block: 'nearest' }); row.classList.add('flash'); setTimeout(() => row.classList.remove('flash'), 1600); }
+  if (offer && offer.files) { // track names changed in an episode: the rest of the show can have them too
+    const n = offer.files, eps = n === 1 ? 'episode' : 'episodes';
+    if (await askUser('Use these track names for the other ' + n + ' waiting ' + eps + (offer.show ? ' of ' + offer.show : '') + '?\n\n' +
+        'Their track languages, commentary and SDH marks and track choices are copied too. Each episode keeps its own title, description and picture. ' +
+        'Episodes whose tracks are laid out differently are left as they are.')) {
+      const c = await api('queueSeriesTracks', { id: editedId });
+      if (!c.ok) showError(c.error);
+      else {
+        let msg = c.applied ? c.applied + ' ' + (c.applied === 1 ? 'episode' : 'episodes') + ' now ' + (c.applied === 1 ? 'uses' : 'use') + ' these track names.'
+          : 'No other episode has the same tracks, so nothing was changed.';
+        if (c.different && c.different.length) msg += '\n\nLeft as they were (their tracks are different):\n' + c.different.slice(0, 15).join('\n') +
+          (c.different.length > 15 ? '\n… and ' + (c.different.length - 15) + ' more' : '');
+        notify(msg);
+      }
+      poll();
+    }
+  }
   if (picked) { // matched on TMDB by hand: the other waiting files with that title follow
     const f = await api('queueTMDBFollow', { id: editedId });
     if (f && f.ok && f.files) notify((f.title ? f.title + ': ' : '') + 'filling in ' + f.files + ' more ' + (f.files === 1 ? 'file' : 'files') + ' from TMDB.');
@@ -1920,7 +1944,10 @@ async function probe() {
   if (load && info && r.audioChoice) { pendingLoad = null; scheduleProbe(50); } // read again with the file's own choices
   showInfo(r);
   renderTracks();
-  if (freshMeta || !info) renderMeta();
+  // the planned names ("will be named: …") follow the latest check, unless something in Metadata is being typed in
+  const metaBox = $('mTracks').closest('details') || $('mTracks');
+  const typing = metaBox.contains(document.activeElement) && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName) && document.activeElement.type !== 'checkbox';
+  if (freshMeta || !info || !typing) renderMeta();
   updateVisibility();
   $('planLine').textContent = '';
   updateStart();
@@ -2824,7 +2851,7 @@ function renderQueue(q) {
     row.querySelector('.qmini').classList.toggle('hidden', it.status !== 'running');
     row.querySelector('.qmini > div').style.width = it.percent + '%';
     if (it.editing) row.querySelector('.qst').textContent = 'Being changed';
-    const ownTracks = !!(it.settings && (it.settings.audioTracks || it.settings.subTracks));
+    const ownTracks = !!(it.settings && (it.settings.audioTracks || it.settings.subTracks || (it.settings.meta && it.settings.meta.tracks && it.settings.meta.tracks.length)));
     const tmdbAsk = /^TMDB: (needs a match|nothing found)/.test((it.settings || {}).tmdbNote || '') && !(it.settings.meta && it.settings.meta.tags && it.settings.meta.tags.title);
     const others = q.items.filter(x => x.id !== it.id && ['waiting', 'checking', 'problem'].includes(x.status) && !x.editing).length;
     const key = it.status + (q.running ? 'r' : '') + (it.editing ? 'e' : '') + (ownTracks && others ? 'o' : '') + (tmdbAsk ? 't' : '');
@@ -2836,13 +2863,13 @@ function renderQueue(q) {
       if (tmdbAsk && (it.status === 'waiting' || it.status === 'checking' || it.status === 'problem') && !it.editing)
         btns.append(rowButton('Choose…', 'Choose the right show or film on TMDB; every waiting file with this title follows', () => openWhichOne(it.id)));
       if (ownTracks && others && (it.status === 'waiting' || it.status === 'checking' || it.status === 'problem') && !it.editing)
-        btns.append(rowButton('Same tracks for others', "Give the waiting files this file's audio and subtitle choices (by track position). " +
+        btns.append(rowButton('Same tracks for others', "Give the waiting files this file's audio and subtitle choices and track names (by track position). " +
           'Only files whose tracks match this one (same number, languages and formats) are changed.', async b => {
           b.disabled = true; b.textContent = 'Checking tracks…';
           const r = await api('queueCopyTracks', { id: it.id });
           b.disabled = false; b.textContent = 'Same tracks for others';
           if (!r.ok) { showError(r.error); return; }
-          let msg = r.applied ? r.applied + (r.applied === 1 ? ' file now uses' : ' files now use') + ' the track choices of ' + it.name + '.'
+          let msg = r.applied ? r.applied + (r.applied === 1 ? ' file now uses' : ' files now use') + ' the track choices and names of ' + it.name + '.'
             : 'No other file has the same tracks as ' + it.name + ', so nothing was changed.';
           if (r.different && r.different.length) msg += '\n\nLeft as they were (their tracks are different):\n' + r.different.slice(0, 15).join('\n') +
             (r.different.length > 15 ? '\n… and ' + (r.different.length - 15) + ' more' : '');

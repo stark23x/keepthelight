@@ -794,6 +794,10 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		var b struct{ ID int }
 		_ = json.Unmarshal(body, &b)
 		return g.queueCopyTracks(b.ID)
+	case "queueSeriesTracks":
+		var b struct{ ID int }
+		_ = json.Unmarshal(body, &b)
+		return g.queueSeriesTracks(b.ID)
 	case "queueTMDB":
 		var b struct{ IDs []int }
 		_ = json.Unmarshal(body, &b)
