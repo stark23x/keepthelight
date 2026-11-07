@@ -475,7 +475,7 @@ subtitles and container from the target to get a video bitrate, then:
 - **Plex names** (its own tab): a file renamer for the queue's waiting files and for files added on the tab with
   **Add files…** or **Add folder…** (they do not join the queue). Each row shows the file's name, its Plex-style name
   (from its TMDB match, with the file's own resolution, video format and HDR kind, such as
-  `Heat (1995).2160p.H264.{tmdb-949}`), whether it is ready, and the file's Plex check. You can type any name in the
+  `Heat (1995).1080p.H264.{tmdb-949}`), whether it is ready, and the file's Plex check. You can type any name in the
   box; the extension never changes.
   - Warnings: a name another file already has, or that two files would get, is not used; an episode name without
     S01E02, or a film name without its (year), is marked ⚠ "Plex may not recognise this" (it can still be used).
