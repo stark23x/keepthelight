@@ -18,6 +18,18 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.32.0 - 2026-11-06
+
+- **Plex names tab: a file renamer.** A new tab lists the queue's waiting files and any you add there with **Add
+  files…** or **Add folder…** (without putting them in the queue). Each row shows the file's name, its Plex-style
+  name (editable), whether it is ready (or why not: no match yet, a name that is taken, or a name Plex may not
+  recognise) and the file's Plex check. **Rename now** renames the files themselves straight away, with the subtitle
+  files beside them, after showing the list of changes; a file in the queue follows its new name. **Undo last
+  rename** puts the last batch back, and **Rename log** keeps a record of every rename. **Use for the converted
+  files** gives queued files' converted files their Plex names instead, as before. For Rename now, the name
+  describes the file as it is (`Heat (1995).1080p.H264.{tmdb-949}.mkv`). Folders are never renamed or created.
+- **Which one?** also asks about the files on the Plex names tab.
+
 ## 1.31.0 - 2026-11-06
 
 - **Track names in English.** With **Name untitled tracks** on, a track named only in its own language ("日本語",

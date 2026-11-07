@@ -102,12 +102,15 @@ func plexHDR(p *Probe, plan *Plan) string {
 }
 
 // plexDetails: "1080p.HEVC", "2160p.HEVC.DV" for the new file.
-func plexDetails(w, h int, hdr string) string {
+func plexDetails(w, h int, hdr string) string { return plexDetailsFor(w, h, "HEVC", hdr) }
+
+// plexDetailsFor: the same for any video format ("1080p.H264" for a file renamed as it is).
+func plexDetailsFor(w, h int, codec, hdr string) string {
 	parts := []string{}
 	if r := plexResolution(w, h); r != "" {
 		parts = append(parts, r)
 	}
-	parts = append(parts, "HEVC")
+	parts = append(parts, codec)
 	if hdr != "" {
 		parts = append(parts, hdr)
 	}

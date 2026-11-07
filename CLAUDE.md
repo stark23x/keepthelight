@@ -37,10 +37,11 @@ which is not in the repository.
 - **Replace the original** is optional and only for "Metadata only". The original goes to the Recycle Bin, or is
   renamed "(original)" on drives without one, and only after the new file is checked.
 - **Space saved:** shown per file and per run, plus one running total (no history).
-- **Layout:** Convert / Queue / Library scan tabs, Start bar always at the bottom (at every window width), PC
+- **Layout:** Convert / Queue / Library scan / Plex names tabs, Start bar always at the bottom (at every window width), PC
   settings in the ⚙ Settings dialog.
-- **TMDB:** English is the default language (a setting). The owner chose no Plex-style renaming. The key lives in
-  Windows Credential Manager.
+- **TMDB:** English is the default language (a setting). The key lives in Windows Credential Manager.
+- **Plex-style names** are optional and never applied without being shown first. The Plex names tab renames
+  originals (with their subtitle files, undoable); it never renames or creates folders.
 - **Subtitles to SRT:** ASS via FFmpeg; PGS read with Tesseract OCR (installed separately, never bundled).
 - **The GPU path is automatic,** with fallback. The Dell (Intel QuickSync) must keep every option the laptop
   (NVIDIA NVENC) has.
@@ -59,6 +60,7 @@ which is not in the repository.
   - `meta.go` – metadata and replacing the original.
   - `tmdb.go` – TMDB lookups.
   - `scan.go` – the library scan.
+  - `plexnames.go`, `renamer.go` – Plex-style names, and the Plex names tab (renaming, undo, the rename log).
   - `denoise.go` – noise reduction and the 30-second test.
   - `quality.go` – the quality guide and the test's score.
   - `gpupath.go` – the full-GPU path and the encoder check.

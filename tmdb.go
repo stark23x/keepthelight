@@ -587,7 +587,8 @@ type tmdbAsk struct {
 	Files   int    `json:"files"`
 	Example string `json:"example"`
 	IDs     []int  `json:"ids"`
-	None    bool   `json:"none"` // nothing was found (rather than several)
+	Rows    []int  `json:"rows,omitempty"` // files on the Plex names tab (not in the queue)
+	None    bool   `json:"none"`           // nothing was found (rather than several)
 }
 
 // tmdbUnsettled lists the waiting files still needing a match, by title.
@@ -621,6 +622,7 @@ func (g *guiServer) tmdbUnsettled() []tmdbAsk {
 		list[i].Files++
 		list[i].IDs = append(list[i].IDs, it.ID)
 	}
+	list = g.renAsksInto(list)
 	sort.SliceStable(list, func(a, b int) bool { return list[a].Files > list[b].Files })
 	return list
 }
@@ -631,13 +633,13 @@ func (g *guiServer) tmdbChoose(key string, p tmdbPick) map[string]any {
 	if p.ID <= 0 || (p.Kind != "movie" && p.Kind != "tv") {
 		return failResult("nothing chosen")
 	}
-	var ids []int
+	var ids, rows []int
 	for _, a := range g.tmdbUnsettled() {
 		if a.Key == key {
-			ids = a.IDs
+			ids, rows = a.IDs, a.Rows
 		}
 	}
-	if len(ids) == 0 {
+	if len(ids) == 0 && len(rows) == 0 {
 		return failResult("those files are no longer waiting for a match")
 	}
 	if !strings.HasPrefix(key, "file|") {
@@ -647,7 +649,16 @@ func (g *guiServer) tmdbChoose(key string, p tmdbPick) map[string]any {
 		g.oneOff = map[string]tmdbPick{key: p}
 		g.mu.Unlock()
 	}
-	r := g.queueTMDB(ids)
+	r := map[string]any{"ok": true, "files": 0}
+	if len(ids) > 0 {
+		r = g.queueTMDB(ids)
+	}
+	if len(rows) > 0 { // files on the Plex names tab
+		if x := g.renLookup(rows, map[string]tmdbPick{key: p}); x["ok"] == true {
+			n, _ := r["files"].(int)
+			r["ok"], r["files"] = true, n+x["files"].(int)
+		}
+	}
 	r["title"] = p.Title
 	return r
 }

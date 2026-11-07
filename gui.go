@@ -83,6 +83,7 @@ type guiServer struct {
 	raise      func()   // brings the window to the front (window mode)
 	jobSeq     int
 	scan       scanState // the library scan (its own lock)
+	ren        renState  // the Plex names tab (its own lock; taken after mu, never before)
 
 	prefsMu   sync.Mutex
 	prefsPath string // settings file (empty = the normal place); set by tests
@@ -794,6 +795,44 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		var b struct{ ID int }
 		_ = json.Unmarshal(body, &b)
 		return g.queueCopyTracks(b.ID)
+	case "renList":
+		return g.renList()
+	case "renAdd":
+		var b struct{ Paths []string }
+		_ = json.Unmarshal(body, &b)
+		return g.renAddPaths(b.Paths)
+	case "renSetName":
+		var b struct {
+			ID   int
+			Name string
+		}
+		_ = json.Unmarshal(body, &b)
+		return g.renSetName(b.ID, b.Name)
+	case "renRemove":
+		var b struct {
+			IDs []int
+			All bool
+		}
+		_ = json.Unmarshal(body, &b)
+		return g.renRemove(b.IDs, b.All)
+	case "renLookup":
+		var b struct{ IDs []int }
+		_ = json.Unmarshal(body, &b)
+		return g.renLookup(b.IDs, nil)
+	case "renApply":
+		var b struct{ IDs []int }
+		_ = json.Unmarshal(body, &b)
+		return g.renApply(b.IDs)
+	case "renUndo":
+		return g.renUndo()
+	case "renLog":
+		if !fileExists(renLogPath()) {
+			return failResult("Nothing has been renamed yet.")
+		}
+		if err := openURL(renLogPath()); err != nil {
+			return failResult(err.Error())
+		}
+		return okResult()
 	case "queueSeriesTracks":
 		var b struct{ ID int }
 		_ = json.Unmarshal(body, &b)

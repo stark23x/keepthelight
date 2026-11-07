@@ -34,6 +34,9 @@ quality.
   night.
 - **Watch folder.** Videos you copy into a chosen folder join the queue by themselves.
 - **Logs of failed files are kept,** so a problem can be looked into later.
+- **Plex names tab: a file renamer.** Rename files the way Plex expects straight away, without converting them: the
+  queue's files, or any folder you add. Subtitle files beside them are renamed too, and **Undo last rename** puts
+  them back.
 
 ---
 
@@ -98,6 +101,8 @@ quality.
 - **Plex-style names (optional).** Matched files can be named the way Plex expects, such as
   "The Office (2005).S01E02.Diversity Day.1080p.HEVC.mkv" or "Heat (1995).2160p.HEVC.DV.{tmdb-949}.mkv", with the new
   file's resolution and HDR kind. You see every proposed name before anything changes.
+- **Plex names tab.** A file renamer: see every file's current name next to its Plex-style name, fix any that
+  need it, and rename them all at once, with the subtitle files beside them. One click undoes the last batch.
 - **"Metadata only" mode.** Change just the details without converting the video at all. This is fast, with no
   quality loss. It can also replace the original file, which goes to the Recycle Bin.
 
@@ -141,7 +146,7 @@ quality.
 - **Command-line version** for scripts and automation, with the same features as the window.
 
 ### Easy to use
-- **Three tabs:** Convert, Queue and Library scan, with the Start button always at the bottom.
+- **Four tabs:** Convert, Queue, Library scan and Plex names, with the Start button always at the bottom.
 - **Plain-English help** behind small **?** buttons, and clear warnings that explain what to do.
 - **File pickers remember** the last folder you used.
 - **Right-click copy and paste,** keyboard-friendly controls, and helpful screens when nothing is loaded yet.
@@ -200,7 +205,7 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
 
 - **Time left:** about 30 seconds into the encode, the title bar and progress line show an estimate of the
   time remaining. It is rough: speed varies through a film, and a hardware-encoder retry restarts it.
-- **Layout:** three tabs: **Convert** (the file and its settings), **Queue** and **Library scan**. Start, Add to queue,
+- **Layout:** four tabs: **Convert** (the file and its settings), **Queue**, **Library scan** and **Plex names**. Start, Add to queue,
   Test 30 s and the progress bar stay in view at the bottom of the window; the main button says exactly what it will
   do ("Convert this file", or "Start queue (3 files)" when files are waiting; **Add to queue** is its own button).
   The Queue tab shows how many files are waiting. Settings for this PC (temp folder, priority, GPU
@@ -467,6 +472,22 @@ subtitles and container from the target to get a video bitrate, then:
   the queue each row shows its proposed name, and **Review names** lists every change with a tick box and **Apply**.
   A name that already exists, or that two files would share, is not used. Only the new files are named so; the
   originals keep their names.
+- **Plex names** (its own tab): a file renamer for the queue's waiting files and for files added on the tab with
+  **Add files…** or **Add folder…** (they do not join the queue). Each row shows the file's name, its Plex-style name
+  (from its TMDB match, with the file's own resolution, video format and HDR kind, such as
+  `Heat (1995).2160p.H264.{tmdb-949}`), whether it is ready, and the file's Plex check. You can type any name in the
+  box; the extension never changes.
+  - Warnings: a name another file already has, or that two files would get, is not used; an episode name without
+    S01E02, or a film name without its (year), is marked ⚠ "Plex may not recognise this" (it can still be used).
+  - **Look up on TMDB** finds the selected files (or all of them); titles with several matches are asked about in
+    the same **Which one?** window as the queue's.
+  - **Rename now** renames the files themselves straight away, after showing the list of changes. Subtitle files
+    named after the video (`Film.en.srt`, `Film.forced.srt`) are renamed with it. A file in the queue follows its
+    new name, and so does its converted file's name. A file another program has open is left alone and reported.
+  - **Undo last rename** puts the last batch back. **Rename log** opens a record of every rename (old → new).
+  - **Use for the converted files**: for queue files, the converted file gets the Plex name (described as the new
+    HEVC file) and the original keeps its name, as **Review names** on the Queue tab does.
+  - Folders are never renamed or created.
 - **Metadata only** (under Video) copies every kept stream unchanged into a new file with the new metadata: no
   re-encoding, so the quality is identical, and it takes about as long as copying the file. Audio tracks can be kept
   or dropped but not converted. A new file is always written (FFmpeg cannot change a file in place), so Keep the

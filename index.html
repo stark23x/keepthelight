@@ -228,6 +228,26 @@
   .srow.worth .ssave { color: var(--ok); }
   .srow .sissue { font-size: 12px; color: var(--warn); margin-top: 2px; }
   .srow .serr { font-size: 12px; color: var(--bad); }
+  /* Plex names */
+  #plexList { max-height: 520px; overflow-y: auto; }
+  .prow { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 10px; align-items: start; padding: 8px 10px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); margin-bottom: 6px; }
+  .prow > div { min-width: 0; }
+  .prow input[type=checkbox] { margin-top: 4px; }
+  .prow .pfrom { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+  .prow .pto { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+  .prow .pto .arrow { color: var(--muted); }
+  .prow .pto input { flex: 1; min-width: 0; font-size: 13px; padding: 4px 7px; }
+  .prow .pto input.own { border-color: var(--accent); }
+  .prow .pto .ext { color: var(--muted); font-size: 12.5px; }
+  .prow .pstate { font-size: 12px; margin-top: 3px; }
+  .prow .pstate.ready, .prow .pstate.same { color: var(--ok); }
+  .prow .pstate.warn, .prow .pstate.clash, .prow .pstate.needs, .prow .pstate.none { color: var(--warn); }
+  .prow .pstate.error { color: var(--bad); }
+  .prow .pstate.checking, .prow .pstate.looking, .prow .pstate.new { color: var(--muted); }
+  .prow .pconv { font-size: 12px; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
+  .prow .pside { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+  .prow .pside button { padding: 3px 8px; font-size: 12px; }
   .qbtns { display: flex; gap: 4px; }
   .qbtns button { padding: 3px 8px; font-size: 12px; }
   .qmini { height: 4px; border-radius: 9px; background: var(--line); overflow: hidden; grid-column: 1 / -1; }
@@ -394,6 +414,7 @@
     <button role="tab" class="tab on" data-tab="convert" aria-selected="true">Convert</button>
     <button role="tab" class="tab" data-tab="queue" aria-selected="false">Queue <span class="tbadge hidden" id="qBadge"></span></button>
     <button role="tab" class="tab" data-tab="scan" aria-selected="false">Library scan</button>
+    <button role="tab" class="tab" data-tab="plex" aria-selected="false">Plex names</button>
   </nav>
 
 <div id="editBanner" class="note info editbar hidden"><span>Changing queued file <b id="editName"></b>. The changes apply to this file only;
@@ -700,6 +721,40 @@
         <button id="scanAdd" class="primary" disabled style="align-self:flex-end">Add selected to queue</button>
         <label class="check" style="align-self:flex-end; margin-bottom:8px"><input type="checkbox" id="scanTMDB"> <span>and look up their metadata on TMDB</span></label>
       </div>
+    </div>
+  </div>
+      </section>
+      <section class="tabpane hidden" id="tabPlex">
+<div class="card" id="secPlex">
+    <div class="tabhead"><h2>Plex names</h2><span class="sum" id="sumPlex"></span></div>
+    <div class="hint" style="margin:0 0 10px">Rename files the way Plex expects, such as “Heat (1995).2160p.HEVC.DV.{tmdb-949}.mkv”. The list holds the
+      queue's waiting files and any you add here. Nothing is renamed until you press <b>Rename now</b>.
+      <details class="help"><summary>More</summary>Each name comes from the file's TMDB match, with the file's resolution, video format and kind of HDR.
+      <b>Rename now</b> renames the file itself straight away, with the subtitle files beside it (“Film.en.srt”); a file in the queue follows its new
+      name, and <b>Undo last rename</b> puts the last batch back. <b>Use for the converted files</b> gives queued files' converted files their Plex
+      names instead (described as the new HEVC files), and leaves the originals as they are. Folders are never renamed or created. You can type
+      any name in the box; the file's extension never changes. Every rename is recorded in the <b>Rename log</b>.</details></div>
+    <div class="row" style="flex-wrap:wrap; gap:8px">
+      <button id="plexAddFiles">Add files…</button>
+      <button id="plexAddFolder">Add folder…</button>
+      <button id="plexLookup" title="Find the files on TMDB (selected files, or all of them when none is selected)">Look up on TMDB</button>
+      <button id="plexWhich" class="hidden">Which one?</button>
+      <div class="grow"></div>
+      <select id="plexShow" style="width:auto" aria-label="Show"><option value="all">all files</option><option value="todo">needing attention</option><option value="ready">ready to rename</option></select>
+      <input type="text" id="plexFind" spellcheck="false" placeholder="Search" style="width:160px" aria-label="Search">
+    </div>
+    <div id="plexEmpty" class="hint" style="margin:14px 0">No files yet. Add some to the queue, or use <b>Add files…</b> or <b>Add folder…</b> here.</div>
+    <div id="plexList" style="margin-top:10px"></div>
+    <div class="actions" style="margin-top:10px; flex-wrap:wrap">
+      <button id="plexSelReady">Select ready</button>
+      <button id="plexSelNone">Select none</button>
+      <button id="plexRename" class="primary" disabled>Rename now</button>
+      <button id="plexConverted" disabled title="Give the selected queue files' converted files their Plex names; the originals keep theirs">Use for the converted files</button>
+    </div>
+    <div class="row" style="margin-top:8px; flex-wrap:wrap; gap:8px">
+      <button id="plexUndo" disabled>Undo last rename</button>
+      <button id="plexLog">Rename log</button>
+      <button id="plexClear" title="Take the files added on this tab out of the list (nothing is changed on disk)">Clear added files</button>
     </div>
   </div>
       </section>
@@ -2177,9 +2232,10 @@ let curTab = 'convert';
 function showTab(name) {
   curTab = name;
   document.querySelectorAll('.tabs .tab').forEach(b => { const on = b.dataset.tab === name; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
-  [['convert', 'tabConvert'], ['queue', 'tabQueue'], ['scan', 'tabScan']].forEach(([n, id]) => $(id).classList.toggle('hidden', n !== name));
+  [['convert', 'tabConvert'], ['queue', 'tabQueue'], ['scan', 'tabScan'], ['plex', 'tabPlex']].forEach(([n, id]) => $(id).classList.toggle('hidden', n !== name));
   $('testGrp').classList.toggle('hidden', name !== 'convert');
   renderQueue(queue);
+  if (name === 'plex') plexPoll();
 }
 document.querySelectorAll('.tabs .tab').forEach(b => b.onclick = () => showTab(b.dataset.tab));
 $('queueLink').onclick = () => showTab('queue');
@@ -2415,10 +2471,10 @@ function whichAfterLookup(q) { // called on each queue update
   tmdbAwaiting = false;
   openWhichOne();
 }
-async function openWhichOne(forId) {
+async function openWhichOne(forId, forRow) {
   const r = await api('tmdbPending', {});
   if (!r.ok) return;
-  whichAsks = (r.asks || []).filter(a => forId ? a.ids.includes(forId) : !whichSkipped.has(a.key));
+  whichAsks = (r.asks || []).filter(a => forId ? (a.ids || []).includes(forId) : forRow ? (a.rows || []).includes(forRow) : !whichSkipped.has(a.key));
   if (!whichAsks.length) { if (forId) notify('This file no longer needs a match.'); return; }
   whichAt = 0;
   if (!$('whichDlg').open) $('whichDlg').showModal();
@@ -2466,7 +2522,7 @@ async function whichUse(x, btn) {
   if (!r.ok) { btn.disabled = false; btn.textContent = 'This one'; showError(r.error); return; }
   notify(title + ': filling in ' + r.files + (r.files === 1 ? ' file' : ' files') + ' from TMDB.');
   api('prefs', {}).then(p => { if (p && p.ok) tmdbPicksUI(p.tmdbPicks || 0); });
-  whichNext(); poll();
+  whichNext(); poll(); if (curTab === 'plex') plexPoll();
 }
 function whichNext() {
   if (++whichAt < whichAsks.length) showAsk(); else $('whichDlg').close();
@@ -2660,6 +2716,156 @@ $('scanAdd').onclick = async () => {
   if (r && r.added) { scanSel = new Set(); renderScan(); scanButtons(); }
 };
 fillScanWith();
+
+// ---------- the Plex names tab ----------
+let plexRows = [], plexSel = new Set(), plexTimer = null, plexAwait = false;
+const PLEX_STATE = { checking: 'Checking the file…', looking: 'Looking it up on TMDB…', new: 'Not looked up yet', needs: 'Which one? Several matches',
+  none: 'Nothing found on TMDB', error: 'TMDB:', ready: '✓ Ready', warn: '⚠', clash: '⚠ Cannot use this name:', same: '✓ Already named so' };
+async function plexPoll() {
+  if (plexTimer) { clearTimeout(plexTimer); plexTimer = null; }
+  const r = await api('renList', {});
+  if (!r || !r.ok) return;
+  plexRows = r.rows || [];
+  const ids = new Set(plexRows.map(x => x.id));
+  plexSel.forEach(id => { if (!ids.has(id)) plexSel.delete(id); });
+  const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('#plexList input[type=text]');
+  if (!typing) renderPlex();
+  plexButtons(r);
+  const busy = plexRows.some(x => x.state === 'checking' || x.state === 'looking');
+  if (plexAwait && !busy) { plexAwait = false; openWhichOne(); } // after a lookup: ask about the titles it could not settle
+  if (curTab === 'plex') plexTimer = setTimeout(plexPoll, busy ? 700 : 2500);
+}
+function plexAttention(x) { return !['ready', 'same', 'checking', 'looking'].includes(x.state); }
+function renderPlex() {
+  const list = $('plexList'); list.innerHTML = '';
+  $('plexEmpty').classList.toggle('hidden', plexRows.length > 0);
+  const show = $('plexShow').value, find = $('plexFind').value.trim().toLowerCase();
+  const rows = plexRows.filter(x => (show === 'all' || (show === 'todo' ? plexAttention(x) : x.state === 'ready' || x.state === 'warn')) &&
+    (!find || (x.name + ' ' + x.proposed).toLowerCase().includes(find)));
+  rows.slice(0, 1500).forEach(x => {
+    const row = el('div', 'prow');
+    const cb = el('input'); cb.type = 'checkbox'; cb.checked = plexSel.has(x.id);
+    cb.setAttribute('aria-label', 'Select ' + x.name);
+    cb.onchange = () => { if (cb.checked) plexSel.add(x.id); else plexSel.delete(x.id); plexButtons(); };
+    const mid = el('div');
+    const from = el('div', 'pfrom', x.name);
+    from.title = x.path;
+    mid.append(from);
+    const to = el('div', 'pto');
+    const ext = extOf(x.name);
+    const inp = el('input'); inp.type = 'text'; inp.spellcheck = false; inp.value = x.proposed || '';
+    inp.placeholder = x.state === 'checking' || x.state === 'looking' ? '…' : 'no name yet: look it up, or type one';
+    inp.setAttribute('aria-label', 'New name for ' + x.name);
+    if (x.own) { inp.classList.add('own'); inp.title = 'Typed here. Empty the box to go back to the TMDB name.'; }
+    inp.onchange = async () => { await api('renSetName', { id: x.id, name: inp.value }); plexPoll(); };
+    inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } };
+    to.append(el('span', 'arrow', '→'), inp, el('span', 'ext', ext));
+    mid.append(to);
+    let st = PLEX_STATE[x.state] || x.state;
+    if (['warn', 'clash', 'error'].includes(x.state) && x.why) st += ' ' + x.why;
+    if (x.state === 'ready' && x.details) st += ' · ' + x.details.replace(/\./g, ' · ');
+    const stl = el('div', 'pstate ' + x.state, st);
+    mid.append(stl);
+    if (x.plex && x.plex.length) {
+      const chips = el('div', 'qchips');
+      x.plex.forEach(p => chips.append(el('span', 'chip warn', '⚠ ' + p)));
+      chips.title = 'Plex check: things likely to make Plex convert this file while you watch';
+      mid.append(chips);
+    }
+    if (x.queueId) mid.append(el('div', 'pconv', 'In the queue' + (x.converted ? ' · converted file: ' + x.converted : '')));
+    const side = el('div', 'pside');
+    if (x.state === 'needs' || x.state === 'none') {
+      const ch = el('button', '', 'Choose…');
+      ch.onclick = () => x.queueId ? openWhichOne(x.queueId) : openWhichOne(0, x.id);
+      side.append(ch);
+    }
+    if (!x.queueId) {
+      const rm = el('button', '', 'Remove');
+      rm.title = 'Take this file out of the list (nothing is changed on disk)';
+      rm.onclick = async () => { await api('renRemove', { ids: [x.id] }); plexSel.delete(x.id); plexPoll(); };
+      side.append(rm);
+    }
+    row.append(cb, mid, side);
+    list.append(row);
+  });
+  if (rows.length > 1500) list.append(el('div', 'hint', (rows.length - 1500) + ' more not shown: search, or show only some of them.'));
+}
+function plexButtons(r) {
+  const sel = plexRows.filter(x => plexSel.has(x.id));
+  const can = sel.filter(x => x.state === 'ready' || x.state === 'warn').length;
+  const conv = sel.filter(x => x.queueId && x.converted).length;
+  $('plexRename').disabled = !can;
+  $('plexRename').textContent = can ? 'Rename now (' + can + ')' : 'Rename now';
+  $('plexConverted').disabled = !conv;
+  $('plexConverted').textContent = conv ? 'Use for the converted files (' + conv + ')' : 'Use for the converted files';
+  if (r) $('plexUndo').disabled = !r.undo;
+  const asks = plexRows.filter(x => x.state === 'needs' || x.state === 'none').length;
+  $('plexWhich').classList.toggle('hidden', !asks);
+  $('plexWhich').textContent = 'Which one? (' + asks + ')';
+  const ready = plexRows.filter(x => x.state === 'ready' || x.state === 'warn').length;
+  $('sumPlex').textContent = plexRows.length ? plexRows.length + ' files · ' + ready + ' ready to rename' : '';
+  $('plexClear').disabled = !plexRows.some(x => !x.queueId);
+}
+function skippedText(list) {
+  if (!list || !list.length) return '';
+  return '\n\nLeft as they were:\n' + list.slice(0, 15).join('\n') + (list.length > 15 ? '\n… and ' + (list.length - 15) + ' more' : '');
+}
+$('plexAddFiles').onclick = async () => {
+  const r = await api('browse', { kind: 'openMulti', initial: '' });
+  if (!r.ok) { if (r.error) showError(r.error); return; }
+  if (r.paths && r.paths.length) { await api('renAdd', { paths: r.paths }); plexAwait = true; plexPoll(); }
+};
+$('plexAddFolder').onclick = async () => {
+  const r = await api('browse', { kind: 'folderFiles', initial: '', tag: nameTag() });
+  if (!r.ok) { if (r.error) showError(r.error); return; }
+  if (r.folder && !r.paths.length) { notify('No video files were found in ' + r.folder + '.'); return; }
+  if (r.paths && r.paths.length) {
+    await api('renAdd', { paths: r.paths });
+    if (!$('tmdbKey').value.trim()) notify('To find the names, add your free TMDB API key in Settings (⚙).'); else plexAwait = true;
+    plexPoll();
+  }
+};
+$('plexLookup').onclick = async () => {
+  const r = await api('renLookup', { ids: [...plexSel] });
+  if (!r.ok) { showError(r.error); return; }
+  plexAwait = true; plexPoll();
+};
+$('plexWhich').onclick = () => openWhichOne();
+$('plexShow').onchange = renderPlex;
+$('plexFind').oninput = renderPlex;
+$('plexSelReady').onclick = () => { plexRows.forEach(x => { if (x.state === 'ready' || x.state === 'warn') plexSel.add(x.id); }); renderPlex(); plexButtons(); };
+$('plexSelNone').onclick = () => { plexSel = new Set(); renderPlex(); plexButtons(); };
+$('plexRename').onclick = async () => {
+  const todo = plexRows.filter(x => plexSel.has(x.id) && (x.state === 'ready' || x.state === 'warn'));
+  if (!todo.length) return;
+  const lines = todo.slice(0, 12).map(x => x.name + '\n   → ' + x.proposed + extOf(x.name));
+  const warn = todo.filter(x => x.state === 'warn').length;
+  let q = 'Rename ' + (todo.length === 1 ? 'this file' : 'these ' + todo.length + ' files') + ' now?\n\n' + lines.join('\n') +
+    (todo.length > 12 ? '\n… and ' + (todo.length - 12) + ' more' : '') +
+    '\n\nSubtitle files beside them are renamed too. Undo last rename puts them back.';
+  if (warn) q += '\n\n' + warn + (warn === 1 ? ' of them has a name' : ' of them have names') + ' Plex may not recognise (⚠).';
+  if (!await askUser(q)) return;
+  const r = await api('renApply', { ids: todo.map(x => x.id) });
+  if (!r.ok) { showError(r.error); return; }
+  notify((r.renamed ? r.renamed + (r.renamed === 1 ? ' file renamed.' : ' files renamed.') : 'Nothing was renamed.') + skippedText(r.skipped));
+  plexSel = new Set(); plexPoll(); poll();
+};
+$('plexConverted').onclick = async () => {
+  const ids = plexRows.filter(x => plexSel.has(x.id) && x.queueId && x.converted).map(x => x.queueId);
+  const r = await api('plexApply', { ids });
+  if (!r.ok) { showError(r.error); return; }
+  notify((r.renamed ? r.renamed + (r.renamed === 1 ? ' converted file' : ' converted files') + ' will get Plex names.' : 'No names were changed.') + skippedText(r.skipped));
+  plexSel = new Set(); plexPoll(); poll();
+};
+$('plexUndo').onclick = async () => {
+  if (!await askUser('Put the last renamed files back to their old names?')) return;
+  const r = await api('renUndo', {});
+  if (!r.ok) { showError(r.error); return; }
+  notify((r.restored ? (r.restored === 1 ? '1 file has its old name back.' : r.restored + ' files have their old names back.') : 'Nothing was put back.') + skippedText(r.skipped));
+  plexPoll(); poll();
+};
+$('plexLog').onclick = async () => { const r = await api('renLog', {}); if (!r.ok) notify(r.error); };
+$('plexClear').onclick = async () => { await api('renRemove', { all: true }); plexSel = new Set(); plexPoll(); };
 
 // ---------- hints behind a "?" (UI-6) ----------
 // Hints that only explain are shown on request: a "?" next to the setting's label
