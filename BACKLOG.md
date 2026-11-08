@@ -6,7 +6,15 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing yet.
+- **Use the whole window, on any screen.** Today the page stops at about 924 pixels wide and leaves the rest of a big
+  window empty.
+  - Wide windows: the page grows with the window (to about 1700 pixels). The Convert tab goes into two columns
+    (Files and Video on the left; Audio, Subtitles and Metadata on the right), and the Queue, Library scan and Plex
+    names lists use the full width. Long help text keeps a comfortable line length. Narrow windows stay as they are
+    now (one column, Start bar at the bottom).
+  - Any screen (1080p to 4K): sizes based on the text size rather than fixed pixels, so everything scales together
+    with Windows' display scaling and a new **Text size** setting in ⚙ Settings (90%–150%, remembered; Ctrl + / Ctrl −
+    / Ctrl 0 also work). The window remembers its size and position, and opens at a sensible size on each screen.
 
 ## Ideas raised, not yet requested
 
