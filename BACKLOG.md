@@ -10,7 +10,8 @@ next build". Shipped features move to "Done" with their version number. Nothing 
   window empty.
   - Wide windows: the page grows with the window (to about 1700 pixels). The Convert tab goes into two columns
     (Files and Video on the left; Audio, Subtitles and Metadata on the right), and the Queue, Library scan and Plex
-    names lists use the full width. Long help text keeps a comfortable line length. Narrow windows stay as they are
+    names lists use the full width. The profile bar stays just below Files. Long help text keeps a comfortable line length.
+    (Owner chose two columns over one wide column, 2026-11-08, after mockups.) Narrow windows stay as they are
     now (one column, Start bar at the bottom).
   - Any screen (1080p to 4K): sizes based on the text size rather than fixed pixels, so everything scales together
     with Windows' display scaling and a new **Text size** setting in ⚙ Settings (90%–150%, remembered; Ctrl + / Ctrl −
