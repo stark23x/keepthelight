@@ -6,6 +6,13 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
+- **VobSub (DVD) subtitles to SRT, like PGS.** Today only PGS (Blu-ray) picture subtitles are read with Tesseract;
+  VobSub tracks are copied as pictures, and Plex burns those in (which forces a video conversion while watching).
+  Add a VobSub reader next to the PGS one: the subtitle pictures and their timings come out of the file with FFmpeg,
+  the four-colour pictures are drawn using the palette in the track's header, enlarged (DVD subtitles are small, so
+  Tesseract reads them better at 2–3× size) and read as text. The same "Subtitles to SRT" setting and checks as PGS
+  (forced tracks stay forced; a track that reads badly is kept as pictures and reported). The Plex check's "Forced
+  picture subtitles (VobSub)" problem then gets a Fix button too.
 - **Show the file's bitrate all the time.** In the file's card on the Convert tab (and when editing a queued file),
   next to the length: the file's size and bitrate, and the video's own bitrate, for example
   "1h 6m 32s · 1.94 GB · 4.2 Mb/s (video 3.9 Mb/s)". The video figure comes from the file's own statistics when it
