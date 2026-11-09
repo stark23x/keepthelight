@@ -14,6 +14,7 @@ None at the moment.
 
 ## Done
 
+- 1.33.2: pop-ups always kept inside the window; right-click menu placed correctly at any text size.
 - 1.33.1: fixed the full-GPU path failing on full-range files (skips them, checks with the job's colour options, retries the normal way on failure).
 - 1.33.0: uses the whole window (two-column Convert tab when wide, full-width lists), Text size setting with Ctrl +/−/0, window remembers its size and place.
 - 1.32.0: Plex names tab (a file renamer for the queue and added folders: Rename now with subtitle files, Undo last rename, Rename log, Use for the converted files; folders never renamed).

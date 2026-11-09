@@ -2623,9 +2623,10 @@ document.addEventListener('contextmenu', e => {
     ctxMenu.append(b);
   });
   (e.target.closest('dialog[open]') || document.body).append(ctxMenu);
-  const w = ctxMenu.offsetWidth, h = ctxMenu.offsetHeight;
-  ctxMenu.style.left = Math.max(4, Math.min(e.clientX, innerWidth - w - 6)) + 'px';
-  ctxMenu.style.top = Math.max(4, Math.min(e.clientY, innerHeight - h - 6)) + 'px';
+  // sizes on screen are the page's sizes times the text size (the page is zoomed as a whole)
+  const z = uiZoom, w = ctxMenu.offsetWidth * z, h = ctxMenu.offsetHeight * z;
+  ctxMenu.style.left = Math.max(4, Math.min(e.clientX, innerWidth - w - 6)) / z + 'px';
+  ctxMenu.style.top = Math.max(4, Math.min(e.clientY, innerHeight - h - 6)) / z + 'px';
 });
 ['mousedown', 'wheel'].forEach(t => window.addEventListener(t, e => { if (!(e.target.closest && e.target.closest('.ctxmenu'))) closeCtx(); }, true));
 window.addEventListener('resize', closeCtx); window.addEventListener('blur', closeCtx);
@@ -2768,6 +2769,37 @@ document.addEventListener('wheel', e => {
 }, { passive: false });
 $('textSize').onchange = () => applyZoom($('textSize').value, true);
 layoutWidth();
+
+// ---------- pop-ups stay inside the window ----------
+// A "?" or menu pop-up opens beside its button; near an edge of the window it would be cut off. It is moved
+// sideways to fit, opened upwards when there is no room below (above the Start bar), or given a scroll bar
+// when the window is too short for it.
+function fitPop(d) {
+  const p = d.querySelector(':scope > .popin');
+  if (!p || !d.open) return;
+  const z = uiZoom, m = 8;
+  p.style.transform = ''; p.style.maxHeight = ''; p.style.overflowY = ''; p.style.top = ''; p.style.bottom = ''; p.style.width = '';
+  let r = p.getBoundingClientRect();
+  if (r.width > innerWidth - 2 * m) { p.style.width = (innerWidth - 2 * m) / z + 'px'; r = p.getBoundingClientRect(); }
+  let dx = 0;
+  if (r.right > innerWidth - m) dx = innerWidth - m - r.right;
+  if (r.left + dx < m) dx = m - r.left;
+  if (dx) p.style.transform = 'translateX(' + dx / z + 'px)';
+  // the room below: down to the Start bar (unless the pop-up is in it), or the window's bottom
+  const dock = document.querySelector('.dock');
+  let bottom = innerHeight - m;
+  if (dock && !dock.contains(d) && dock.offsetParent) bottom = Math.min(bottom, dock.getBoundingClientRect().top - 4);
+  const s = d.querySelector(':scope > summary').getBoundingClientRect();
+  if (r.bottom > bottom) {
+    if (s.top - m - 6 >= r.height) { p.style.top = 'auto'; p.style.bottom = (s.height + 6) / z + 'px'; } // room above: open upwards
+    else { p.style.maxHeight = Math.max(80, bottom - r.top) / z + 'px'; p.style.overflowY = 'auto'; }
+  } else if (r.top < m) {
+    if (bottom - s.bottom - 6 >= r.height) { p.style.top = (s.height + 6) / z + 'px'; p.style.bottom = 'auto'; } // room below: open downwards
+    else { p.style.maxHeight = Math.max(80, r.bottom - m) / z + 'px'; p.style.overflowY = 'auto'; }
+  }
+}
+document.addEventListener('toggle', e => { if (e.target.matches && e.target.matches('details.pop')) fitPop(e.target); }, true);
+window.addEventListener('resize', () => document.querySelectorAll('details.pop[open]').forEach(fitPop));
 
 // ---------- the Plex names tab ----------
 let plexRows = [], plexSel = new Set(), plexTimer = null, plexAwait = false;

@@ -18,6 +18,15 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.33.2 - 2026-11-09
+
+- **Fixed: pop-ups could open partly outside the window** (reported for the profile bar's **More ▾** menu in a
+  maximised 4K window). Every pop-up (the **?** help, the **More ▾** menu and the others) is now measured when it
+  opens and kept inside the window: moved sideways if it would run past an edge, opened upwards when there is no
+  room below (above the Start bar), or given a scroll bar when the window is too short. It is fitted again when
+  the window is resized.
+- **Fixed:** the right-click menu (Copy, Paste…) opened in the wrong place when **Text size** was not 100%.
+
 ## 1.33.1 - 2026-11-08
 
 - **Fixed: NVIDIA and Intel conversions failing at once on some files** with "Cannot convert from bt709 tv range to
