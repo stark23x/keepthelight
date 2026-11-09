@@ -6,6 +6,16 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
+- **Add your own SRT subtitle files.** In the Subtitles section, **Add subtitle file…** puts an `.srt` (also `.ass`/
+  `.ssa`) into the new file as an extra track. Language, name, and the default / forced / SDH marks can be set like
+  any other track; the language is guessed from the file name ("Film.en.srt", "Film.eng.forced.srt", "Film.English
+  SDH.srt"). A list of added files with ✕ to remove one.
+  - **Found automatically:** subtitle files beside the video with the same name ("Film.en.srt") are offered when the
+    file is added (a tick per file, on by default; a setting to turn the offer off). The queue does the same per file.
+  - Checks before converting: the file is read and must be valid SRT; its text encoding is detected (old files are
+    often not UTF-8) and converted to UTF-8 so accents show correctly in Plex; a timing offset (e.g. +1.5 s) can be
+    set for a file that is out of step.
+  - Works with **Metadata only** too (the video is copied; the subtitle is added), and in MP4 (as mov_text).
 - **VobSub (DVD) subtitles to SRT, like PGS.** Today only PGS (Blu-ray) picture subtitles are read with Tesseract;
   VobSub tracks are copied as pictures, and Plex burns those in (which forces a video conversion while watching).
   Add a VobSub reader next to the PGS one: the subtitle pictures and their timings come out of the file with FFmpeg,
