@@ -6,7 +6,14 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing yet.
+- **Fix: full-GPU path fails on files marked "full range"** (log 2026-11-08, Burn Notice S01E01, NVENC). The source
+  is tagged `pc` (full) range, so the job asks the encoder for `-color_range pc`; newer FFmpeg passes that request
+  to `scale_cuda`, which cannot change the range, and the encode stops at once ("Cannot convert from bt709 tv range
+  to bt709 pc range"). The 5-frame check passed because it does not use the colour options.
+  - The check uses the same colour options as the real job, so such a file goes the normal way (CPU frames) by itself.
+  - Full-range files skip the full-GPU path (QuickSync too: same risk with `vpp_qsv`).
+  - Safety net: if a full-GPU encode fails before anything is written, the file is tried again the normal way at
+    once, instead of failing.
 
 ## Ideas raised, not yet requested
 
