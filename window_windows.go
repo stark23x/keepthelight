@@ -42,11 +42,15 @@ var (
 	procMoveMemory        = kernel32.NewProc("RtlMoveMemory")
 	procIsIconic          = user32.NewProc("IsIconic")
 	procShowWindow        = user32.NewProc("ShowWindow")
+	procGetWindowPlace    = user32.NewProc("GetWindowPlacement")
+	procSetWindowPlace    = user32.NewProc("SetWindowPlacement")
+	procMonitorFromRect   = user32.NewProc("MonitorFromRect")
 )
 
 const (
 	wmClose      = 0x0010
 	wmDPIChanged = 0x02E0
+	wmExitSizeMv = 0x0232
 	swpNoZOrder  = 0x0004
 	swpNoActive  = 0x0010
 	spiWorkArea  = 0x0030
@@ -54,6 +58,20 @@ const (
 )
 
 type winRect struct{ Left, Top, Right, Bottom int32 }
+
+// windowPlacement is Windows' WINDOWPLACEMENT: where the window is, and
+// whether it is maximised.
+type windowPlacement struct {
+	Length, Flags, ShowCmd uint32
+	MinPos, MaxPos         struct{ X, Y int32 }
+	Normal                 winRect
+}
+
+// savedWindow is the window's size and place, remembered between runs.
+type savedWindow struct {
+	L, T, R, B int32
+	Max        bool
+}
 
 func runWindow(g *guiServer) error {
 	if v, err := webviewloader.GetInstalledVersion(); err != nil {
@@ -70,7 +88,8 @@ func runWindow(g *guiServer) error {
 	scale := func(v int) int { return v * dpi / 96 }
 	wa := workArea()
 	waW, waH := int(wa.Right-wa.Left), int(wa.Bottom-wa.Top)
-	width, height := min(scale(1000), waW*95/100), min(scale(880), waH*95/100)
+	// first start: big enough for two columns on most screens, never bigger than the screen
+	width, height := min(scale(1440), waW*92/100), min(scale(960), waH*92/100)
 
 	wvlog := &webviewLog{g: g}
 	log.SetOutput(wvlog)
@@ -93,6 +112,7 @@ func runWindow(g *guiServer) error {
 		uintptr(int(wa.Left)+(waW-width)/2), uintptr(int(wa.Top)+(waH-height)/2),
 		uintptr(width), uintptr(height), swpNoZOrder|swpNoActive)
 	w.SetSize(scale(600), scale(520), webview2.HintMin)
+	restoreWindow(hwnd, g)
 
 	dialogParent.Store(hwnd)
 	g.notify = func(msg string) { messageBox(hwnd, msg, true) }
@@ -175,6 +195,9 @@ func hookProc(hwnd, msg, wp, lp uintptr) uintptr {
 			}
 			hookedGUI.cancelAndWait(15 * time.Second)
 		}
+		rememberWindow(hwnd, hookedGUI, false)
+	case wmExitSizeMv: // moved or resized by hand
+		rememberWindow(hwnd, hookedGUI, true)
 	case wmDPIChanged: // moved to a monitor with different scaling: take the suggested size
 		var r winRect // lParam points to the suggested RECT; copy it out
 		_, _, _ = procMoveMemory.Call(uintptr(unsafe.Pointer(&r)), lp, unsafe.Sizeof(r))
@@ -184,6 +207,43 @@ func hookProc(hwnd, msg, wp, lp uintptr) uintptr {
 	}
 	r, _, _ := procCallWindowProc.Call(origWndProc, hwnd, msg, wp, lp)
 	return r
+}
+
+// ---- remembering the window's size and place ----
+
+func rememberWindow(hwnd uintptr, g *guiServer, background bool) {
+	wp := windowPlacement{Length: uint32(unsafe.Sizeof(windowPlacement{}))}
+	if ok, _, _ := procGetWindowPlace.Call(hwnd, uintptr(unsafe.Pointer(&wp))); ok == 0 {
+		return
+	}
+	n := wp.Normal
+	if n.Right-n.Left < 200 || n.Bottom-n.Top < 200 {
+		return
+	}
+	b, _ := json.Marshal(savedWindow{n.Left, n.Top, n.Right, n.Bottom, wp.ShowCmd == 3}) // 3: SW_SHOWMAXIMIZED
+	if background {
+		go func() { _ = g.savePref("window", b) }()
+	} else {
+		_ = g.savePref("window", b)
+	}
+}
+
+// restoreWindow puts the window back where it was last time, if that place is
+// still on a screen (a monitor may have been unplugged since).
+func restoreWindow(hwnd uintptr, g *guiServer) {
+	var sw savedWindow
+	if json.Unmarshal(g.loadPrefs()["window"], &sw) != nil || sw.R-sw.L < 200 || sw.B-sw.T < 200 {
+		return
+	}
+	r := winRect{sw.L, sw.T, sw.R, sw.B}
+	if m, _, _ := procMonitorFromRect.Call(uintptr(unsafe.Pointer(&r)), 0); m == 0 { // 0: MONITOR_DEFAULTTONULL
+		return
+	}
+	wp := windowPlacement{Length: uint32(unsafe.Sizeof(windowPlacement{})), ShowCmd: 1, Normal: r} // 1: SW_SHOWNORMAL
+	if sw.Max {
+		wp.ShowCmd = 3
+	}
+	_, _, _ = procSetWindowPlace.Call(hwnd, uintptr(unsafe.Pointer(&wp)))
 }
 
 // ---- helpers ----

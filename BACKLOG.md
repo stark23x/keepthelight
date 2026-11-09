@@ -6,16 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **Use the whole window, on any screen.** Today the page stops at about 924 pixels wide and leaves the rest of a big
-  window empty.
-  - Wide windows: the page grows with the window (to about 1700 pixels). The Convert tab goes into two columns
-    (Files and Video on the left; Audio, Subtitles and Metadata on the right), and the Queue, Library scan and Plex
-    names lists use the full width. The profile bar stays just below Files. Long help text keeps a comfortable line length.
-    (Owner chose two columns over one wide column, 2026-11-08, after mockups.) Narrow windows stay as they are
-    now (one column, Start bar at the bottom).
-  - Any screen (1080p to 4K): sizes based on the text size rather than fixed pixels, so everything scales together
-    with Windows' display scaling and a new **Text size** setting in ⚙ Settings (90%–150%, remembered; Ctrl + / Ctrl −
-    / Ctrl 0 also work). The window remembers its size and position, and opens at a sensible size on each screen.
+Nothing yet.
 
 ## Ideas raised, not yet requested
 
@@ -23,6 +14,7 @@ None at the moment.
 
 ## Done
 
+- 1.33.0: uses the whole window (two-column Convert tab when wide, full-width lists), Text size setting with Ctrl +/−/0, window remembers its size and place.
 - 1.32.0: Plex names tab (a file renamer for the queue and added folders: Rename now with subtitle files, Undo last rename, Rename log, Use for the converted files; folders never renamed).
 - 1.31.0: track names in English instead of the language's own script, more language names (yue, cmn and others); track names follow through a series in the queue; new README "New since version 1.27" section.
 - 1.30.0: Plex-style names in the dotted format with resolution, HEVC and HDR kind (Plex matching to be confirmed by the owner on real files).

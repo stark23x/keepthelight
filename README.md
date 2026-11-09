@@ -34,6 +34,8 @@ quality.
   night.
 - **Watch folder.** Videos you copy into a chosen folder join the queue by themselves.
 - **Logs of failed files are kept,** so a problem can be looked into later.
+- **Uses the whole window.** Two columns on wide screens, a Text size setting, and the window remembers its size and
+  place.
 - **Plex names tab: a file renamer.** Rename files the way Plex expects straight away, without converting them: the
   queue's files, or any folder you add. Subtitle files beside them are renamed too, and **Undo last rename** puts
   them back.
@@ -147,6 +149,9 @@ quality.
 
 ### Easy to use
 - **Four tabs:** Convert, Queue, Library scan and Plex names, with the Start button always at the bottom.
+- **Uses the whole window.** On a wide screen the Convert tab shows its settings in two columns, so most of them fit
+  without scrolling. A **Text size** setting makes everything bigger or smaller, and the window remembers its size
+  and place.
 - **Plain-English help** behind small **?** buttons, and clear warnings that explain what to do.
 - **File pickers remember** the last folder you used.
 - **Right-click copy and paste,** keyboard-friendly controls, and helpful screens when nothing is loaded yet.
@@ -210,6 +215,12 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   do ("Convert this file", or "Start queue (3 files)" when files are waiting; **Add to queue** is its own button).
   The Queue tab shows how many files are waiting. Settings for this PC (temp folder, priority, GPU
   decoding, working locally, TMDB key, sounds) are under **⚙ Settings** at the top; profiles never include them.
+- **Window size:** the page grows with the window. When the window is wide (about 1200 points or more at the current
+  text size), the Convert tab shows two columns: Files, the profile bar, Video and Advanced on the left; Audio,
+  Subtitles and Metadata on the right. A narrower window shows one column, as before. The other tabs use the full
+  width. **Text size** (⚙ Settings → Window, 90%–150%) makes everything bigger or smaller on top of Windows' own
+  display scaling, so the window looks right on a 1080p or a 4K screen; Ctrl +, Ctrl − and Ctrl + mouse wheel do the
+  same, and Ctrl 0 goes back to 100%. The window opens where it was last time, at the same size (or maximised).
   What the input file is (its name, HDR10, Dolby Vision, resolution, "HEVC 10-bit") shows right under it, with a
   short **Checks** list: problems first (⚠), then what is fine (✓; more of them open with a click). Hints that only
   explain a setting open from a small **?** next to its label. With no file chosen, a large box shows how to start.

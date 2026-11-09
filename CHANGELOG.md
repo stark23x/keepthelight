@@ -18,6 +18,17 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.33.0 - 2026-11-08
+
+- **Uses the whole window.** The page used to stop at about 924 points wide. It now grows with the window, and in a
+  wide window the Convert tab shows its settings in two columns (Files, the profile bar, Video and Advanced on the
+  left; Audio, Subtitles and Metadata on the right), so most of them fit without scrolling. The Queue, Library scan
+  and Plex names lists use the full width. Narrow windows show one column, as before.
+- **Text size** (⚙ Settings → Window): 90% to 150%, on top of Windows' display scaling, so the window looks right
+  on 1080p and 4K screens. Ctrl +, Ctrl −, Ctrl + mouse wheel and Ctrl 0 work too. Remembered.
+- **The window remembers its size and place** (and whether it was maximised). The first time, it opens bigger than
+  before, sized to the screen.
+
 ## 1.32.0 - 2026-11-06
 
 - **Plex names tab: a file renamer.** A new tab lists the queue's waiting files and any you add there with **Add

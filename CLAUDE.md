@@ -38,7 +38,8 @@ which is not in the repository.
   renamed "(original)" on drives without one, and only after the new file is checked.
 - **Space saved:** shown per file and per run, plus one running total (no history).
 - **Layout:** Convert / Queue / Library scan / Plex names tabs, Start bar always at the bottom (at every window width), PC
-  settings in the ⚙ Settings dialog.
+  settings in the ⚙ Settings dialog. Wide windows: the Convert tab in two columns (owner chose this over one wide
+  column); narrow windows: one column. Text size zooms the whole page.
 - **TMDB:** English is the default language (a setting). The key lives in Windows Credential Manager.
 - **Plex-style names** are optional and never applied without being shown first. The Plex names tab renames
   originals (with their subtitle files, undoable); it never renames or creates folders.
