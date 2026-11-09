@@ -6,14 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **Fix: full-GPU path fails on files marked "full range"** (log 2026-11-08, Burn Notice S01E01, NVENC). The source
-  is tagged `pc` (full) range, so the job asks the encoder for `-color_range pc`; newer FFmpeg passes that request
-  to `scale_cuda`, which cannot change the range, and the encode stops at once ("Cannot convert from bt709 tv range
-  to bt709 pc range"). The 5-frame check passed because it does not use the colour options.
-  - The check uses the same colour options as the real job, so such a file goes the normal way (CPU frames) by itself.
-  - Full-range files skip the full-GPU path (QuickSync too: same risk with `vpp_qsv`).
-  - Safety net: if a full-GPU encode fails before anything is written, the file is tried again the normal way at
-    once, instead of failing.
+Nothing yet.
 
 ## Ideas raised, not yet requested
 
@@ -21,6 +14,7 @@ None at the moment.
 
 ## Done
 
+- 1.33.1: fixed the full-GPU path failing on full-range files (skips them, checks with the job's colour options, retries the normal way on failure).
 - 1.33.0: uses the whole window (two-column Convert tab when wide, full-width lists), Text size setting with Ctrl +/−/0, window remembers its size and place.
 - 1.32.0: Plex names tab (a file renamer for the queue and added folders: Rename now with subtitle files, Undo last rename, Rename log, Use for the converted files; folders never renamed).
 - 1.31.0: track names in English instead of the language's own script, more language names (yue, cmn and others); track names follow through a series in the queue; new README "New since version 1.27" section.

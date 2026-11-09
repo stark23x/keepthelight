@@ -40,7 +40,7 @@ func TestGPUPathArgs(t *testing.T) {
 		t.Error("x265 has no GPU path")
 	}
 	cfg.Denoise, cfg.Ffmpeg, cfg.Codec = "light", "ffmpeg", "nvenc"
-	if g, msg := chooseGPUPath(context.Background(), cfg, plan); g != nil || !strings.Contains(msg, "noise reduction") {
+	if g, msg := chooseGPUPath(context.Background(), cfg, &Probe{}, plan); g != nil || !strings.Contains(msg, "noise reduction") {
 		t.Errorf("noise reduction keeps the normal path: %v %s", g, msg)
 	}
 }
@@ -104,5 +104,21 @@ func TestSpaceSaved(t *testing.T) {
 	g2.restoreQueue()
 	if g2.savedTotal != 200 {
 		t.Errorf("total after restart: %d", g2.savedTotal)
+	}
+}
+
+func TestGPUPathFullRange(t *testing.T) {
+	cfg := &Config{Codec: "nvenc", Input: "x.mkv", Ffmpeg: "ffmpeg"}
+	g, msg := chooseGPUPath(context.Background(), cfg, &Probe{Range: "pc"}, &Plan{Kind: "sdr"})
+	if g != nil || !strings.Contains(msg, "full range") {
+		t.Errorf("full-range file: %v %q", g, msg)
+	}
+	got := strings.Join(gpuTestColour(&Probe{Primaries: "bt709", Transfer: "bt709", Space: "bt709"}, &Plan{Kind: "sdr"}), " ")
+	if got != "-color_primaries bt709 -color_trc bt709 -colorspace bt709 -color_range tv" {
+		t.Errorf("sdr colour: %s", got)
+	}
+	got = strings.Join(gpuTestColour(&Probe{}, &Plan{Kind: "hdr10"}), " ")
+	if got != "-color_primaries bt2020 -color_trc smpte2084 -colorspace bt2020nc -color_range tv" {
+		t.Errorf("hdr10 colour: %s", got)
 	}
 }

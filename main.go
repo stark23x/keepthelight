@@ -631,7 +631,7 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 		if problem := encoderProblem(ctx, ffmpeg, cfg.Codec); problem != "" {
 			return fmt.Errorf("%s", problem)
 		}
-		g, msg := chooseGPUPath(ctx, cfg, plan)
+		g, msg := chooseGPUPath(ctx, cfg, p, plan)
 		cfg.gpu = g
 		if msg != "" {
 			fmt.Println(msg)
@@ -694,10 +694,25 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 	if err := prepareOCR(r, cfg, plan, tmp); err != nil {
 		return err
 	}
-	if plan.UseDV {
-		err = runDV(r, cfg, p, plan, tmp)
-	} else {
-		err = runSimple(r, cfg, p, plan, tmp)
+	encode := func() error {
+		if plan.UseDV {
+			return runDV(r, cfg, p, plan, tmp)
+		}
+		return runSimple(r, cfg, p, plan, tmp)
+	}
+	err = encode()
+	if err != nil && cfg.gpu != nil && ctx.Err() == nil && !cfg.DryRun {
+		// The full-GPU path passed its quick check but failed on the real file:
+		// try again at once the normal way (frames through the CPU), instead of failing.
+		fmt.Printf("\nThe full-GPU path failed on this file (%v).\nTrying again the normal way: frames go through the CPU, the graphics card still encodes.\n", err)
+		cfg.gpu = nil
+		_ = os.Remove(cfg.Output)
+		if cfg.HWDecode && !cfg.CopyVideo {
+			args, msg := checkHWDecode(ctx, ffmpeg, cfg.Input)
+			cfg.hwaccel = args
+			fmt.Println(msg)
+		}
+		err = encode()
 	}
 	if err != nil {
 		return err

@@ -114,7 +114,7 @@ func gpuPathFor(codec string) *gpuPath {
 func (g *gpuPath) filter(plan *Plan) string { return g.scaler(plan.ScaleW, plan.ScaleH) }
 
 // chooseGPUPath decides, for this file, whether the full-GPU path is used.
-func chooseGPUPath(ctx context.Context, cfg *Config, plan *Plan) (*gpuPath, string) {
+func chooseGPUPath(ctx context.Context, cfg *Config, p *Probe, plan *Plan) (*gpuPath, string) {
 	g := gpuPathFor(cfg.Codec)
 	if g == nil || cfg.CopyVideo {
 		return nil, ""
@@ -128,10 +128,17 @@ func chooseGPUPath(ctx context.Context, cfg *Config, plan *Plan) (*gpuPath, stri
 	if plan.Deint != "" {
 		return nil, "Full-GPU path: not used, because deinterlacing runs on the CPU (decoding on the GPU still applies if it is on)"
 	}
+	if p != nil && p.Range == "pc" {
+		// Full-range video: the encoder is asked for full range, and newer FFmpeg passes that to the GPU
+		// scaler, which cannot convert the range ("Cannot convert from bt709 tv range to bt709 pc range").
+		return nil, "Full-GPU path: not used, because this video is marked full range, which the graphics card's resizer cannot keep (decoding on the GPU still applies if it is on)"
+	}
 	enc := map[string]string{"nvenc": "hevc_nvenc", "qsv": "hevc_qsv"}[cfg.Codec]
 	args := append([]string{"-hide_banner", "-nostdin", "-v", "error"}, g.Input...)
 	args = append(args, "-i", cfg.Input, "-map", "0:v:0", "-frames:v", "5", "-vf", g.filter(plan),
-		"-c:v", enc, "-profile:v", "main10", "-f", "null", "-")
+		"-c:v", enc, "-profile:v", "main10")
+	args = append(args, gpuTestColour(p, plan)...) // the real job's colour options: they change what the filters must do
+	args = append(args, "-f", "null", "-")
 	tctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	out, err := toolCommand(tctx, cfg.Ffmpeg, args...).CombinedOutput()
@@ -143,4 +150,26 @@ func chooseGPUPath(ctx context.Context, cfg *Config, plan *Plan) (*gpuPath, stri
 		return nil, "Full-GPU path: not available for this file (" + reason + "), so frames go through the CPU as usual"
 	}
 	return g, "Full-GPU path: on, " + g.Name + " (decode, resize and encode all on the graphics card)"
+}
+
+// gpuTestColour is the colour part of the real job's video options, for the
+// quick check (without them, a file can pass the check and fail the real job).
+func gpuTestColour(p *Probe, plan *Plan) []string {
+	if p == nil {
+		return nil
+	}
+	prim, trc, space := p.Primaries, p.Transfer, p.Space
+	switch plan.Kind {
+	case "hdr10":
+		trc, prim, space = "smpte2084", dflt(prim, "bt2020"), dflt(space, "bt2020nc")
+	case "hlg":
+		trc, prim, space = "arib-std-b67", dflt(prim, "bt2020"), dflt(space, "bt2020nc")
+	}
+	var a []string
+	for _, kv := range [][2]string{{"-color_primaries", prim}, {"-color_trc", trc}, {"-colorspace", space}} {
+		if kv[1] != "" {
+			a = append(a, kv[0], kv[1])
+		}
+	}
+	return append(a, "-color_range", dflt(p.Range, "tv"))
 }

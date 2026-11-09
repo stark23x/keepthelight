@@ -294,7 +294,8 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   each file is decoded, resized and encoded on the graphics card, without frames going back to the CPU. KTL
   tries it on a few frames of each file first and uses the normal way if it does not work; the log says which.
   Noise reduction runs on the CPU (so it looks the same with every encoder), so files with noise reduction go the
-  normal way. If the chosen GPU encoder cannot work on this PC at all (NVENC without an NVIDIA card, QuickSync
+  normal way, and so do files marked "full range" (the graphics card's resizer cannot keep that). If the
+  all-on-the-graphics-card path still fails partway, the file is tried again the normal way at once. If the chosen GPU encoder cannot work on this PC at all (NVENC without an NVIDIA card, QuickSync
   without Intel graphics), the window says so before you start.
 - **Space saved:** each finished file shows its size before and after ("18.7 GB → 9.2 GB · saved 9.5 GB (51%)"),
   the Queue heading adds up the run, and a single running total ("4.2 TB saved in total") is kept for this PC.

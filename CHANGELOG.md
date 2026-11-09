@@ -18,6 +18,17 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.33.1 - 2026-11-08
+
+- **Fixed: NVIDIA and Intel conversions failing at once on some files** with "Cannot convert from bt709 tv range to
+  bt709 pc range". These files are marked "full range" (common on web releases, often wrongly). The graphics card's
+  resizer cannot keep that, but the quick check before the job did not use the job's colour settings, so it passed.
+  - Full-range files now skip the all-on-the-graphics-card path: the frames go through the CPU, and the graphics
+    card still does the encoding.
+  - The quick check now uses the same colour settings as the real job.
+  - If the all-on-the-graphics-card path still fails on a file, the file is tried again straight away the normal
+    way, instead of failing. The log says so.
+
 ## 1.33.0 - 2026-11-08
 
 - **Uses the whole window.** The page used to stop at about 924 points wide. It now grows with the window, and in a
