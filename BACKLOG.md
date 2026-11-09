@@ -6,7 +6,12 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing yet.
+- **Show the file's bitrate all the time.** In the file's card on the Convert tab (and when editing a queued file),
+  next to the length: the file's size and bitrate, and the video's own bitrate, for example
+  "1h 6m 32s · 1.94 GB · 4.2 Mb/s (video 3.9 Mb/s)". The video figure comes from the file's own statistics when it
+  has them, otherwise it is worked out from the size minus the audio. With **Target bitrate** chosen, a short
+  comparison follows ("your 3 Mb/s is 23% less than now"), and a warning when the target is the same or higher
+  (nothing would be saved).
 
 ## Ideas raised, not yet requested
 
