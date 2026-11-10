@@ -1018,6 +1018,9 @@ func (g *guiServer) launchJob(cfg *Config, duration float64) (*job, error) {
 	g.job = j
 	g.mu.Unlock()
 
+	if run.TargetBytes > 0 && run.SizeFactor == 0 {
+		run.SizeFactor = g.renSizeFactor(run.Input) // a double episode marked on the Plex names tab
+	}
 	cmd := exec.Command(exe, run.cliArgs()...)
 	hideWindow(cmd)
 	pr, pw := io.Pipe()

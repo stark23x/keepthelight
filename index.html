@@ -775,6 +775,7 @@
       <select id="plexShow" style="width:auto" aria-label="Show"><option value="all">all files</option><option value="todo">needing attention</option><option value="ready">ready to rename</option></select>
       <input type="text" id="plexFind" spellcheck="false" placeholder="Search" style="width:160px" aria-label="Search">
     </div>
+    <div id="plexDoubles"></div>
     <div id="plexEmpty" class="hint" style="margin:14px 0">No files yet. Add some to the queue, or use <b>Add files…</b> or <b>Add folder…</b> here.</div>
     <div id="plexList" style="margin-top:10px"></div>
     <div class="actions" style="margin-top:10px; flex-wrap:wrap">
@@ -2011,6 +2012,7 @@ function showInfo(r) {
   }
   else if (r.modeText || r.mode) notes.appendChild(note(r.modeText || r.mode, 'info'));
   if (r.sizeText) notes.appendChild(note(r.sizeText + (r.sizeExact ? '' : ' (audio size estimated)'), 'info'));
+  if (r.sizeFactorNote) notes.appendChild(note(r.sizeFactorNote + '.', 'info'));
   if (r.rateCompare && !(r.rateWarn && (r.warnings || []).some(w => w.includes('more than this source needs')))) // the quality guide may say it already
     notes.appendChild(note(r.rateCompare, r.rateWarn ? 'warn' : 'info'));
   (r.notesInfo || []).forEach(n => notes.appendChild(note(n.charAt(0).toUpperCase() + n.slice(1), 'info')));
@@ -2903,6 +2905,7 @@ async function plexPoll() {
   const r = await api('renList', {});
   if (!r || !r.ok) return;
   plexRows = r.rows || [];
+  renderDoubles(r.doubles || []);
   const ids = new Set(plexRows.map(x => x.id));
   plexSel.forEach(id => { if (!ids.has(id)) plexSel.delete(id); });
   const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('#plexList input[type=text]');
@@ -2911,6 +2914,25 @@ async function plexPoll() {
   const busy = plexRows.some(x => x.state === 'checking' || x.state === 'looking');
   if (plexAwait && !busy) { plexAwait = false; openWhichOne(); } // after a lookup: ask about the titles it could not settle
   if (curTab === 'plex') plexTimer = setTimeout(plexPoll, busy ? 700 : 2500);
+}
+function renderDoubles(list) {
+  const box = $('plexDoubles'); box.innerHTML = '';
+  list.forEach(d => {
+    const b = el('div', 'note warn');
+    b.style.margin = '10px 0';
+    const t = el('div', '', '');
+    t.append(el('b', '', d.file + ' looks like a double episode: '),
+      document.createTextNode(d.why + '. Treat it as one file holding both, so the ' +
+        d.later + ' later ' + (d.later === 1 ? 'file' : 'files') + ' of season ' + d.season + ' are looked up one number on?'));
+    const row = el('div', 'row'); row.style.gap = '8px'; row.style.marginTop = '8px';
+    const yes = el('button', 'primary', 'Yes, it is a double episode');
+    yes.onclick = async () => { const r = await api('renAnswer', { key: d.key, at: d.at, yes: true }); if (!r.ok) showError(r.error); plexPoll(); };
+    const no = el('button', '', 'No');
+    no.onclick = async () => { await api('renAnswer', { key: d.key, at: d.at, yes: false }); plexPoll(); };
+    row.append(yes, no);
+    b.append(t, row);
+    box.append(b);
+  });
 }
 function plexAttention(x) { return !['ready', 'same', 'checking', 'looking'].includes(x.state); }
 function renderPlex() {
@@ -2949,12 +2971,24 @@ function renderPlex() {
       chips.title = 'Plex check: things likely to make Plex convert this file while you watch';
       mid.append(chips);
     }
+    if (x.mapped) mid.append(el('div', 'pconv', 'Looked up as ' + x.mapped + ' (numbers moved by a double episode in this season)'));
     if (x.queueId) mid.append(el('div', 'pconv', 'In the queue' + (x.converted ? ' · converted file: ' + x.converted : '')));
     const side = el('div', 'pside');
     if (x.state === 'needs' || x.state === 'none') {
       const ch = el('button', '', 'Choose…');
       ch.onclick = () => x.queueId ? openWhichOne(x.queueId) : openWhichOne(0, x.id);
       side.append(ch);
+    }
+    if (x.kind === 'tv' && x.fileEp && !x.fileEp2) { // double / split episodes: the rest of the season follows
+      const ep = el('select');
+      [['', 'One episode'], ['double', 'Double episode (two in this file)'], ['split', 'First half of a split episode']].forEach(([v, t]) => {
+        const o = el('option', '', t); o.value = v; ep.append(o);
+      });
+      ep.value = x.epMode || ''; ep.style.width = 'auto'; ep.style.fontSize = '12px'; ep.style.padding = '2px 4px';
+      ep.title = 'When TMDB counts this file as two episodes (or two files as one), every later file in the season is off by one. Choose it here, and the later files are looked up one number on (or back).';
+      ep.setAttribute('aria-label', 'Episode type for ' + x.name);
+      ep.onchange = async () => { const r = await api('renMark', { id: x.id, kind: ep.value }); if (!r.ok) showError(r.error); plexPoll(); };
+      side.append(ep);
     }
     if (!x.queueId) {
       const rm = el('button', '', 'Remove');

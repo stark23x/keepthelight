@@ -38,8 +38,15 @@ type renRow struct {
 	State     string   `json:"state"`          // checking looking new needs none ready warn clash same busy error
 	Why       string   `json:"why,omitempty"`
 	Plex      []string `json:"plex,omitempty"` // the Plex check of the file as it is
+	Minutes   float64  `json:"minutes,omitempty"`
+	Season    int      `json:"season,omitempty"` // an episode: its season and its own number (from its name)
+	FileEp    int      `json:"fileEp,omitempty"`
+	FileEp2   int      `json:"fileEp2,omitempty"`
+	Mapped    string   `json:"mapped,omitempty"` // what it is on TMDB, when that is not its own number
+	EpMode    string   `json:"epMode,omitempty"` // double | split: marked here
 
 	plexName string // from TMDB, with plexDetailsMark
+	tvID     int    // the show's TMDB number, when known
 	edited   string // the name typed on the tab
 	probed   bool
 	looking  bool
@@ -51,9 +58,49 @@ type renMove struct {
 }
 
 type renState struct {
-	mu   sync.Mutex
-	rows []*renRow
-	next int
+	mu        sync.Mutex
+	rows      []*renRow
+	next      int
+	shifts    map[string][]epShift // double / split episodes, by show and season (episodes.go)
+	suggest   []doubleSuggestion   // files that look like double episodes
+	dismissed map[string]bool      // suggestions answered "No"
+	spotted   map[string]bool      // seasons already checked (key + their files' numbers)
+	fixed     map[string]bool      // files renamed to TMDB's numbers here (the marks no longer apply to them)
+}
+
+// renShifts is a copy of the marked double / split episodes, for a lookup.
+func (g *guiServer) renShifts() map[string][]epShift {
+	g.ren.mu.Lock()
+	defer g.ren.mu.Unlock()
+	out := map[string][]epShift{}
+	for k, v := range g.ren.shifts {
+		out[k] = append([]epShift(nil), v...)
+	}
+	for p := range g.ren.fixed { // "fixed|<path>": files already renumbered
+		out["fixed|"+p] = nil
+	}
+	return out
+}
+
+// setEpisodeInfo fills in a row's season, number and show key from its name.
+func (r *renRow) setEpisodeInfo() {
+	gs := guessSearch(r.Path, "")
+	r.Kind = gs.Kind
+	r.Season, r.FileEp, r.FileEp2 = 0, 0, 0
+	if gs.Kind == "tv" {
+		r.Season, r.FileEp, r.FileEp2 = gs.Season, gs.Episode, gs.Episode2
+	}
+}
+
+func (r *renRow) shiftKey() string {
+	if r.Kind != "tv" || r.Season == 0 {
+		return ""
+	}
+	pk := tmdbPickKey(guessSearch(r.Path, ""))
+	if pk == "" {
+		return ""
+	}
+	return shiftKey(pk, r.Season)
 }
 
 // subtitle (and other) files that belong to a video by name: "Film.en.srt"
@@ -75,7 +122,8 @@ func (g *guiServer) renAddPaths(paths []string) map[string]any {
 		}
 		have[strings.ToLower(p)] = true
 		g.ren.next++
-		r := &renRow{ID: g.ren.next, Path: p, Name: filepath.Base(p), Kind: guessSearch(p, "").Kind}
+		r := &renRow{ID: g.ren.next, Path: p, Name: filepath.Base(p)}
+		r.setEpisodeInfo()
 		g.ren.rows = append(g.ren.rows, r)
 		added = append(added, r)
 	}
@@ -133,7 +181,8 @@ func (g *guiServer) renSync() {
 			r = &renRow{ID: g.ren.next, QueueID: q.id}
 			fresh = append(fresh, r)
 		}
-		r.Path, r.Name, r.Kind = q.input, filepath.Base(q.input), guessSearch(q.input, "").Kind
+		r.Path, r.Name = q.input, filepath.Base(q.input)
+		r.setEpisodeInfo()
 		r.plexName, r.Note = q.plexName, q.note
 		r.looking = strings.Contains(q.note, "looking up")
 		r.Converted = ""
@@ -157,30 +206,31 @@ func (g *guiServer) renProbe(rows []*renRow) {
 		g.ren.mu.Lock()
 		path := r.Path
 		g.ren.mu.Unlock()
-		details, plex := "", []string(nil)
+		details, plex, mins := "", []string(nil), 0.0
 		if err == nil {
-			details, plex = probeForName(ffprobe, path)
+			details, plex, mins = probeForName(ffprobe, path)
 		}
 		g.ren.mu.Lock()
 		if r.Path == path {
-			r.Details, r.Plex, r.probed = details, plex, true
+			r.Details, r.Plex, r.Minutes, r.probed = details, plex, mins, true
 		}
 		g.ren.mu.Unlock()
 	}
 }
 
-// probeForName: "2160p.HEVC.DV" for the file as it is, and its Plex check.
-func probeForName(ffprobe, path string) (string, []string) {
+// probeForName: "2160p.HEVC.DV" for the file as it is, its Plex check and its length (minutes).
+func probeForName(ffprobe, path string) (string, []string, float64) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	data, err := toolCommand(ctx, ffprobe, "-v", "error", "-show_streams", "-show_format", "-of", "json", path).Output()
 	if err != nil {
-		return "", nil
+		return "", nil, 0
 	}
 	var p scanProbe
 	if json.Unmarshal(data, &p) != nil {
-		return "", nil
+		return "", nil, 0
 	}
+	secs, _ := strconv.ParseFloat(p.Format.Duration, 64)
 	var w, h int
 	codec, hdr := "", ""
 	for _, s := range p.Streams {
@@ -209,9 +259,9 @@ func probeForName(ffprobe, path string) (string, []string) {
 		plex = append(plex, x.Short)
 	}
 	if codec == "" {
-		return "", plex
+		return "", plex, secs / 60
 	}
-	return plexDetailsFor(w, h, codec, hdr), plex
+	return plexDetailsFor(w, h, codec, hdr), plex, secs / 60
 }
 
 // nameCodec is the video format as release names write it.
@@ -253,8 +303,28 @@ func (g *guiServer) renComputeLocked() {
 			taken[strings.ToLower(filepath.Join(filepath.Dir(r.Path), r.Proposed+filepath.Ext(r.Path)))]++
 		}
 	}
+	// names freed in the same batch: a file that is itself renamed (S05E10 → S05E11 while S05E11 → S05E12)
+	moving := map[string]bool{}
+	for _, r := range g.ren.rows {
+		if r.Proposed != "" && r.Proposed+filepath.Ext(r.Path) != filepath.Base(r.Path) {
+			moving[strings.ToLower(r.Path)] = true
+		}
+	}
 	for _, r := range g.ren.rows {
 		r.State, r.Why = "", ""
+		// what an episode is on TMDB, when the season has a double (or split) episode marked
+		r.Mapped, r.EpMode = "", ""
+		if k := r.shiftKey(); k != "" && r.FileEp > 0 && !g.ren.fixed[strings.ToLower(r.Path)] {
+			sh := g.ren.shifts[k]
+			for _, x := range sh {
+				if x.At == r.FileEp && r.FileEp2 == 0 {
+					r.EpMode = x.Kind
+				}
+			}
+			if e := mapEpisode(r.FileEp, r.FileEp2, sh); e.First != r.FileEp || e.Part > 0 || (e.Last > e.First && r.FileEp2 == 0) {
+				r.Mapped = "TMDB " + e.String()
+			}
+		}
 		to := filepath.Join(filepath.Dir(r.Path), r.Proposed+filepath.Ext(r.Path))
 		switch {
 		case !r.probed:
@@ -274,7 +344,7 @@ func (g *guiServer) renComputeLocked() {
 			}
 		case to == r.Path:
 			r.State, r.Why = "same", "already named so"
-		case !strings.EqualFold(to, r.Path) && fileExists(to):
+		case !strings.EqualFold(to, r.Path) && fileExists(to) && !moving[strings.ToLower(to)]:
 			r.State, r.Why = "clash", "a file of that name already exists"
 		case taken[strings.ToLower(to)] > 1:
 			r.State, r.Why = "clash", "another file here would get the same name"
@@ -298,9 +368,218 @@ func (g *guiServer) renList() map[string]any {
 	for _, r := range g.ren.rows {
 		rows = append(rows, *r)
 	}
+	sug := append([]doubleSuggestion(nil), g.ren.suggest...)
+	busy := false
+	for _, r := range g.ren.rows {
+		busy = busy || r.looking || !r.probed
+	}
 	g.ren.mu.Unlock()
+	if !busy {
+		go g.renSpot() // look for double episodes (once per season and set of files)
+	}
 	undo := g.renUndoList()
-	return map[string]any{"ok": true, "rows": rows, "undo": len(undo), "hasKey": g.tmdbKey() != ""}
+	return map[string]any{"ok": true, "rows": rows, "undo": len(undo), "hasKey": g.tmdbKey() != "", "doubles": sug}
+}
+
+// ---------- double episodes on the tab (episodes.go) ----------
+
+// renMark marks (or unmarks, kind "") the row's file as a double episode, or as
+// the first half of a split one, and looks the rest of its season up again.
+func (g *guiServer) renMark(id int, kind string) map[string]any {
+	if kind != "" && kind != "double" && kind != "split" {
+		return failResult("unknown kind")
+	}
+	g.ren.mu.Lock()
+	var row *renRow
+	for _, r := range g.ren.rows {
+		if r.ID == id {
+			row = r
+		}
+	}
+	if row == nil || row.shiftKey() == "" || row.FileEp == 0 {
+		g.ren.mu.Unlock()
+		return failResult("Only an episode with a season and episode number in its name (S05E09) can be marked.")
+	}
+	if row.FileEp2 > 0 {
+		g.ren.mu.Unlock()
+		return failResult("This file's name already says it is a double episode (" + fmt.Sprintf("E%02d-E%02d", row.FileEp, row.FileEp2) + ").")
+	}
+	k := row.shiftKey()
+	g.renSetShiftLocked(k, row.FileEp, kind)
+	ids := g.renSeasonRowsLocked(k)
+	g.ren.mu.Unlock()
+	if g.tmdbKey() == "" {
+		return okResult()
+	}
+	g.renLookupAgain(ids, nil, true)
+	return map[string]any{"ok": true, "files": len(ids)}
+}
+
+func (g *guiServer) renSetShiftLocked(k string, at int, kind string) {
+	if g.ren.shifts == nil {
+		g.ren.shifts = map[string][]epShift{}
+	}
+	var keep []epShift
+	for _, x := range g.ren.shifts[k] {
+		if x.At != at {
+			keep = append(keep, x)
+		}
+	}
+	if kind != "" {
+		keep = append(keep, epShift{At: at, Kind: kind})
+	}
+	g.ren.shifts[k] = keep
+	var sug []doubleSuggestion // a suggestion answered by marking is gone
+	for _, s := range g.ren.suggest {
+		if !(s.Key == k && s.At == at) {
+			sug = append(sug, s)
+		}
+	}
+	g.ren.suggest = sug
+}
+
+// renSeasonRowsLocked: the rows of one season (by shift key).
+func (g *guiServer) renSeasonRowsLocked(k string) []int {
+	var ids []int
+	for _, r := range g.ren.rows {
+		if r.shiftKey() == k {
+			ids = append(ids, r.ID)
+		}
+	}
+	return ids
+}
+
+// renAnswer answers a suggestion: yes marks the double episode, no forgets it.
+func (g *guiServer) renAnswer(key string, at int, yes bool) map[string]any {
+	g.ren.mu.Lock()
+	if !yes {
+		if g.ren.dismissed == nil {
+			g.ren.dismissed = map[string]bool{}
+		}
+		g.ren.dismissed[fmt.Sprintf("%s|%d", key, at)] = true
+		var sug []doubleSuggestion
+		for _, s := range g.ren.suggest {
+			if !(s.Key == key && s.At == at) {
+				sug = append(sug, s)
+			}
+		}
+		g.ren.suggest = sug
+		g.ren.mu.Unlock()
+		return okResult()
+	}
+	var id int
+	for _, r := range g.ren.rows {
+		if r.shiftKey() == key && r.FileEp == at && r.FileEp2 == 0 {
+			id = r.ID
+		}
+	}
+	g.ren.mu.Unlock()
+	if id == 0 {
+		return failResult("that file is no longer in the list")
+	}
+	return g.renMark(id, "double")
+}
+
+var renSpotting sync.Mutex
+
+// renSpot checks each season in the list for a file that looks like two TMDB
+// episodes (by its length and TMDB's titles and running times).
+func (g *guiServer) renSpot() {
+	if !renSpotting.TryLock() {
+		return
+	}
+	defer renSpotting.Unlock()
+	key := g.tmdbKey()
+	if key == "" {
+		return
+	}
+	type season struct {
+		key, input string
+		season     int
+		tvID       int
+		files      map[int]float64
+		names      map[int]string
+	}
+	g.ren.mu.Lock()
+	seasons := map[string]*season{}
+	for _, r := range g.ren.rows {
+		k := r.shiftKey()
+		if k == "" || r.FileEp == 0 || r.FileEp2 > 0 || r.Minutes <= 0 {
+			continue
+		}
+		s := seasons[k]
+		if s == nil {
+			s = &season{key: k, input: r.Path, season: r.Season, files: map[int]float64{}, names: map[int]string{}}
+			seasons[k] = s
+		}
+		s.files[r.FileEp], s.names[r.FileEp] = r.Minutes, r.Name
+		if r.tvID != 0 {
+			s.tvID = r.tvID
+		}
+	}
+	var todo []*season
+	for k, s := range seasons {
+		sig := fmt.Sprintf("%s|%v", k, s.files)
+		if g.ren.spotted == nil {
+			g.ren.spotted = map[string]bool{}
+		}
+		if !g.ren.spotted[sig] && len(s.files) >= 3 {
+			g.ren.spotted[sig] = true
+			todo = append(todo, s)
+		}
+	}
+	shifts := map[string][]epShift{}
+	for k, v := range g.ren.shifts {
+		shifts[k] = v
+	}
+	g.ren.mu.Unlock()
+	for _, s := range todo {
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		id, show := s.tvID, ""
+		if id == 0 { // a queue file: the show from the remembered match, or a search
+			lk := &tmdbLookup{key: key, picks: g.tmdbPicks(), found: map[string]*tmdbFound{}}
+			if hit, _ := lk.showFor(ctx, s.input); hit != nil {
+				id, show = hit.ID, hit.Title
+			}
+		}
+		if id == 0 {
+			cancel()
+			continue
+		}
+		eps, err := tmdbSeason(ctx, key, id, s.season)
+		cancel()
+		if err != nil {
+			continue
+		}
+		if show == "" {
+			show = guessSearch(s.input, "").Query
+		}
+		byNum := map[int]tmdbEpisode{}
+		for _, e := range eps {
+			byNum[e.Number] = e
+		}
+		for _, d := range spotDoubles(s.files, eps, shifts[s.key]) {
+			later := 0
+			for n := range s.files {
+				if n > d.At {
+					later++
+				}
+			}
+			e := mapEpisode(d.At, 0, append(shifts[s.key], d))
+			title := joinTitles([]string{byNum[e.First].Name, byNum[e.First+1].Name})
+			g.ren.mu.Lock()
+			dup := g.ren.dismissed[fmt.Sprintf("%s|%d", s.key, d.At)]
+			for _, x := range g.ren.suggest {
+				dup = dup || (x.Key == s.key && x.At == d.At)
+			}
+			if !dup {
+				g.ren.suggest = append(g.ren.suggest, doubleSuggestion{Key: s.key, At: d.At, Season: s.season, Show: show,
+					File: s.names[d.At], Title: title, Later: later,
+					Why: fmt.Sprintf("it is %.0f minutes long, about twice the others, and TMDB has its episodes %d and %d as \"%s\"", s.files[d.At], e.First, e.Last, baseTitle(byNum[e.First].Name))})
+			}
+			g.ren.mu.Unlock()
+		}
+	}
 }
 
 // renSetName: a name typed on the tab ("" goes back to the TMDB one).
@@ -346,6 +625,11 @@ func (g *guiServer) renRemove(ids []int, all bool) map[string]any {
 // with the tab's own lookup, queue files with the queue's (they share the
 // remembered matches and the "Which one?" window). extra: a match chosen just now.
 func (g *guiServer) renLookup(ids []int, extra map[string]tmdbPick) map[string]any {
+	return g.renLookupAgain(ids, extra, false)
+}
+
+// renLookupAgain: again=true also redoes queue files already filled in from TMDB.
+func (g *guiServer) renLookupAgain(ids []int, extra map[string]tmdbPick, again bool) map[string]any {
 	key := g.tmdbKey()
 	if key == "" {
 		return failResult("Add your free TMDB API key in Settings (⚙) first.")
@@ -371,7 +655,7 @@ func (g *guiServer) renLookup(ids []int, extra map[string]tmdbPick) map[string]a
 	g.ren.mu.Unlock()
 	n := len(mine)
 	if len(queued) > 0 {
-		if r := g.queueTMDB(queued); r["ok"] == true {
+		if r := g.queueTMDBAgain(queued, again); r["ok"] == true {
 			n += r["files"].(int)
 		}
 	}
@@ -382,7 +666,7 @@ func (g *guiServer) renLookup(ids []int, extra map[string]tmdbPick) map[string]a
 			for k, v := range extra {
 				picks[k] = v
 			}
-			lk := &tmdbLookup{key: key, coverDir: dir, picks: picks, found: map[string]*tmdbFound{}}
+			lk := &tmdbLookup{key: key, coverDir: dir, picks: picks, found: map[string]*tmdbFound{}, shifts: g.renShifts()}
 			for _, r := range mine {
 				g.ren.mu.Lock()
 				path := r.Path
@@ -393,6 +677,9 @@ func (g *guiServer) renLookup(ids []int, extra map[string]tmdbPick) map[string]a
 					r.Note, r.looking, r.plexName = note, false, ""
 					if meta != nil {
 						r.plexName = meta.plexName
+						if meta.tvID != 0 {
+							r.tvID = meta.tvID
+						}
 					}
 				}
 				g.ren.mu.Unlock()
@@ -451,8 +738,8 @@ func (g *guiServer) renApply(ids []int) map[string]any {
 	g.ren.mu.Lock()
 	g.renComputeLocked()
 	type job struct {
-		r        *renRow
-		from, to string
+		r              *renRow
+		from, to, orig string // orig: its name before (from may be a temporary name)
 	}
 	var jobs []job
 	var skipped []string
@@ -468,25 +755,68 @@ func (g *guiServer) renApply(ids []int) map[string]any {
 			skipped = append(skipped, r.Name+": "+why)
 			continue
 		}
-		jobs = append(jobs, job{r, r.Path, filepath.Join(filepath.Dir(r.Path), r.Proposed+filepath.Ext(r.Path))})
+		jobs = append(jobs, job{r, r.Path, filepath.Join(filepath.Dir(r.Path), r.Proposed+filepath.Ext(r.Path)), r.Path})
 	}
 	g.ren.mu.Unlock()
 
 	var moves []renMove
 	renamed := 0
+	move := func(j job, from string) bool {
+		if err := os.Rename(from, j.to); err != nil {
+			skipped = append(skipped, j.r.Name+": "+renameErr(err))
+			return false
+		}
+		moves = append(moves, renMove{from, j.to})
+		moves = append(moves, moveSidecars(j.orig, j.to, &skipped)...)
+		g.renMoved(j.r.ID, j.orig, j.to)
+		renamed++
+		return true
+	}
+	var todo []job
 	for _, j := range jobs {
 		if qid := j.r.QueueID; qid != 0 && !g.queueCanMove(qid) {
 			skipped = append(skipped, j.r.Name+": it is being converted or edited")
 			continue
 		}
-		if err := os.Rename(j.from, j.to); err != nil {
-			skipped = append(skipped, j.r.Name+": "+renameErr(err))
-			continue
+		todo = append(todo, j)
+	}
+	// a season renumbered (S05E10 → S05E11 while S05E11 → S05E12): rename each file once its new name is free,
+	// so nothing is ever overwritten; a loop (A → B, B → A) goes through a temporary name
+	for len(todo) > 0 {
+		var wait []job
+		for _, j := range todo {
+			if fileExists(j.to) && !strings.EqualFold(j.to, j.from) {
+				wait = append(wait, j)
+				continue
+			}
+			move(j, j.from)
 		}
-		renamed++
-		moves = append(moves, renMove{j.from, j.to})
-		moves = append(moves, moveSidecars(j.from, j.to, &skipped)...)
-		g.renMoved(j.r.ID, j.from, j.to)
+		if len(wait) == len(todo) { // stuck: each target is another's source, or is someone else's file
+			busy := map[string]bool{}
+			for _, j := range wait {
+				busy[strings.ToLower(j.from)] = true
+			}
+			var next []job
+			for _, j := range wait {
+				if !busy[strings.ToLower(j.to)] {
+					skipped = append(skipped, j.r.Name+": a file named "+filepath.Base(j.to)+" already exists")
+					continue
+				}
+				tmp := j.from + ".ktl-renaming"
+				if err := os.Rename(j.from, tmp); err != nil {
+					skipped = append(skipped, j.r.Name+": "+renameErr(err))
+					continue
+				}
+				moves = append(moves, renMove{j.from, tmp})
+				j.from = tmp
+				next = append(next, j)
+			}
+			if len(next) == 0 {
+				break
+			}
+			wait = next
+		}
+		todo = wait
 	}
 	if len(moves) > 0 {
 		g.renSaveUndo(moves)
@@ -544,10 +874,23 @@ func (g *guiServer) queueCanMove(qid int) bool {
 // renMoved updates the list and the queue after a file was renamed (or put back).
 func (g *guiServer) renMoved(rowID int, from, to string) {
 	g.ren.mu.Lock()
+	mapped := false
 	for _, r := range g.ren.rows {
 		if r.ID == rowID || strings.EqualFold(r.Path, from) {
+			mapped = mapped || r.Mapped != ""
 			r.Path, r.Name, r.edited = to, filepath.Base(to), ""
+			r.setEpisodeInfo()
 		}
+	}
+	// a file renumbered for a double episode now carries TMDB's numbers in its name: the season's marks no
+	// longer apply to it (and do again if it is put back)
+	if g.ren.fixed == nil {
+		g.ren.fixed = map[string]bool{}
+	}
+	if g.ren.fixed[strings.ToLower(from)] {
+		delete(g.ren.fixed, strings.ToLower(from))
+	} else if mapped {
+		g.ren.fixed[strings.ToLower(to)] = true
 	}
 	g.ren.mu.Unlock()
 	g.queueFollowMove(from, to)

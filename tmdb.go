@@ -327,18 +327,19 @@ func cleanCovers(dir string) {
 // ---------- a search from the file's name ----------
 
 var (
-	reEpisode  = regexp.MustCompile(`(?i)\bS(\d{1,2})[ ._-]?E(\d{1,3})\b|\b(\d{1,2})x(\d{2,3})\b`)
+	reEpisode  = regexp.MustCompile(`(?i)\bS(\d{1,2})[ ._-]?E(\d{1,3})(?:(?:[ ._]?-[ ._]?E?|[ ._]?E)(\d{1,3}))?\b|\b(\d{1,2})x(\d{2,3})\b`)
 	reYear     = regexp.MustCompile(`\b(19[0-9]{2}|20[0-9]{2})\b`)
 	reBrackets = regexp.MustCompile(`\[[^\]]*\]|\{[^}]*\}`)
 	reJunk     = regexp.MustCompile(`(?i)\b(2160p|1080p|1080i|720p|576p|480p|4k|uhd|bluray|blu ray|bdrip|brrip|remux|web dl|webdl|webrip|web|hdtv|dvdrip|hdr10plus|hdr10|hdr|dovi|dv|sdr|x265|x264|h265|h264|hevc|avc|10bit|aac|ac3|eac3|ddp\d?|dd\d|atmos|truehd|dts( hd)?|ma|flac|proper|repack|extended|unrated|remastered|imax|criterion|directors cut|multi|subs?)\b`)
 )
 
 type tmdbGuess struct {
-	Kind    string `json:"kind"`
-	Query   string `json:"query"`
-	Year    string `json:"year"`
-	Season  int    `json:"season"`
-	Episode int    `json:"episode"`
+	Kind     string `json:"kind"`
+	Query    string `json:"query"`
+	Year     string `json:"year"`
+	Season   int    `json:"season"`
+	Episode  int    `json:"episode"`
+	Episode2 int    `json:"episode2,omitempty"` // a double episode in one file: "S05E09-E10"
 }
 
 // guessSearch turns "Dune.Part.Two.2024.2160p.UHD.REMUX_KTL.mkv" into a
@@ -352,7 +353,7 @@ func guessSearch(path, tag string) tmdbGuess {
 	case d.Query == "":
 	case g.Query == "": // "S01E03.mkv" in "The Bear"
 		if g.Kind == "tv" {
-			d.Kind, d.Season, d.Episode, d.Year = "tv", g.Season, g.Episode, ""
+			d.Kind, d.Season, d.Episode, d.Episode2, d.Year = "tv", g.Season, g.Episode, g.Episode2, ""
 		}
 		return d
 	case g.Kind == "movie" && g.Year == "" && d.Kind == "movie" && d.Year != "": // "movie.mkv" in "Heat (1995)"
@@ -378,9 +379,12 @@ func guessName(stem, tag string) tmdbGuess {
 		if sub[1] != "" {
 			g.Season, _ = strconv.Atoi(sub[1])
 			g.Episode, _ = strconv.Atoi(sub[2])
+			if e2, _ := strconv.Atoi(sub[3]); e2 > g.Episode && e2 <= g.Episode+4 {
+				g.Episode2 = e2 // "S05E09-E10", "S05E09E10", "S05E09-10"
+			}
 		} else {
-			g.Season, _ = strconv.Atoi(sub[3])
-			g.Episode, _ = strconv.Atoi(sub[4])
+			g.Season, _ = strconv.Atoi(sub[4])
+			g.Episode, _ = strconv.Atoi(sub[5])
 		}
 		cut = m[0]
 	}
@@ -716,7 +720,11 @@ func tmdbAutoMatch(res []tmdbResult, g tmdbGuess) *tmdbResult {
 // fills in the title, date, description and cover (as an Edit would); anything
 // else is marked "needs a match", to be chosen with Edit. Files whose title was
 // already changed are left alone.
-func (g *guiServer) queueTMDB(ids []int) map[string]any {
+func (g *guiServer) queueTMDB(ids []int) map[string]any { return g.queueTMDBAgain(ids, false) }
+
+// queueTMDBAgain: again=true also looks up files whose title came from TMDB
+// (after a double episode was marked, their numbers changed).
+func (g *guiServer) queueTMDBAgain(ids []int, again bool) map[string]any {
 	key := g.tmdbKey()
 	if key == "" {
 		return failResult("Add your free TMDB API key in Settings (⚙) first.")
@@ -730,7 +738,13 @@ func (g *guiServer) queueTMDB(ids []int) map[string]any {
 	for _, it := range g.q.items {
 		if (len(ids) == 0 || want[it.ID]) && (it.pending() || it.Status == stProblem) && !it.Editing {
 			if it.s.Meta != nil && it.s.Meta.Tags["title"] != "" {
-				continue
+				var m struct {
+					Note string `json:"tmdbNote"`
+				}
+				_ = json.Unmarshal(it.Raw, &m)
+				if !again || !strings.HasPrefix(m.Note, "TMDB: ") {
+					continue
+				}
 			}
 			todo = append(todo, it.ID)
 			setRawField(it, "tmdbNote", "TMDB: looking up…")
@@ -750,7 +764,7 @@ func (g *guiServer) queueTMDB(ids []int) map[string]any {
 		}
 		g.oneOff = nil
 		g.mu.Unlock()
-		lk := &tmdbLookup{key: key, coverDir: dir, picks: picks, found: map[string]*tmdbFound{}}
+		lk := &tmdbLookup{key: key, coverDir: dir, picks: picks, found: map[string]*tmdbFound{}, shifts: g.renShifts()}
 		for _, id := range todo {
 			g.mu.Lock()
 			it := g.findItemLocked(id)
@@ -807,6 +821,7 @@ type tmdbLookup struct {
 	key, coverDir string
 	picks         map[string]tmdbPick
 	found         map[string]*tmdbFound
+	shifts        map[string][]epShift // double / split episodes marked on the Plex names tab (episodes.go)
 }
 
 type tmdbFound struct {
@@ -823,6 +838,24 @@ func tmdbLookupFile(key, input, coverDir string) (string, *MetaEdit) {
 
 // file finds one file on TMDB without asking: the note for the queue list, and
 // the metadata when there was one clear (or remembered) match.
+// showFor finds the film or show a file is of, as the lookup would (remembered
+// match first, else a search that matches clearly). nil: none settled.
+func (lk *tmdbLookup) showFor(ctx context.Context, input string) (*tmdbResult, error) {
+	gs := guessSearch(input, "")
+	pk := tmdbPickKey(gs)
+	if p, ok := lk.picks[pk]; ok && pk != "" {
+		return &tmdbResult{ID: p.ID, Kind: p.Kind, Title: p.Title}, nil
+	}
+	if gs.Query == "" {
+		return nil, nil
+	}
+	res, err := tmdbSearch(ctx, lk.key, gs.Kind, gs.Query, gs.Year)
+	if err != nil {
+		return nil, err
+	}
+	return tmdbAutoMatch(res, gs), nil
+}
+
 func (lk *tmdbLookup) file(input string) (string, *MetaEdit) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
@@ -864,7 +897,17 @@ func (lk *tmdbLookup) file(input string) (string, *MetaEdit) {
 		}
 		return fmt.Sprintf("TMDB: needs a match (%d possible results for \"%s\"; choose it, and the other files of that title follow)", fd.n, gs.Query), nil
 	}
-	f, err := tmdbDetails(ctx, key, hit.Kind, hit.ID, gs.Season, gs.Episode, coverDir)
+	var f *tmdbFill
+	var err error
+	ep := tmdbEp{First: gs.Episode, Last: gs.Episode2}
+	if _, renumbered := lk.shifts["fixed|"+strings.ToLower(input)]; gs.Kind == "tv" && !renumbered {
+		ep = mapEpisode(gs.Episode, gs.Episode2, lk.shifts[shiftKey(pk, gs.Season)])
+	}
+	if ep.Last > ep.First || ep.Part > 0 {
+		f, err = tmdbEpisodes(ctx, key, hit.ID, gs.Season, ep, coverDir)
+	} else {
+		f, err = tmdbDetails(ctx, key, hit.Kind, hit.ID, gs.Season, ep.First, coverDir)
+	}
 	if err != nil {
 		return "TMDB: " + err.Error(), nil
 	}
@@ -879,6 +922,13 @@ func (lk *tmdbLookup) file(input string) (string, *MetaEdit) {
 		what += " (" + hit.Year + ")"
 	}
 	m.plexName = f.PlexName
+	m.tvID, m.tmdbEp = 0, ep
+	if hit.Kind == "tv" {
+		m.tvID = hit.ID
+	}
+	if gs.Kind == "tv" && (ep.First != gs.Episode || ep.Last != gs.Episode2 || ep.Part > 0) {
+		what += " (" + ep.String() + " on TMDB)"
+	}
 	if fd.remembered {
 		return "TMDB: " + what + " (as matched before; check it with Edit)", m
 	}

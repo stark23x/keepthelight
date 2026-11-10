@@ -411,6 +411,9 @@ func (cfg *Config) cliArgs() []string {
 	}
 	if cfg.TargetBytes > 0 {
 		a = append(a, "-target-size", strconv.FormatInt(cfg.TargetBytes/1024, 10)+"k", "-size-retries", strconv.Itoa(cfg.Retries))
+		if cfg.SizeFactor > 0 {
+			a = append(a, "-size-episodes", strconv.FormatFloat(cfg.SizeFactor, 'f', -1, 64))
+		}
 	}
 	if cfg.MasterDisplay != "" {
 		a = append(a, "-master-display", cfg.MasterDisplay)
@@ -839,6 +842,21 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		var b struct{ IDs []int }
 		_ = json.Unmarshal(body, &b)
 		return g.renApply(b.IDs)
+	case "renMark":
+		var b struct {
+			ID   int
+			Kind string
+		}
+		_ = json.Unmarshal(body, &b)
+		return g.renMark(b.ID, b.Kind)
+	case "renAnswer":
+		var b struct {
+			Key string
+			At  int
+			Yes bool
+		}
+		_ = json.Unmarshal(body, &b)
+		return g.renAnswer(b.Key, b.At, b.Yes)
 	case "renUndo":
 		return g.renUndo()
 	case "renLog":
@@ -1507,6 +1525,10 @@ func (g *guiServer) probe(ctx context.Context, s settings) map[string]any {
 		// preview only: no slow audio measuring (DryRun), subtitles from a quick probe
 		pcfg := *cfg
 		pcfg.DryRun, pcfg.Ffprobe, pcfg.Input = true, ffprobe, s.Input
+		pcfg.SizeFactor = g.renSizeFactor(s.Input)
+		if note := scaleTarget(&pcfg); note != "" {
+			resp["sizeFactorNote"] = note
+		}
 		var srcBytes int64
 		if st, err := os.Stat(s.Input); err == nil {
 			srcBytes = st.Size()

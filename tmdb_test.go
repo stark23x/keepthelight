@@ -16,15 +16,19 @@ func TestGuessSearch(t *testing.T) {
 		path string
 		want tmdbGuess
 	}{
-		{`D:\Movies\Dune.Part.Two.2024.2160p.UHD.BluRay.REMUX.DV.HDR.HEVC.TrueHD.Atmos_KTL.mkv`, tmdbGuess{"movie", "Dune Part Two", "2024", 0, 0}},
-		{`D:\Movies\Blade Runner 2049 (2017).mkv`, tmdbGuess{"movie", "Blade Runner 2049", "2017", 0, 0}},
-		{`D:\Movies\1917 (2019) [2160p].mkv`, tmdbGuess{"movie", "1917", "2019", 0, 0}},
-		{`D:\Movies\Heat (1995)\movie.mkv`, tmdbGuess{"movie", "Heat", "1995", 0, 0}},
-		{`D:\Movies\Alien.Remastered.mkv`, tmdbGuess{"movie", "Alien", "", 0, 0}},
-		{`D:\TV\The Bear\Season 2\The.Bear.S02E03.Sundae.2160p.WEB.mkv`, tmdbGuess{"tv", "The Bear", "", 2, 3}},
-		{`D:\TV\Doctor Who (2005)\Doctor Who 2005 1x05 Dalek.mkv`, tmdbGuess{"tv", "Doctor Who", "", 1, 5}},
-		{`D:\TV\Severance\S01E01.mkv`, tmdbGuess{"tv", "Severance", "", 1, 1}},
-		{`D:\Movies\Inception {tmdb-27205} (2010)_Plex 4K.mkv`, tmdbGuess{"movie", "Inception", "2010", 0, 0}},
+		{`D:\Movies\Dune.Part.Two.2024.2160p.UHD.BluRay.REMUX.DV.HDR.HEVC.TrueHD.Atmos_KTL.mkv`, tmdbGuess{"movie", "Dune Part Two", "2024", 0, 0, 0}},
+		{`D:\Movies\Blade Runner 2049 (2017).mkv`, tmdbGuess{"movie", "Blade Runner 2049", "2017", 0, 0, 0}},
+		{`D:\Movies\1917 (2019) [2160p].mkv`, tmdbGuess{"movie", "1917", "2019", 0, 0, 0}},
+		{`D:\Movies\Heat (1995)\movie.mkv`, tmdbGuess{"movie", "Heat", "1995", 0, 0, 0}},
+		{`D:\Movies\Alien.Remastered.mkv`, tmdbGuess{"movie", "Alien", "", 0, 0, 0}},
+		{`D:\TV\The Bear\Season 2\The.Bear.S02E03.Sundae.2160p.WEB.mkv`, tmdbGuess{"tv", "The Bear", "", 2, 3, 0}},
+		{`D:\TV\Doctor Who (2005)\Doctor Who 2005 1x05 Dalek.mkv`, tmdbGuess{"tv", "Doctor Who", "", 1, 5, 0}},
+		{`D:\TV\Severance\S01E01.mkv`, tmdbGuess{"tv", "Severance", "", 1, 1, 0}},
+		{`D:\Movies\Inception {tmdb-27205} (2010)_Plex 4K.mkv`, tmdbGuess{"movie", "Inception", "2010", 0, 0, 0}},
+		{`D:\TV\Laverne & Shirley (1976)\Laverne & Shirley (1976).S05E09-E10.We're in the Army, Now.mkv`, tmdbGuess{"tv", "Laverne & Shirley", "", 5, 9, 10}},
+		{`D:\TV\Show\Show.S01E01E02.mkv`, tmdbGuess{"tv", "Show", "", 1, 1, 2}},
+		{`D:\TV\Show\Show S01E05-06 Pilot.mkv`, tmdbGuess{"tv", "Show", "", 1, 5, 6}},
+		{`D:\TV\Show\Show.S01E05.1080p-HEVC.mkv`, tmdbGuess{"tv", "Show", "", 1, 5, 0}},
 	}
 	for _, c := range cases {
 		p := strings.ReplaceAll(c.path, `\`, string(filepath.Separator))

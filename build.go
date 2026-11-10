@@ -46,6 +46,7 @@ type Config struct {
 	Tmp                                          string
 	DryRun, Keep, Verbose, Pause, Sound          bool
 	TargetBytes                                  int64          // >0: aim for this output file size
+	SizeFactor                                   float64        // >0: the file holds this many episodes (from the window's marks)
 	Retries                                      int            // hardware encoders: extra attempts to land on the target
 	Pass                                         int            // x265 two-pass: 0 off, 1 or 2
 	vsyncArgs                                    []string       // keep every source frame exactly once (set at start-up)

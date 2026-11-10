@@ -171,6 +171,7 @@ func parseArgs() (*Config, bool) {
 	fs.BoolVar(&cfg.ReplaceOriginal, "replace-original", false, "")
 	metaJSON := fs.String("meta-json", "", "")
 	extSubsJSON := fs.String("ext-subs", "", "")
+	fs.Float64Var(&cfg.SizeFactor, "size-episodes", 0, "")
 	var addSubs []ExtSub
 	fs.Func("add-sub", "", func(v string) error { // a subtitle file to add (its language from its name)
 		addSubs = append(addSubs, guessSubFile(v, ""))
@@ -614,6 +615,9 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 		return err
 	}
 	if cfg.TargetBytes > 0 {
+		if note := scaleTarget(cfg); note != "" { // a double episode gets twice the size
+			fmt.Println(note)
+		}
 		var srcBytes int64
 		if st, err := os.Stat(cfg.Input); err == nil {
 			srcBytes = st.Size()

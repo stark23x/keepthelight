@@ -51,6 +51,26 @@ func plexFilmName(title, year string, id int) string {
 	return t
 }
 
+// plexEpisodeRangeName: a double episode ("Show (1976).S05E09-E10.Title.<details>"),
+// or one part of a split one ("….S02E05.Title.<details>-pt1").
+func plexEpisodeRangeName(show, year string, season int, ep tmdbEp, title string) string {
+	if ep.Last <= ep.First && ep.Part == 0 {
+		return plexEpisodeName(show, year, season, ep.First, title)
+	}
+	n := plexEpisodeName(show, year, season, ep.First, title)
+	if n == "" {
+		return ""
+	}
+	se := fmt.Sprintf("S%02dE%02d", season, ep.First)
+	if ep.Last > ep.First {
+		n = strings.Replace(n, se, se+fmt.Sprintf("-E%02d", ep.Last), 1)
+	}
+	if ep.Part > 0 {
+		n += fmt.Sprintf("-pt%d", ep.Part) // Plex joins "-pt1" and "-pt2" into one episode
+	}
+	return n
+}
+
 func plexEpisodeName(show, year string, season, episode int, title string) string {
 	s := plexClean(show)
 	if s == "" || season <= 0 || episode <= 0 {
