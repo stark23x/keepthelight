@@ -39,6 +39,12 @@ quality.
 - **Plex names tab: a file renamer.** Rename files the way Plex expects straight away, without converting them: the
   queue's files, or any folder you add. Subtitle files beside them are renamed too, and **Undo last rename** puts
   them back.
+- **Your own subtitle files.** Add an SRT file (or ASS/SSA) as an extra subtitle track. Files named after the video,
+  like "Film.en.srt", are found and added by themselves, with their language read from the name.
+- **DVD subtitles to SRT.** VobSub subtitles from DVDs, which are pictures, can now be read as text like Blu-ray
+  subtitles, so Plex no longer has to burn them into the picture.
+- **The file's bitrate is always shown,** with the video's own bitrate, and with Target bitrate how your target
+  compares ("23% less than now").
 
 ---
 
@@ -84,8 +90,11 @@ quality.
 - **One track per language.** If a file has the same language twice, keep only the best or the most compatible one.
 - **Add a compatible audio track.** If a film only has TrueHD or DTS sound, which many TVs can't play, Keep the Light
   adds a copy your TV can play and keeps the original.
-- **Turn subtitles into SRT.** Styled subtitles (ASS) and picture subtitles (PGS, from Blu-rays) can become plain SRT
-  text, which every Plex player can show. PGS is read with free text-recognition software (Tesseract).
+- **Turn subtitles into SRT.** Styled subtitles (ASS) and picture subtitles (PGS from Blu-rays, VobSub from DVDs) can
+  become plain SRT text, which every Plex player can show. Pictures are read with free text-recognition software
+  (Tesseract).
+- **Add your own subtitle files.** An SRT, ASS or SSA file becomes an extra track. Files named after the video are
+  found by themselves; older text encodings are fixed so accents show correctly, and the timing can be moved.
 - **Leaves out empty tracks.** Tracks with nothing in them can make a conversion fail, so they are skipped
   automatically.
 - **Names untitled tracks** from what they are, for example "English AC-3 5.1". A track named only in its own
@@ -276,6 +285,11 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   Only filters that work in 10-bit are used, so HDR keeps its gradations; Dolby Vision is unaffected. Besides a
   cleaner picture, it usually makes files noticeably smaller. Light keeps film grain recognisable; Strong can look
   smoothed. The log says where "High quality" ran.
+- **The file's bitrate** is shown in its card next to its length: the file's size and bitrate, and the video's own
+  bitrate ("1h 6m 32s · 1.9 GB · 4.2 Mb/s (video 3.9 Mb/s)"). The video's figure comes from the file when it says,
+  otherwise it is worked out from the file's bitrate less the audio ("about"). With **Target bitrate**, a line
+  compares your target with it ("Your target of 3.0 Mb/s is 23% less than this video's own bitrate"), and warns
+  when the target is not lower (nothing would be saved).
 - **Quality guide** (under Video): for Constant quality and Target bitrate, a line under the setting judges the
   choice: bits per pixel for the resulting picture size, adjusted for the encoder and preset (GPU encoders need about
   25% more), noise reduction (less needed) and HDR (a little more needed), compared with the source (in HEVC
@@ -532,17 +546,32 @@ subtitles and container from the target to get a video bitrate, then:
   as "(name)", and the log lists what was filled in.
 - **Language names:** tracks show the English name of their language for about 100 languages, including Cantonese
   (`yue`) and Mandarin (`cmn`), which are kept apart from each other.
-- **Subtitles to SRT:** ASS/SSA (styled text) and PGS (Blu-ray picture subtitles) tracks can be converted to plain
-  SRT, which every Plex player shows without Plex burning them into the picture. Per track: **as is**, **→ SRT**
+- **Subtitles to SRT:** ASS/SSA (styled text), PGS (Blu-ray picture subtitles) and VobSub (DVD picture subtitles)
+  tracks can be converted to plain SRT, which every Plex player shows without Plex burning them into the picture. Per track: **as is**, **→ SRT**
   (replaces it) or **as is + SRT** (an SRT copy next to it, named "… (SRT)"); for the queue, the rule **Convert
-  ASS and PGS to SRT**. Timings, language, default and forced flags are kept.
+  ASS, PGS and VobSub to SRT**. Timings, language, default and forced flags are kept.
   - ASS/SSA: converted by FFmpeg, instantly. Fonts, colours, positions and effects are lost; plain dialogue
     converts cleanly, heavily styled tracks (karaoke, signs) may show doubled lines.
   - PGS: the pictures are read with **Tesseract OCR** (free, installed separately; see Setup), in the track's
     language when Tesseract has it, otherwise English. A film takes from seconds to a couple of minutes. Clean
     Blu-ray subtitles come out very accurately, but skim the result once: OCR can mistake l / I / 1, and
     italics are not marked.
-  - In MP4, which cannot hold PGS, a PGS track can now be kept as text; ASS becomes plain text there anyway.
+  - VobSub (DVD): read the same way. DVD subtitles are small four-colour pictures, so each is drawn from the
+    track's own colours and enlarged before Tesseract reads it. Accuracy is a little lower than for Blu-ray
+    subtitles; skim the result.
+  - In MP4, which cannot hold picture subtitles, a PGS or VobSub track can be kept as text; ASS becomes plain text
+    there anyway.
+- **Your own subtitle files** (Subtitles → **Add subtitle file…**): an SRT, ASS or SSA file is added as an extra
+  track after the file's own. Each has a language, an optional name, **default**, **forced** and **SDH** marks, and
+  a **timing** offset in seconds (+ shows them later) for a file that is out of step. The language and marks are
+  read from the file name ("Film.en.srt", "Film.eng.forced.srt", "Film.English SDH.srt").
+  - **Found by themselves:** subtitle files beside the video named after it are listed with a tick when the file
+    is loaded, and files added to the queue get theirs too (⚙ Settings → **Add subtitle files named after each
+    video**, on by default).
+  - Each file is checked before converting: it must hold subtitles, and a file in an older text encoding
+    (Windows-1252, UTF-16) is converted to UTF-8 so accents show correctly in Plex.
+  - Works with **Copy video untouched** and **Metadata only** too, and in MP4 (as text). Command line:
+    `-add-sub Film.en.srt`.
 - **Rules** (remembered) give the starting choice for each file and decide the tracks for the queue, where every
   file is different: languages to keep (for example `eng, jpn`), leave out commentary tracks, **one track per
   language** (the best quality, or the most compatible: AC-3, E-AC-3 or AAC; commentary tracks are not counted), and

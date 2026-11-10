@@ -43,7 +43,8 @@ which is not in the repository.
 - **TMDB:** English is the default language (a setting). The key lives in Windows Credential Manager.
 - **Plex-style names** are optional and never applied without being shown first. The Plex names tab renames
   originals (with their subtitle files, undoable); it never renames or creates folders.
-- **Subtitles to SRT:** ASS via FFmpeg; PGS read with Tesseract OCR (installed separately, never bundled).
+- **Subtitles to SRT:** ASS via FFmpeg; PGS and VobSub read with Tesseract OCR (installed separately, never bundled).
+  Your own SRT/ASS files are added as extra tracks (`extsubs.go`).
 - **The GPU path is automatic,** with fallback. The Dell (Intel QuickSync) must keep every option the laptop
   (NVIDIA NVENC) has.
 
@@ -57,7 +58,7 @@ which is not in the repository.
 - `index.html` – the whole page (HTML, CSS, JavaScript in one file); `about.html` is the About box text.
 - Feature files:
   - `tracks.go`, `trackrules.go` – track choice, rules and naming.
-  - `subs.go`, `ocr.go` – subtitles; the PGS reader and Tesseract.
+  - `subs.go`, `ocr.go`, `vobsub.go`, `extsubs.go` – subtitles; the PGS and VobSub readers and Tesseract; added subtitle files.
   - `meta.go` – metadata and replacing the original.
   - `tmdb.go` – TMDB lookups.
   - `scan.go` – the library scan.

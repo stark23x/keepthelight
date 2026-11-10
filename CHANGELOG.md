@@ -18,6 +18,21 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.34.0 - 2026-11-09
+
+- **Add your own subtitle files.** Under Subtitles, **Add subtitle file…** adds an SRT, ASS or SSA file as an extra
+  track. Language, name, default / forced / SDH and a timing offset can be set for each; the language and marks are
+  read from the file name ("Film.en.srt", "Film.eng.forced.srt"). Subtitle files beside the video named after it are
+  found and ticked by themselves, on the Convert tab and for files added to the queue (⚙ Settings, on by default).
+  Each file is checked first, and older text encodings (Windows-1252, UTF-16) are converted to UTF-8 so accents
+  show correctly. Command line: `-add-sub`.
+- **DVD subtitles (VobSub) to SRT.** Like Blu-ray (PGS) subtitles, DVD picture subtitles can now be read as text with
+  Tesseract: each picture is drawn from the track's own colours and enlarged first, as DVD subtitles are small. The
+  Plex check's "forced picture subtitles" problem now has a **Fix** button for VobSub too.
+- **The file's bitrate is always shown** in its card: size, bitrate, and the video's own bitrate (from the file, or
+  worked out from the total less the audio). With **Target bitrate**, a line says how your target compares, and
+  warns when it is not lower than the video's own (nothing would be saved).
+
 ## 1.33.2 - 2026-11-09
 
 - **Fixed: pop-ups could open partly outside the window** (reported for the profile bar's **More ▾** menu in a
