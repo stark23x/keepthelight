@@ -45,6 +45,10 @@ quality.
   subtitles, so Plex no longer has to burn them into the picture.
 - **The file's bitrate is always shown,** with the video's own bitrate, and with Target bitrate how your target
   compares ("23% less than now").
+- **Double episodes.** When TMDB counts one file as two episodes (a one-hour special), every later episode used to
+  be looked up one number short. Keep the Light now spots such a file, renumbers the rest of the season to match
+  TMDB, and names the double one `S05E09-E10` so Plex shows both. With Target file size, a double episode gets
+  twice the size.
 
 ---
 
@@ -62,7 +66,8 @@ quality.
 - **Three ways to choose quality:**
   - **Constant quality:** pick a number, and every scene gets the same quality.
   - **Target bitrate:** pick how much data per second.
-  - **Target file size:** say "make it 8 GB", and Keep the Light works out the rest.
+  - **Target file size:** say "make it 8 GB", and Keep the Light works out the rest. A double episode (named
+    `S05E09-E10`, or marked as one on the Plex names tab) gets twice the size by itself.
 - **Quality guide.** A plain-English note under the setting tells you if your choice is too low, about right, or
   more than you need.
 - **30-second test.** Convert just 30 seconds first, and compare it with the same 30 seconds of the original before
@@ -514,6 +519,18 @@ subtitles and container from the target to get a video bitrate, then:
   - **Use for the converted files**: for queue files, the converted file gets the Plex name (described as the new
     HEVC file) and the original keeps its name, as **Review names** on the Queue tab does.
   - Folders are never renamed or created.
+  - **Double episodes:** some shows have a one-hour episode that TMDB counts as two (Laverne & Shirley season 5:
+    "We're in the Army, Now" is episodes 9 and 10), while your file is one, named S05E09. Every later file is then
+    one number short of TMDB's. Keep the Light spots such a file (about twice as long as the season's others, where
+    TMDB's episode and the next share a title or together match its length) and asks "Treat it as a double
+    episode?". You can also choose it on any episode's row: **Double episode (two in this file)**, or for the
+    reverse case **First half of a split episode** (one TMDB episode in two files). The later files of that season
+    are then looked up one number on (or back); each row says what it is on TMDB. **Rename now** renames the whole
+    season in one go, in an order that never overwrites a file, and **Undo last rename** puts it all back. The
+    double file is named like `Laverne & Shirley (1976).S05E09-E10.We're in the Army, Now.480p.H264.mkv` (Plex
+    shows both episodes), and the halves of a split one end in `-pt1` / `-pt2`.
+  - A file already named `S05E09-E10` (or `S05E09E10`, `S05E09-10`) is looked up as both episodes: the title
+    "… (Parts 1 & 2)", the first part's date and both descriptions.
 - **Metadata only** (under Video) copies every kept stream unchanged into a new file with the new metadata: no
   re-encoding, so the quality is identical, and it takes about as long as copying the file. Audio tracks can be kept
   or dropped but not converted. A new file is always written (FFmpeg cannot change a file in place), so Keep the

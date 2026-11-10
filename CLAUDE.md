@@ -62,7 +62,8 @@ which is not in the repository.
   - `meta.go` – metadata and replacing the original.
   - `tmdb.go` – TMDB lookups.
   - `scan.go` – the library scan.
-  - `plexnames.go`, `renamer.go` – Plex-style names, and the Plex names tab (renaming, undo, the rename log).
+  - `plexnames.go`, `renamer.go`, `episodes.go` – Plex-style names, the Plex names tab (renaming, undo, the rename log),
+    and double / split episodes (renumbering a season; the target size of a double).
   - `denoise.go` – noise reduction and the 30-second test.
   - `quality.go` – the quality guide and the test's score.
   - `gpupath.go` – the full-GPU path and the encoder check.

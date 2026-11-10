@@ -18,6 +18,22 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.35.0 - 2026-11-10
+
+- **Double episodes no longer throw the rest of a season off.** When TMDB counts one file as two episodes (Laverne
+  & Shirley S05E09 is TMDB's episodes 9 and 10), every later file used to be looked up as the episode before it.
+  - The Plex names tab spots such a file (about twice as long as the others, where TMDB's two episodes share a
+    title or together match its length) and asks whether to treat it as a double episode. Any episode's row can
+    also be set to **Double episode** or, for the reverse case, **First half of a split episode**.
+  - The later files of the season are then looked up one number on (or back), and each row says what it is on
+    TMDB. **Rename now** renumbers the season in one go without ever overwriting a file (each waits until its new
+    name is free), and **Undo last rename** puts it all back.
+  - The double file is named `…S05E09-E10.Title…` so Plex shows both episodes; its title is "… (Parts 1 & 2)" with
+    both descriptions. Names like `S05E09-E10`, `S05E09E10` and `S05E09-10` are now read as both episodes.
+  - Queue files follow: their lookups are redone with the new numbers.
+- **Target file size follows double episodes.** A file that is two episodes (by its name, or marked on the Plex
+  names tab) gets twice the target size; half of a split episode gets half. The plan line and the log say so.
+
 ## 1.34.0 - 2026-11-09
 
 - **Add your own subtitle files.** Under Subtitles, **Add subtitle file…** adds an SRT, ASS or SSA file as an extra
