@@ -6,7 +6,12 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing yet.
+- **Fix: false "Interlaced video" warning after deinterlacing with smooth motion** (Laverne & Shirley S08E14,
+  2026-11-10). The file was deinterlaced correctly (frames compared: the source's combing is gone), but the check of
+  the finished file ran FFmpeg's interlace detector again, and on 59.94 fps "smooth motion" output (each frame made
+  from one field, so neighbouring frames are offset by half a line) its frame-to-frame comparison reports
+  interlacing (TFF 0 / BFF 196 / progressive 105 in one stretch). Fix: the finished-file check trusts the job when it
+  deinterlaced (and otherwise judges by idet's single-frame counts, which are not fooled by the field offset).
 
 ## Ideas raised, not yet requested
 
