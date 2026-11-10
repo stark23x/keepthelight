@@ -6,6 +6,17 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
+- **Fix: files labelled Dolby Vision that hold no Dolby Vision data** (Exhuma 2024, 2026-11-10). The file is an SDR
+  (BT.709) x265 re-encode at 6 Mb/s whose MKV header still carries the original disc's Dolby Vision label
+  (profile 7.6, a "dvcC" record copied over by whoever made it); the video has no RPU at all. Keep the Light believed
+  the label, dovi_tool found nothing, and the job failed, calling it a "glitch".
+  - Believe a Dolby Vision label only when the video carries Dolby Vision data (FFprobe shows "Dolby Vision RPU /
+    Metadata" on the first frame); otherwise treat the file by its own colour labels (here SDR), with a note: "labelled
+    Dolby Vision, but the video holds no Dolby Vision data (a re-encode that kept the original's label)".
+  - If dovi_tool still says "No RPU was found", carry on the same way instead of failing; the message never calls it a
+    glitch.
+  - A Dolby Vision failure is not retried "the normal way" without the full-GPU path (it has nothing to do with the
+    graphics card, and each try reads the whole file again).
 - **Fix: false "Interlaced video" warning after deinterlacing with smooth motion** (Laverne & Shirley S08E14,
   2026-11-10). The file was deinterlaced correctly (frames compared: the source's combing is gone), but the check of
   the finished file ran FFmpeg's interlace detector again, and on 59.94 fps "smooth motion" output (each frame made
