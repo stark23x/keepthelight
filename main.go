@@ -57,7 +57,7 @@ Choosing tracks (numbers as the window shows them: audio 1, 2, ...; subtitles 1,
                        1,2:eac3,3:aac:192k,4:eac3:5.1   (no format = the -audio setting), all, none
   -audio-default <n>   mark audio track n as the default
   -sub-tracks <list>   keep these subtitle tracks: 1,3:forced (":forced" sets the forced flag), all, none;
-                       ":srt" converts an ASS/SSA or PGS track to SRT, ":srt+" adds an SRT copy next to it
+                       ":srt" converts an ASS/SSA, PGS or VobSub track to SRT, ":srt+" adds an SRT copy next to it
   -sub-default <n>     mark subtitle track n as the default, or "none"
  Rules, used when tracks are not listed (for example in scripts over many files):
   -audio-lang <list>   keep only audio in these languages, e.g. eng,jpn (tracks with no language
@@ -69,7 +69,7 @@ Choosing tracks (numbers as the window shows them: audio 1, 2, ...; subtitles 1,
                        track in -audio-tracks, e.g. 1:eac3:5.1 or 2:aac:192k:stereo; "orig" keeps them)
   -sub-lang <list>     keep only subtitles in these languages
   -subs <all|forced|none>  which subtitles to keep (default all)
-  -subs-to-srt <replace|add>  convert ASS/SSA and PGS subtitles to SRT (PGS needs Tesseract OCR),
+  -subs-to-srt <replace|add>  convert ASS/SSA, PGS and VobSub subtitles to SRT (pictures need Tesseract OCR),
                        replacing them or added next to them
   -audio-one-per-language <best|compatible>  keep one audio track per language (commentary aside):
                        the best quality, or the most compatible (AC-3, E-AC-3, AAC)
@@ -129,7 +129,7 @@ Required tools (put them next to this exe, in a "tools" folder, or on PATH):
   ffmpeg + ffprobe              always
   dovi_tool + MP4Box            Dolby Vision sources
   hdr10plus_tool                optional, keeps HDR10+ dynamic metadata
-  tesseract (Tesseract OCR)     only to convert PGS picture subtitles to SRT
+  tesseract (Tesseract OCR)     only to convert picture subtitles (PGS, VobSub) to SRT
 `
 
 func parseArgs() (*Config, bool) {

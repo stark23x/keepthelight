@@ -1409,6 +1409,16 @@ func (g *guiServer) probe(ctx context.Context, s settings) map[string]any {
 			size = st.Size()
 			resp["fileSize"] = size
 		}
+		// the file's bitrate, shown all the time; and the target bitrate against it
+		vb, exact := videoRate(p, t.Audio)
+		resp["rates"] = map[string]any{"size": size, "total": p.TotalBps, "video": vb, "videoExact": exact}
+		if cfg.Bitrate != "" && !cfg.CopyVideo {
+			if tb, ok := parseBitrateBps(cfg.Bitrate); ok {
+				if txt, warn := rateCompare(tb, vb, exact); txt != "" {
+					resp["rateCompare"], resp["rateWarn"] = txt, warn
+				}
+			}
+		}
 		if p.Converted != "" { // Keep the Light's "already converted" tag
 			resp["converted"] = p.Converted
 		}
@@ -1445,7 +1455,7 @@ func (g *guiServer) probe(ctx context.Context, s settings) map[string]any {
 			}
 		}
 		if _, err := findTool("tesseract", ""); err != nil {
-			resp["blocker"] = "Converting picture subtitles (PGS) to SRT needs Tesseract OCR, which is not installed on this PC. " +
+			resp["blocker"] = "Converting picture subtitles (PGS, VobSub) to SRT needs Tesseract OCR, which is not installed on this PC. " +
 				"Install it (free, with its normal installer) and Keep the Light will find it, or set those subtitles to \"as is\"."
 			resp["needTesseract"] = true
 			return resp

@@ -228,10 +228,10 @@ func TestConvertSubsSelection(t *testing.T) {
 	for _, s := range subs {
 		got = append(got, itoa(s.Src.N)+":"+s.Codec+map[bool]string{true: "+"}[s.Added]+map[bool]string{true: "*"}[s.Default])
 	}
-	if strings.Join(got, " ") != "1:copy* 1:srt+ 2:srt 3:copy 4:copy" {
+	if strings.Join(got, " ") != "1:copy* 1:srt+ 2:srt 3:copy 4:srt" { // VobSub is read as text too (1.34)
 		t.Errorf("mkv: %v", got)
 	}
-	if !strings.Contains(strings.Join(warns, "|"), "track 4 (VobSub") && !strings.Contains(strings.Join(warns, "|"), "subtitle track 4") {
+	if !strings.Contains(strings.Join(warns, "|"), "subtitle track 4 (VobSub pictures) is read as text") {
 		t.Errorf("warns: %v", warns)
 	}
 	if subs[1].Title != "Signs (SRT)" || !subs[2].needsOCR() || subs[1].needsOCR() {
@@ -258,7 +258,7 @@ func TestConvertSubsSelection(t *testing.T) {
 	for _, s := range subs {
 		got = append(got, itoa(s.Src.N)+":"+s.Codec)
 	}
-	if strings.Join(got, " ") != "1:mov_text 2:mov_text 3:mov_text" {
+	if strings.Join(got, " ") != "1:mov_text 2:mov_text 3:mov_text 4:mov_text" {
 		t.Errorf("mp4 rule: %v", got)
 	}
 	// metadata only: nothing is converted

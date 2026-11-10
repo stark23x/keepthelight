@@ -26,6 +26,8 @@ type Probe struct {
 	Codec, PixFmt                     string
 	Width, Height                     int
 	VideoBps                          float64 // the source video's bitrate (bits/s), 0 if unknown
+	VideoBpsExact                     bool    // VideoBps is the file's own figure (not worked out)
+	TotalBps                          float64 // the whole file's bitrate (bits/s)
 	Primaries, Transfer, Space, Range string
 	AvgFPS, RFPS                      string
 	FieldOrder                        string // what the file says: progressive, tt, bb, tb, bt (often wrong in old material)
@@ -132,10 +134,10 @@ func parseProbe(data []byte) (*Probe, error) {
 			p.VideoBps, _ = strconv.ParseFloat(strings.TrimSpace(v), 64)
 		}
 	}
-	if p.VideoBps == 0 {
-		if f, err := strconv.ParseFloat(j.Format.BitRate, 64); err == nil {
-			p.VideoBps = f * 0.8
-		}
+	p.VideoBpsExact = p.VideoBps > 0
+	p.TotalBps, _ = strconv.ParseFloat(j.Format.BitRate, 64)
+	if p.VideoBps == 0 && p.TotalBps > 0 {
+		p.VideoBps = p.TotalBps * 0.8 // refined by videoRate once the audio tracks are known
 	}
 	all := append([]map[string]any{}, s.SideData...)
 	if len(j.Frames) > 0 {

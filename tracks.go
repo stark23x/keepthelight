@@ -723,12 +723,12 @@ func selectTracks(cfg *Config, t *Tracks, mp4 bool) (audio []outAudio, subs []ou
 }
 
 // srtKind says how a subtitle track can become SRT: "text" (ASS/SSA, by
-// FFmpeg), "ocr" (PGS, read by Tesseract) or "" (not needed or not possible).
+// FFmpeg), "ocr" (PGS or VobSub, read by Tesseract) or "" (not needed or not possible).
 func srtKind(codec string) string {
 	switch strings.ToLower(codec) {
 	case "ass", "ssa":
 		return "text"
-	case "hdmv_pgs_subtitle":
+	case "hdmv_pgs_subtitle", "dvd_subtitle":
 		return "ocr"
 	}
 	return ""
@@ -755,7 +755,7 @@ func convertSubs(cfg *Config, subs []outSub, modes []string, mp4, explicit bool,
 			m = ""
 		case kind == "":
 			if explicit && !textSubs[strings.ToLower(s.Src.Codec)] {
-				warns = append(warns, fmt.Sprintf("subtitle track %d (%s) cannot be converted to SRT (only ASS/SSA and PGS can); it is kept as it is", s.Src.N, codecName(s.Src)))
+				warns = append(warns, fmt.Sprintf("subtitle track %d (%s) cannot be converted to SRT (only ASS/SSA, PGS and VobSub can); it is kept as it is", s.Src.N, codecName(s.Src)))
 			}
 			m = ""
 		case mp4:
@@ -778,7 +778,7 @@ func convertSubs(cfg *Config, subs []outSub, modes []string, mp4, explicit bool,
 			out = append(out, s)
 		}
 		if m != "" && kind == "ocr" {
-			warns = append(warns, fmt.Sprintf("note: subtitle track %d (PGS pictures) is read as text with Tesseract OCR", s.Src.N))
+			warns = append(warns, fmt.Sprintf("note: subtitle track %d (%s pictures) is read as text with Tesseract OCR", s.Src.N, codecName(s.Src)))
 		}
 	}
 	return out, warns

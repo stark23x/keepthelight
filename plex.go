@@ -57,10 +57,10 @@ func plexIssues(s plexSrc) []plexIssue {
 	}
 	for _, t := range s.Subs {
 		if t.Forced && bitmapSubs[t.Codec] {
-			if t.Codec == "hdmv_pgs_subtitle" {
-				add("forced-pgs", "Forced picture subtitles (PGS)", "Forced picture subtitles (PGS/VobSub): Plex burns them into the picture, which forces a video conversion (converting them to SRT fixes this)")
+			if ocrCodec(t.Codec) {
+				add("forced-pgs", "Forced picture subtitles ("+codecName(srcTrack{Codec: t.Codec})+")", "Forced picture subtitles (PGS/VobSub): Plex burns them into the picture, which forces a video conversion (converting them to SRT fixes this)")
 			} else {
-				add("forced-bitmap", "Forced picture subtitles (VobSub)", "Forced picture subtitles (PGS/VobSub): Plex burns them into the picture, which forces a video conversion")
+				add("forced-bitmap", "Forced picture subtitles", "Forced picture subtitles (DVB): Plex burns them into the picture, which forces a video conversion")
 			}
 		}
 		if (t.Codec == "ass" || t.Codec == "ssa") && (t.Forced || t.Default) {
@@ -254,7 +254,7 @@ func plexFixHint(key string, cfg *Config) string {
 		}
 		return "Set that subtitle track to SRT (replacing it), or leave it out."
 	case "forced-bitmap":
-		return "Leave that subtitle track out (only PGS pictures can be turned into SRT)."
+		return "Leave that subtitle track out (only PGS and VobSub pictures can be turned into SRT)."
 	case "audio":
 		if cfg.MetaOnly {
 			return `"Metadata only" cannot add audio: choose "Copy video untouched" or "Re-encode" and turn on "Add a compatible audio track when needed" under Audio.`

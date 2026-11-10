@@ -16,7 +16,7 @@ func plexKeys(list []plexIssue) map[string]string {
 func TestPlexIssues(t *testing.T) {
 	src := plexSrc{VCodec: "h264", PixFmt: "yuv420p10le", DVProfile: 7, Kbps: 95000,
 		Audio: []plexTrack{{Codec: "truehd"}, {Codec: "dts"}},
-		Subs:  []plexTrack{{Codec: "hdmv_pgs_subtitle", Forced: true}, {Codec: "ass", Default: true}, {Codec: "dvd_subtitle", Forced: true}}}
+		Subs:  []plexTrack{{Codec: "hdmv_pgs_subtitle", Forced: true}, {Codec: "ass", Default: true}, {Codec: "dvb_subtitle", Forced: true}}}
 	got := plexKeys(plexIssues(src))
 	for _, k := range []string{"h264-10", "forced-pgs", "forced-bitmap", "ass-default", "dv7", "audio", "bitrate"} {
 		if _, ok := got[k]; !ok {

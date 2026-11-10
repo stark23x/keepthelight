@@ -437,7 +437,12 @@ func writeSRT(path string, events []pgsEvent) (int, error) {
 
 // subNeedsOCR: picture subtitles that are to be read as text.
 func (s outSub) needsOCR() bool {
-	return s.ToSRT && strings.EqualFold(s.Src.Codec, "hdmv_pgs_subtitle")
+	return s.ToSRT && ocrCodec(s.Src.Codec)
+}
+
+// ocrCodec: picture subtitles Keep the Light can read as text (PGS from Blu-ray, VobSub from DVD).
+func ocrCodec(c string) bool {
+	return strings.EqualFold(c, "hdmv_pgs_subtitle") || strings.EqualFold(c, "dvd_subtitle")
 }
 
 // prepareOCR copies the PGS tracks that are converted out of the source (one
@@ -454,21 +459,24 @@ func prepareOCR(r *runner, cfg *Config, plan *Plan, tmp string) error {
 	}
 	tess, err := findTool("tesseract", cfg.Tesseract)
 	if err != nil {
-		return fmt.Errorf("converting picture subtitles (PGS) to SRT needs Tesseract OCR: %v. Install it (free) from https://github.com/UB-Mannheim/tesseract/wiki, or keep those subtitles as they are", err)
+		return fmt.Errorf("converting picture subtitles (PGS, VobSub) to SRT needs Tesseract OCR: %v. Install it (free) from https://github.com/UB-Mannheim/tesseract/wiki, or keep those subtitles as they are", err)
 	}
-	fmt.Printf("\nReading subtitles: copying %d picture subtitle track(s) out of the source\n", len(idx))
+	// PGS: copied out of the source in one pass, then read; VobSub: read straight from the source
 	args := []string{"-hide_banner", "-v", "error", "-y", "-i", cfg.Input}
 	sup := map[int]string{} // source track -> file (a track converted twice is read once)
 	for _, i := range idx {
 		n := plan.Subs[i].Src.N
-		if _, ok := sup[n]; ok {
+		if _, ok := sup[n]; ok || !strings.EqualFold(plan.Subs[i].Src.Codec, "hdmv_pgs_subtitle") {
 			continue
 		}
 		sup[n] = filepath.Join(tmp, fmt.Sprintf("subs%d.sup", n))
 		args = append(args, "-map", fmt.Sprintf("0:s:%d", n-1), "-c", "copy", "-f", "sup", sup[n])
 	}
-	if err := r.run(cfg.Ffmpeg, args...); err != nil {
-		return fmt.Errorf("copying the picture subtitles out failed: %w", err)
+	if len(sup) > 0 {
+		fmt.Printf("\nReading subtitles: copying %d PGS subtitle track(s) out of the source\n", len(sup))
+		if err := r.run(cfg.Ffmpeg, args...); err != nil {
+			return fmt.Errorf("copying the picture subtitles out failed: %w", err)
+		}
 	}
 	srt := map[int]string{}
 	for _, i := range idx {
@@ -483,13 +491,20 @@ func prepareOCR(r *runner, cfg *Config, plan *Plan, tmp string) error {
 			s.SRTFile, srt[s.Src.N] = f, f
 			continue
 		}
-		data, err := os.ReadFile(sup[s.Src.N])
-		if err != nil {
-			return err
-		}
-		events, err := parseSUP(data)
-		if err != nil {
-			return fmt.Errorf("subtitle track %d: %w", s.Src.N, err)
+		var events []pgsEvent
+		if f, ok := sup[s.Src.N]; ok {
+			data, err := os.ReadFile(f)
+			if err != nil {
+				return err
+			}
+			if events, err = parseSUP(data); err != nil {
+				return fmt.Errorf("subtitle track %d: %w", s.Src.N, err)
+			}
+		} else {
+			fmt.Printf("\nReading subtitles: DVD subtitle track %d (VobSub)\n", s.Src.N)
+			if events, err = readVobSub(r.ctx, cfg.Ffprobe, cfg.Input, s.Src.N); err != nil {
+				return fmt.Errorf("subtitle track %d: %w", s.Src.N, err)
+			}
 		}
 		lang, warn := ocrLang(r.ctx, tess, s.Src.Lang)
 		if warn != "" {

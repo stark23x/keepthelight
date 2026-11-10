@@ -611,7 +611,7 @@
         <div><label for="subLang">Languages to keep</label><input type="text" id="subLang" spellcheck="false" placeholder="all, or for example eng"></div>
         <div><label for="subMode">Keep</label>
           <select id="subMode"><option value="">all subtitles in those languages</option><option value="forced">only forced subtitles</option><option value="none">no subtitles</option></select></div>
-        <div><label for="subToSRT">Convert ASS and PGS to SRT</label>
+        <div><label for="subToSRT">Convert ASS, PGS and VobSub to SRT</label>
           <select id="subToSRT"><option value="">no, keep them as they are</option><option value="replace">yes, replacing them</option><option value="add">yes, next to the originals</option></select></div>
       </div>
       <div class="row" style="margin-top:10px; flex-wrap:wrap">
@@ -1180,7 +1180,7 @@ function renderTracks() {
     const keepable = info.subTracks.filter(x => !(mp4 && !x.mp4ok && x.srtKind !== 'ocr') && !x.empty); // empty tracks only when ticked one by one
     const ruleSRT = src => src.srtKind && !metaMode() ? $('subToSRT').value : '';
     const head = el('div', 'thead'), all = el('select', 'tall');
-    [['', 'Set all tracks to…'], ['keep', 'Keep all'], ['drop', 'Drop all'], ['srt', 'Convert all ASS/PGS to SRT'], ['asis', 'Keep all as they are (no SRT)']].forEach(([v, text]) => { const o = el('option', '', text); o.value = v; all.append(o); });
+    [['', 'Set all tracks to…'], ['keep', 'Keep all'], ['drop', 'Drop all'], ['srt', 'Convert all ASS/PGS/VobSub to SRT'], ['asis', 'Keep all as they are (no SRT)']].forEach(([v, text]) => { const o = el('option', '', text); o.value = v; all.append(o); });
     if (!keepable.length) all.options[1].disabled = true;
     all.onchange = () => {
       const v = all.value; all.value = '';
@@ -1210,7 +1210,7 @@ function renderTracks() {
       if (noMP4) { keep.querySelector('input').disabled = true; keep.title = 'Picture subtitles (PGS, VobSub) cannot be stored in MP4. Choose MKV to keep them.'; }
       const d = el('div', 'tdesc'); d.append(el('span', 'tnum', String(src.n)), document.createTextNode(src.desc + (noMP4 ? ' · not possible in MP4' : ''))); d.title = src.desc;
       if (kept && !noMP4) langPick(d, 's', src); // UI-10
-      // ASS/SSA (styled text) and PGS (pictures) can become plain SRT
+      // ASS/SSA (styled text), PGS and VobSub (pictures) can become plain SRT
       let conv = el('span');
       if (kept && !noMP4 && src.srtKind && !metaMode()) {
         if (mp4) conv = el('span', 'hint', src.srtKind === 'ocr' ? 'as text (OCR)' : 'as plain text');
@@ -1218,7 +1218,7 @@ function renderTracks() {
           conv = el('select', 'tsrt');
           [['', 'as is'], ['replace', '→ SRT'], ['add', 'as is + SRT']].forEach(([v, text]) => { const o = el('option', '', text); o.value = v; conv.append(o); });
           conv.value = kept.srt || '';
-          conv.title = src.srtKind === 'ocr' ? 'PGS subtitles are pictures: converting reads them with Tesseract OCR (free, installed separately). Skim the result once.'
+          conv.title = src.srtKind === 'ocr' ? 'PGS (Blu-ray) and VobSub (DVD) subtitles are pictures: converting reads them with Tesseract OCR (free, installed separately). Skim the result once.'
             : 'ASS/SSA styling (fonts, colours, positions) is lost in SRT; plain dialogue converts cleanly.';
           conv.onchange = () => { kept.srt = conv.value; tracksChanged(); };
         }
@@ -1229,7 +1229,7 @@ function renderTracks() {
       sl.append(row);
     });
     if (lastTools && !lastTools.tesseract && t.subs.some(k => k.srt && (info.subTracks.find(x => x.n === k.n) || {}).srtKind === 'ocr') && !metaMode())
-      sl.append(tesseractNote('PGS subtitles set to SRT are read with Tesseract OCR, which is not installed on this PC, so this file cannot start yet.'));
+      sl.append(tesseractNote('Picture subtitles (PGS, VobSub) set to SRT are read with Tesseract OCR, which is not installed on this PC, so this file cannot start yet.'));
     const none = el('div', 'trow nodef');
     none.append(el('span', 'hint', 'Players show the default subtitle automatically; forced subtitles appear even when subtitles are off.'),
       radioLabel('sdef', t.subDefault <= 0, 'no default subtitle', () => { t.subDefault = -1; tracksChanged(); }));
@@ -1843,11 +1843,11 @@ function updateSummaries() {
   const rt = $('ruleTess'), needT = !!$('subToSRT').value && lastTools && !lastTools.tesseract;
   if (needT !== !rt.classList.contains('hidden')) {
     rt.innerHTML = '';
-    if (needT) rt.append(tesseractNote('PGS subtitles in files added to the queue will be read with Tesseract OCR, which is not installed on this PC; those files will not start.', 'choose "no" here'));
+    if (needT) rt.append(tesseractNote('Picture subtitles (PGS, VobSub) in files added to the queue will be read with Tesseract OCR, which is not installed on this PC; those files will not start.', 'choose "no" here'));
     rt.classList.toggle('hidden', !needT);
   }
   $('sumSRules').textContent = [$('subLang').value.trim() || 'all languages', opt($('subMode')),
-    $('subToSRT').value && 'ASS/PGS to SRT' + ($('subToSRT').value === 'add' ? ' (copies)' : ''),
+    $('subToSRT').value && 'ASS/PGS/VobSub to SRT' + ($('subToSRT').value === 'add' ? ' (copies)' : ''),
     $('subNameMode').value && $('subNameWords').value.trim() && ($('subNameMode').value === 'keep' ? 'only' : 'not') + ' "' + $('subNameWords').value.trim() + '"'].filter(Boolean).join('  ·  ');
 }
 
@@ -1966,6 +1966,11 @@ function showInfo(r) {
   b.appendChild(plainCodec(r.codec, r.pixFmt)); // UI-5
   const bits = [];
   if (r.duration) bits.push(fmtDur(r.duration));
+  if (r.rates) { // the file's size and bitrate, and the video's own
+    const q = r.rates, mb = v => v >= 1e6 ? (v / 1e6).toFixed(1) + ' Mb/s' : Math.round(v / 1e3) + ' kb/s';
+    if (q.size) bits.push(fmtSize(q.size));
+    if (q.total) bits.push(mb(q.total) + (q.video ? ' (video ' + (q.videoExact ? '' : 'about ') + mb(q.video) + ')' : ''));
+  }
   if (r.cll) bits.push('MaxCLL/FALL ' + r.cll);
   bits.push(r.hasMastering ? 'mastering display metadata found' : 'no mastering display metadata');
   $('meta').textContent = bits.join('  ·  ');
@@ -1981,6 +1986,7 @@ function showInfo(r) {
   }
   else if (r.modeText || r.mode) notes.appendChild(note(r.modeText || r.mode, 'info'));
   if (r.sizeText) notes.appendChild(note(r.sizeText + (r.sizeExact ? '' : ' (audio size estimated)'), 'info'));
+  if (r.rateCompare) notes.appendChild(note(r.rateCompare, r.rateWarn ? 'warn' : 'info'));
   (r.notesInfo || []).forEach(n => notes.appendChild(note(n.charAt(0).toUpperCase() + n.slice(1), 'info')));
   (r.warnings || []).forEach(w => notes.appendChild(note(w, 'warn')));
   if (r.plex) { // the Plex check: what would make Plex convert the file, and what the settings do about it
@@ -3431,7 +3437,7 @@ async function checkTools() {
       ' should be in the tools folder (they come with Keep the Light). Unzip the download again if they are missing.');
   }
   if (!t.tesseract && !problems.tesseract) {
-    msgs.push('Converting PGS (picture) subtitles to SRT needs Tesseract OCR: install it (free) with its normal installer and Keep the Light will find it. Everything else works without it.');
+    msgs.push('Converting picture subtitles (PGS, VobSub) to SRT needs Tesseract OCR: install it (free) with its normal installer and Keep the Light will find it. Everything else works without it.');
     links.push(linkButton('Get Tesseract', TESSERACT_URL));
   }
   if ((t.dovi_tool || t.hdr10plus_tool) && !t.vcruntime) {
@@ -3467,7 +3473,7 @@ function slimTools(box, t, problems) {
   const names = [];
   if (!t.mp4box) names.push('GPAC (Dolby Vision)');
   if (!t.dovi_tool || !t.hdr10plus_tool) names.push([!t.dovi_tool && 'dovi_tool', !t.hdr10plus_tool && 'hdr10plus_tool'].filter(Boolean).join(' and '));
-  if (!t.tesseract) names.push('Tesseract (PGS subtitles to SRT)');
+  if (!t.tesseract) names.push('Tesseract (picture subtitles to SRT)');
   if ((t.dovi_tool || t.hdr10plus_tool) && !t.vcruntime) names.push('Visual C++ Runtime');
   Object.keys(problems).forEach(k => { if (!names.some(n => n.toLowerCase().includes(k))) names.push(k); });
   const d = el('details'), sum = el('summary');
