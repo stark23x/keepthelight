@@ -220,7 +220,11 @@ func prepareExtSubs(cfg *Config, plan *Plan, tmp string) error {
 		if s.Offset != 0 {
 			shift = fmt.Sprintf(", moved %+gs", s.Offset)
 		}
-		fmt.Printf("Adding subtitles: %s (%d subtitles, %s%s)\n", filepath.Base(s.ExtPath), cues, langName(s.Src.Lang), shift)
+		n := fmt.Sprintf("%d subtitles", cues)
+		if cues == 1 {
+			n = "1 subtitle"
+		}
+		fmt.Printf("Adding subtitles: %s (%s, %s%s)\n", filepath.Base(s.ExtPath), n, langName(s.Src.Lang), shift)
 		s.SRTFile = f
 	}
 	return nil
