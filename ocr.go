@@ -534,12 +534,15 @@ func prepareOCR(r *runner, cfg *Config, plan *Plan, tmp string) error {
 	return nil
 }
 
-// ocrInputs adds the SRT files as inputs, numbered from first.
+// ocrInputs adds the subtitle files (read by OCR, or added) as inputs, numbered from first.
 func ocrInputs(subs []outSub, first int) []string {
 	var a []string
 	n := first
 	for i := range subs {
-		if subs[i].needsOCR() && subs[i].SRTFile != "" {
+		if subs[i].fromFile() {
+			if subs[i].External && subs[i].Offset != 0 {
+				a = append(a, "-itsoffset", offsetArg(subs[i].Offset))
+			}
 			a = append(a, "-i", subs[i].SRTFile)
 			subs[i].input = n
 			n++

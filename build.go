@@ -28,6 +28,7 @@ type Config struct {
 	AddCompatAudio                               bool       // rule: add an E-AC-3 copy when no track plays everywhere
 	AudioChannels                                string     // converted audio: "" keeps the channels, "5.1" or "stereo" mixes down
 	Meta                                         *MetaEdit  // metadata changes (nil = none)
+	ExtSubs                                      []ExtSub   // subtitle files of the user's own, added as tracks
 	MetaOnly                                     bool       // copy every stream unchanged, only the metadata changes
 	ReplaceOriginal                              bool       // metadata only: the result takes the original's place
 	SubMode                                      string     // rule: "" (all matching), "forced" (forced only) or "none"

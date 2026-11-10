@@ -239,6 +239,16 @@
   .srow.worth .ssave { color: var(--ok); }
   .srow .sissue { font-size: 12px; color: var(--warn); margin-top: 2px; }
   .srow .serr { font-size: 12px; color: var(--bad); }
+  /* your own subtitle files */
+  .xrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 8px; align-items: center; padding: 6px 8px; margin-top: 6px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); }
+  .xrow .xname { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .xrow .xopts { grid-column: 2 / 4; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 12.5px; }
+  .xrow .xopts select, .xrow .xopts input[type=text], .xrow .xopts input[type=number] { width: auto; padding: 3px 6px; font-size: 12.5px; }
+  .xrow .xopts label { display: inline-flex; align-items: center; gap: 4px; margin: 0; color: var(--muted); }
+  .xrow .xstate { grid-column: 2 / 4; font-size: 12px; color: var(--muted); }
+  .xrow .xstate.bad { color: var(--bad); }
+  .xrow .xstate.warn { color: var(--warn); }
   /* Plex names */
   #plexList { max-height: 520px; overflow-y: auto; }
   .prow { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 10px; align-items: start; padding: 8px 10px;
@@ -605,6 +615,13 @@
 <details class="card sect" id="secSubs" data-key="subtitles" open>
     <summary><h2 class="sect-title">Subtitles</h2><span class="sum" id="sumSubs"></span></summary>
     <div id="subList" class="tracks"></div>
+    <div id="extSubBox" class="extsubs">
+      <div class="row" style="align-items:center; gap:8px; margin-top:8px">
+        <span class="rb-title grow">Your own subtitle files <span class="hint" style="font-weight:400">– added as extra tracks</span></span>
+        <button id="extSubAdd">Add subtitle file…</button>
+      </div>
+      <div id="extSubList"></div>
+    </div>
     <details class="rulesbox" data-key="subRules"><summary><span class="rb-title">For new files and the queue</span><span class="sum" id="sumSRules"></span></summary>
     <div class="rb-in">
       <div class="grid">
@@ -828,6 +845,9 @@
       <label class="check" style="margin-top:10px"><input type="checkbox" id="workLocal"> <span><b>Work locally with network files</b> – network files (your RAID shares)
         are copied to this PC, converted here, and the result copied back, so a network hiccup cannot break a long conversion. Uses the temp folder
         above if it is on this PC, otherwise Windows' temp folder. Not used for tests or metadata-only jobs.</span></label>
+      <label class="check" style="margin-top:10px"><input type="checkbox" id="findSubs" checked> <span><b>Add subtitle files named after each video</b> –
+        "Film.en.srt" beside "Film.mkv" is added as an extra track (its language from the name), on the Convert tab and for files added to the
+        queue. You can untick or remove them under Subtitles.</span></label>
       <div class="row" style="margin-top:12px; align-items:center"><span class="hint grow">The full log of every failed file is saved
         automatically (the 50 newest are kept), so a problem can be looked into later.</span><button id="openLogs">Open logs folder</button></div>
       <div class="rules-title" style="margin-top:16px">Watch folder <span>– videos placed here join the queue by themselves</span></div>
@@ -995,7 +1015,8 @@ function settings() {
     audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, audioChannels: $('audioCh').value, addCompatAudio: $('addCompat').checked, subLang: $('subLang').value.trim(), subMode: $('subMode').value, subToSRT: $('subToSRT').value,
     audioOnePerLang: $('audioOne').value, subNameMode: $('subNameMode').value, subNameWords: $('subNameWords').value.trim(), nameTracks: $('nameTracks').checked, fillFromNames: $('fillFromNames').checked,
     ...trackSettings(),
-    meta: metaEdits(), replaceOriginal: replacing(), profile: $('profile').value
+    meta: metaEdits(), replaceOriginal: replacing(), profile: $('profile').value,
+    extSubs: extSubsFor === $('input').value.trim() ? extSubs.filter(x => x.use).map(({ use, found, ...x }) => x) : [], findSubs: $('findSubs').checked
   };
 }
 
@@ -1295,11 +1316,12 @@ function subSummary() {
     const m = $('subMode').value;
     return 'rules: ' + (m === 'none' ? 'none' : ($('subLang').value.trim() || 'all') + (m === 'forced' ? ', forced only' : ''));
   }
-  if (!info.subTracks.length) return 'none in this file';
+  const nx = extSubs.filter(x => x.use !== false && extSubsFor === $('input').value.trim()).length, plus = nx ? '  ·  + ' + nx + (nx === 1 ? ' file' : ' files') : '';
+  if (!info.subTracks.length) return (nx ? 'none in this file' + plus : 'none in this file');
   const mp4 = $('container').value === '.mp4';
   const okIn = x => { const s = info.subTracks.find(y => y.n === x.n) || {}; return !mp4 || s.mp4ok || (s.srtKind === 'ocr' && !metaMode()); };
   const n = t.subs.filter(okIn).length, nc = t.subs.filter(x => okIn(x) && x.srt).length;
-  return 'keeping ' + n + ' of ' + info.subTracks.length + (nc ? '  ·  ' + nc + ' to SRT' : '');
+  return 'keeping ' + n + ' of ' + info.subTracks.length + (nc ? '  ·  ' + nc + ' to SRT' : '') + plus;
 }
 
 // ---------- metadata ----------
@@ -1678,7 +1700,8 @@ async function startEdit(it) {
   if (editing) { showError('Finish changing "' + editing.name + '" first.'); return; }
   const r = await api('queueEditStart', { id: it.id });
   if (!r.ok) { showError(r.error); return; }
-  editing = { id: it.id, name: it.name, snapshot: captureForm() };
+  editing = { id: it.id, name: it.name, snapshot: captureForm(), ext: { list: extSubs, input: extSubsFor } };
+  extSubs = []; extSubsFor = ''; // the queued file's own subtitle files come with its settings
   const st = typeof r.settings === 'string' ? JSON.parse(r.settings) : r.settings;
   loadForm(st);
   tracks = null; metaState = null; pendingLoad = st;
@@ -1695,10 +1718,11 @@ async function endEdit(save) {
     if (!r.ok) { showError(r.error); return; }
     offer = r.seriesOffer;
   } else await api('queueEditCancel', { id: editing.id });
-  const snap = editing.snapshot, editedId = editing.id, picked = save && editing.tmdbPicked;
+  const snap = editing.snapshot, editedId = editing.id, picked = save && editing.tmdbPicked, ext = editing.ext;
   editing = null; pendingLoad = null;
   $('editBanner').classList.add('hidden'); $('input').readOnly = false; $('browseIn').disabled = false;
   loadForm(snap.st, { profile: snap.profile });
+  extSubs = ext.list; extSubsFor = ext.input; // the Convert tab's file keeps its own list
   $('container').value = snap.container;
   tracks = snap.tracks; metaState = snap.meta;
   updateVisibility(); renderMeta(); updateStart(); probe();
@@ -1894,6 +1918,7 @@ async function restorePrefs() {
     $('tmp').value = r.prefs.tmpDir;
   }
   $('lowPrio').checked = r.prefs.lowPriority === true;
+  $('findSubs').checked = r.prefs.findSubs !== false;
   $('hwDec').checked = r.prefs.hwDecode === true;
   $('workLocal').checked = r.prefs.workLocal === true;
   if (typeof r.prefs.nameTag === 'string') $('nameTag').value = r.prefs.nameTag;
@@ -1986,7 +2011,8 @@ function showInfo(r) {
   }
   else if (r.modeText || r.mode) notes.appendChild(note(r.modeText || r.mode, 'info'));
   if (r.sizeText) notes.appendChild(note(r.sizeText + (r.sizeExact ? '' : ' (audio size estimated)'), 'info'));
-  if (r.rateCompare) notes.appendChild(note(r.rateCompare, r.rateWarn ? 'warn' : 'info'));
+  if (r.rateCompare && !(r.rateWarn && (r.warnings || []).some(w => w.includes('more than this source needs')))) // the quality guide may say it already
+    notes.appendChild(note(r.rateCompare, r.rateWarn ? 'warn' : 'info'));
   (r.notesInfo || []).forEach(n => notes.appendChild(note(n.charAt(0).toUpperCase() + n.slice(1), 'info')));
   (r.warnings || []).forEach(w => notes.appendChild(note(w, 'warn')));
   if (r.plex) { // the Plex check: what would make Plex convert the file, and what the settings do about it
@@ -2026,9 +2052,17 @@ async function probe() {
     tracks = load && load.audioTracks ? tracksFromSettings(load, s.input) : tracksFromProbe(r, s.input);
   const freshMeta = info && r.meta && (!metaState || metaState.input !== s.input);
   if (freshMeta) { metaState = newMetaState(r, s.input); if (load) applyMetaEdits(metaState, load.meta); tmdbPrefill(s.input); }
+  if (info && extSubsFor !== s.input) { // a new file: its subtitle files (a queued file's own list, or the ones named after it)
+    extSubsFor = s.input;
+    if (load && Array.isArray(load.extSubs)) extSubs = load.extSubs.map(x => ({ ...x, use: true }));
+    else extSubs = $('findSubs').checked ? (r.foundSubs || []).map(x => ({ ...x, use: true, found: true })) : [];
+    if (extSubs.length && !load) scheduleProbe(50); // check them
+  }
+  extChecks = r.extChecks || [];
   if (load && info && r.audioChoice) { pendingLoad = null; scheduleProbe(50); } // read again with the file's own choices
   showInfo(r);
   renderTracks();
+  renderExtSubs();
   // the planned names ("will be named: …") follow the latest check, unless something in Metadata is being typed in
   const metaBox = $('mTracks').closest('details') || $('mTracks');
   const typing = metaBox.contains(document.activeElement) && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName) && document.activeElement.type !== 'checkbox';
@@ -2089,6 +2123,7 @@ $('bitrate').addEventListener('input', () => scheduleProbe(700));
 document.querySelectorAll('input[name="mode"], input[name="quality"]').forEach(el => el.addEventListener('change', () => { updateVisibility(); renderMeta(); scheduleProbe(100); }));
 ['input', 'change'].forEach(t => document.querySelector('.wrap').addEventListener(t, updateSummaries));
 // Low priority is a remembered setting for all transcodes (not per file).
+$('findSubs').addEventListener('change', () => api('setPref', { name: 'findSubs', value: $('findSubs').checked }));
 $('lowPrio').addEventListener('change', () => { api('priority', { low: $('lowPrio').checked }); updateSummaries(); });
 // GPU decoding is remembered too, and applies to every file from the next one on.
 $('hwDec').addEventListener('change', () => { api('hwdecode', { on: $('hwDec').checked }); updateSummaries(); });
@@ -2151,7 +2186,7 @@ function outFolderFor(path) {
   return dir + (dir.includes('/') && !dir.includes('\\') ? '/' : '\\');
 }
 function settingsFor(path) { // the current settings, for another input file
-  const st = Object.assign(settings(), RULES_ONLY, { meta: null }); // other files: the rules choose their tracks; no per-file metadata
+  const st = Object.assign(settings(), RULES_ONLY, { meta: null, extSubs: null }); // other files: the rules choose their tracks; no per-file metadata or subtitle files (each file's own are found when it is added)
   st.input = path; st.overwrite = false;
   st.output = st.replaceOriginal ? path.replace(/\.[A-Za-z0-9]+$/, '') + $('container').value
     : outFolderFor(path) + stem(path) + nameTag() + $('container').value;
@@ -2747,6 +2782,58 @@ $('scanAdd').onclick = async () => {
   if (r && r.added) { scanSel = new Set(); renderScan(); scanButtons(); }
 };
 fillScanWith();
+
+// ---------- your own subtitle files ----------
+let extSubs = [], extSubsFor = '', extChecks = [];
+function renderExtSubs() {
+  const list = $('extSubList'); list.innerHTML = '';
+  $('extSubBox').classList.toggle('hidden', !info);
+  extSubs.forEach((x, i) => {
+    const row = el('div', 'xrow');
+    const use = el('input'); use.type = 'checkbox'; use.checked = x.use !== false;
+    use.title = 'Add this file to the new file'; use.setAttribute('aria-label', 'Add ' + baseName(x.path));
+    use.onchange = () => { x.use = use.checked; extChanged(); };
+    const name = el('div', 'xname', baseName(x.path)); name.title = x.path;
+    const rm = el('button', '', '✕'); rm.title = 'Remove this file from the list'; rm.setAttribute('aria-label', 'Remove ' + baseName(x.path));
+    rm.onclick = () => { extSubs.splice(i, 1); extChanged(); };
+    const opts = el('div', 'xopts');
+    const lang = el('select');
+    [['', 'Language…'], ...QUICK_LANGS].forEach(([c, n]) => { const o = el('option', '', n); o.value = c; lang.append(o); });
+    if (x.lang && !QUICK_LANGS.some(([c]) => c === x.lang)) { const o = el('option', '', x.lang); o.value = x.lang; lang.append(o); }
+    lang.value = x.lang || ''; lang.title = 'The language of these subtitles (players and Plex use it to pick subtitles)';
+    lang.onchange = () => { x.lang = lang.value; extChanged(); };
+    const title = el('input'); title.type = 'text'; title.value = x.title || ''; title.placeholder = 'name (optional)'; title.spellcheck = false;
+    title.style.width = '150px'; title.onchange = () => { x.title = title.value.trim(); extChanged(); };
+    const flag = (key, text, tip) => {
+      const l = el('label'); const c = el('input'); c.type = 'checkbox'; c.checked = !!x[key]; l.title = tip;
+      c.onchange = () => { x[key] = c.checked; extChanged(); }; l.append(c, document.createTextNode(text)); return l;
+    };
+    const off = el('input'); off.type = 'number'; off.step = '0.1'; off.value = x.offset || 0; off.style.width = '74px';
+    off.title = 'Move these subtitles in time: + shows them later, − earlier (seconds). For a file that is out of step with the video.';
+    off.onchange = () => { x.offset = parseFloat(off.value) || 0; extChanged(); };
+    const offL = el('label'); offL.append(document.createTextNode('timing'), off, document.createTextNode('s'));
+    opts.append(lang, title, flag('default', 'default', 'Shown when the film starts'), flag('forced', 'forced', 'Forced: only the foreign-language parts, always shown'),
+      flag('sdh', 'SDH', 'For the deaf and hard of hearing (describes sounds too)'), offL);
+    const ck = extChecks.find(c => c.path === x.path);
+    let st = x.found ? 'Found beside the video. ' : '', cls = '';
+    if (x.use === false) st += 'Not added.';
+    else if (ck && ck.error) { st = ck.error; cls = 'bad'; }
+    else if (ck) { st += ck.cues + (ck.cues === 1 ? ' subtitle.' : ' subtitles.') + (ck.note ? ' ' + ck.note.charAt(0).toUpperCase() + ck.note.slice(1) + '.' : ''); }
+    else st += 'Checking…';
+    row.append(use, name, rm, opts, el('div', 'xstate ' + cls, st));
+    list.append(row);
+  });
+}
+function extChanged() { renderExtSubs(); scheduleProbe(150); updateSummaries(); }
+$('extSubAdd').onclick = async () => {
+  const r = await api('browse', { kind: 'subtitle', initial: $('input').value.trim() });
+  if (!r.ok) { if (r.error) showError(r.error); return; }
+  if (!r.path) return;
+  if (extSubs.some(x => x.path.toLowerCase() === r.path.toLowerCase())) { notify('That subtitle file is already in the list.'); return; }
+  const g = await api('guessSub', { path: r.path, video: $('input').value.trim() });
+  extSubs.push({ ...(g.ok ? g.sub : { path: r.path }), use: true });
+  extChanged();
+};
 
 // ---------- the window: text size and the two-column layout ----------
 let uiZoom = 1;

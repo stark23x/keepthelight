@@ -80,11 +80,14 @@ type outSub struct {
 	Default, Forced bool
 	Codec           string // ffmpeg subtitle codec for the output container ("copy", "srt", "mov_text")
 	Meta            *TrackMeta
-	ToSRT           bool   // converted to text (ASS/SSA by FFmpeg, PGS by OCR)
-	Added           bool   // an SRT copy next to the original track
-	Title           string // replaces the source title (the copy's "… (SRT)")
-	SRTFile         string // PGS read by OCR: the SRT file (set when the job runs)
-	input           int    // ... and its input number in the final command
+	ToSRT           bool    // converted to text (ASS/SSA by FFmpeg, PGS by OCR)
+	Added           bool    // an SRT copy next to the original track
+	Title           string  // replaces the source title (the copy's "… (SRT)")
+	SRTFile         string  // PGS read by OCR, or an added file: the subtitle file (set when the job runs)
+	input           int     // ... and its input number in the final command
+	External        bool    // a subtitle file of the user's own, added (extsubs.go)
+	ExtPath         string  // ... the file
+	Offset          float64 // ... moved by this many seconds
 }
 
 // ---------- probing ----------
@@ -713,6 +716,8 @@ func selectTracks(cfg *Config, t *Tracks, mp4 bool) (audio []outAudio, subs []ou
 	for i := range subs {
 		subs[i].Meta = cfg.Meta.track("s", subs[i].Src.N)
 	}
+	subs, w := addExtSubs(cfg, subs, mp4) // the user's own subtitle files, after the file's own
+	warns = append(warns, w...)
 	if cfg.FillFromNames { // before naming, so the names use what was filled in
 		warns = append(warns, fillFromNames(audio, subs, cfg.SubSel == nil)...)
 	}
@@ -859,12 +864,12 @@ func subtitleArgs(subs []outSub, in int) []string {
 	var a []string
 	for n, s := range subs {
 		from := fmt.Sprintf("%d:s:%d", in, s.Src.N-1)
-		if s.needsOCR() {
-			from = fmt.Sprintf("%d:s:0", s.input) // the SRT read from the pictures
+		if s.needsOCR() || s.External {
+			from = fmt.Sprintf("%d:s:0", s.input) // the SRT read from the pictures, or the added file
 		}
 		a = append(a, "-map", from, fmt.Sprintf("-c:s:%d", n), s.Codec,
 			fmt.Sprintf("-disposition:s:%d", n), disposition(withFlags(s.Src.Disp, s.Meta), s.Default, s.Forced, true))
-		if s.needsOCR() { // a separate file has no language or name: the original's
+		if s.needsOCR() || s.External { // a separate file has no language or name: the original's (or the chosen ones)
 			a = append(a, fmt.Sprintf("-metadata:s:s:%d", n), "language="+orUnd(s.Src.Lang))
 			if s.Src.Title != "" && s.Title == "" {
 				a = append(a, fmt.Sprintf("-metadata:s:s:%d", n), "title="+s.Src.Title)

@@ -160,6 +160,7 @@ func partialName(output string) string {
 // queueAdd validates and appends items. It returns the new IDs and, per
 // rejected item, a message.
 func (g *guiServer) queueAdd(raws []json.RawMessage) (ids []int, errs []string) {
+	raws = withFoundSubs(raws)
 	g.mu.Lock()
 	for _, raw := range raws {
 		var s settings
@@ -1687,4 +1688,32 @@ func (g *guiServer) batchLocked(items []queueItem) map[string]any {
 		b["eta"] = "time left for all of it: estimating"
 	}
 	return b
+}
+
+// withFoundSubs gives each file added to the queue the subtitle files named
+// after it ("Film.en.srt" beside "Film.mkv"), when Settings say so and the file
+// has no list of its own yet. (Read before taking the queue's lock: the folders
+// may be on a network drive.)
+func withFoundSubs(raws []json.RawMessage) []json.RawMessage {
+	out := make([]json.RawMessage, len(raws))
+	for i, raw := range raws {
+		out[i] = raw
+		var s settings
+		if json.Unmarshal(raw, &s) != nil || !s.FindSubs || s.ExtSubs != nil || s.Input == "" {
+			continue
+		}
+		found := findSubFiles(s.Input)
+		if len(found) == 0 {
+			continue
+		}
+		var m map[string]any
+		if json.Unmarshal(raw, &m) != nil {
+			continue
+		}
+		m["extSubs"] = found
+		if b, err := json.Marshal(m); err == nil {
+			out[i] = b
+		}
+	}
+	return out
 }

@@ -132,6 +132,13 @@ func browseDialogPS(kind, initial string) (string, error) {
 			"$d.Filter = 'Keep the Light profiles (*.json)|*.json'",
 			"$d.FileName = 'Keep the Light profiles.json'",
 			"if ($d.ShowDialog($owner) -eq 'OK') { Write-Output $d.FileName }")
+	case "subtitle":
+		lines = append(psPrelude(),
+			"$d = New-Object System.Windows.Forms.OpenFileDialog",
+			"$d.Title = 'Choose a subtitle file'",
+			"$d.Filter = 'Subtitle files (*.srt, *.ass, *.ssa)|*.srt;*.ass;*.ssa'",
+			"if ($init) { $dir = Split-Path $init -ErrorAction SilentlyContinue; if ($dir -and (Test-Path $dir)) { $d.InitialDirectory = $dir } }",
+			"if ($d.ShowDialog($owner) -eq 'OK') { Write-Output $d.FileName }")
 	case "wav":
 		lines = append(psPrelude(),
 			"$d = New-Object System.Windows.Forms.OpenFileDialog",

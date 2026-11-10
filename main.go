@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	_ "embed"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -59,6 +60,9 @@ Choosing tracks (numbers as the window shows them: audio 1, 2, ...; subtitles 1,
   -sub-tracks <list>   keep these subtitle tracks: 1,3:forced (":forced" sets the forced flag), all, none;
                        ":srt" converts an ASS/SSA, PGS or VobSub track to SRT, ":srt+" adds an SRT copy next to it
   -sub-default <n>     mark subtitle track n as the default, or "none"
+  -add-sub <file>      add an SRT/ASS/SSA file as an extra subtitle track (language from its name, e.g.
+                       Film.en.srt); can be given more than once. -ext-subs '<json>' sets language, name,
+                       default/forced/SDH and a timing offset for each (as the window does)
  Rules, used when tracks are not listed (for example in scripts over many files):
   -audio-lang <list>   keep only audio in these languages, e.g. eng,jpn (tracks with no language
                        are kept; if nothing matches, the default track is kept)
@@ -166,6 +170,12 @@ func parseArgs() (*Config, bool) {
 	fs.BoolVar(&cfg.MetaOnly, "metadata-only", false, "")
 	fs.BoolVar(&cfg.ReplaceOriginal, "replace-original", false, "")
 	metaJSON := fs.String("meta-json", "", "")
+	extSubsJSON := fs.String("ext-subs", "", "")
+	var addSubs []ExtSub
+	fs.Func("add-sub", "", func(v string) error { // a subtitle file to add (its language from its name)
+		addSubs = append(addSubs, guessSubFile(v, ""))
+		return nil
+	})
 	var title *string
 	fs.Func("title", "", func(v string) error { title = &v; return nil })
 	noChapters := fs.Bool("no-chapters", false, "")
@@ -311,6 +321,15 @@ func parseArgs() (*Config, bool) {
 		cfg.SubDefault = n
 	}
 	cfg.AudioLangs, cfg.SubLangs = parseLangs(*audioLang), parseLangs(*subLang)
+	if *extSubsJSON != "" {
+		var es []ExtSub
+		if err := json.Unmarshal([]byte(*extSubsJSON), &es); err != nil {
+			fmt.Fprintln(os.Stderr, "ERROR: -ext-subs:", err)
+			return nil, false
+		}
+		cfg.ExtSubs = append(cfg.ExtSubs, es...)
+	}
+	cfg.ExtSubs = append(cfg.ExtSubs, addSubs...)
 	if cfg.Meta, err = parseMetaJSON(*metaJSON); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		return cfg, false
@@ -667,7 +686,7 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 	if !cfg.DryRun {
 		cleanLeftovers(tmpBase) // what earlier jobs could not delete
 	}
-	needTmp := plan.UseDV || plan.UseHDR10Plus || plan.Size != nil || metaNeedsFiles(cfg, plan) || plan.needsOCR()
+	needTmp := plan.UseDV || plan.UseHDR10Plus || plan.Size != nil || metaNeedsFiles(cfg, plan) || plan.needsOCR() || plan.hasExtSubs()
 	tmp := filepath.Join(tmpBase, ".keepthelight-tmp")
 	if needTmp && !cfg.DryRun {
 		d, err := os.MkdirTemp(tmpBase, ".keepthelight-")
@@ -691,6 +710,9 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 		markOK = func() { succeeded = true }
 	}
 
+	if err := prepareExtSubs(cfg, plan, tmp); err != nil {
+		return err
+	}
 	if err := prepareOCR(r, cfg, plan, tmp); err != nil {
 		return err
 	}

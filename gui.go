@@ -114,6 +114,8 @@ type settings struct {
 	AudioChannels              string    // rules: channels for converted tracks: "" (as the source), "5.1", "stereo"
 	SubMode                    string    // rules: "" all matching, "forced", "none"
 	Meta                       *MetaEdit // metadata changes for this file (null = none)
+	ExtSubs                    []ExtSub  // subtitle files to add to this file
+	FindSubs                   bool      // queue: add the subtitle files named after each video (Settings)
 	Denoise                    string    // noise reduction: "" off, light, medium, strong, hq
 	Deinterlace                string    // "" (smooth), smooth, standard, off
 	Crop                       bool      // cut black bars (576p and 480p only)
@@ -218,6 +220,11 @@ func (s *settings) toConfig() (*Config, error) {
 	if !s.Meta.empty() {
 		cfg.Meta = s.Meta
 	}
+	for _, e := range s.ExtSubs {
+		if strings.TrimSpace(e.Path) != "" {
+			cfg.ExtSubs = append(cfg.ExtSubs, e)
+		}
+	}
 	if cfg.MetaOnly {
 		cfg.Audio, cfg.AudioBitrate, cfg.Bitrate = "copy", "", ""
 	}
@@ -318,6 +325,10 @@ func (cfg *Config) cliArgs() []string {
 	if !cfg.Meta.empty() {
 		b, _ := json.Marshal(cfg.Meta)
 		a = append(a, "-meta-json", string(b))
+	}
+	if len(cfg.ExtSubs) > 0 {
+		b, _ := json.Marshal(cfg.ExtSubs)
+		a = append(a, "-ext-subs", string(b))
 	}
 	if cfg.HWDecode {
 		a = append(a, "-hw-decode")
@@ -795,6 +806,11 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		var b struct{ ID int }
 		_ = json.Unmarshal(body, &b)
 		return g.queueCopyTracks(b.ID)
+	case "guessSub": // what a subtitle file's name says (language, forced, SDH)
+		var b struct{ Path, Video string }
+		_ = json.Unmarshal(body, &b)
+		stem := strings.TrimSuffix(filepath.Base(b.Video), filepath.Ext(b.Video))
+		return map[string]any{"ok": true, "sub": guessSubFile(b.Path, stem)}
 	case "renList":
 		return g.renList()
 	case "renAdd":
@@ -1164,6 +1180,8 @@ func browseGroup(kind, remember string) string {
 		return "sounds"
 	case "openJson", "saveJson":
 		return "profiles"
+	case "subtitle":
+		return "subtitles"
 	}
 	if remember != "" && len(remember) <= 20 {
 		return remember
@@ -1409,6 +1427,21 @@ func (g *guiServer) probe(ctx context.Context, s settings) map[string]any {
 			size = st.Size()
 			resp["fileSize"] = size
 		}
+		// subtitle files: the ones named after this video (offered once), and a check of each added one
+		resp["foundSubs"] = findSubFiles(s.Input)
+		var checks []map[string]any
+		for _, e := range cfg.ExtSubs {
+			_, cues, note, err := checkSubFile(e.Path)
+			c := map[string]any{"path": e.Path, "cues": cues, "note": note}
+			if err != nil {
+				c["error"] = capitalize(err.Error())
+				if resp["blocker"] == nil {
+					resp["blocker"] = capitalize(err.Error()) + ". Remove it under Subtitles, or choose another file."
+				}
+			}
+			checks = append(checks, c)
+		}
+		resp["extChecks"] = checks
 		// the file's bitrate, shown all the time; and the target bitrate against it
 		vb, exact := videoRate(p, t.Audio)
 		resp["rates"] = map[string]any{"size": size, "total": p.TotalBps, "video": vb, "videoExact": exact}

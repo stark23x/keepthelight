@@ -199,6 +199,9 @@ func fileDialogEx(save, multi bool, initial string) (string, error) {
 			case "json":
 				filter = multiString("Keep the Light profiles (*.json)", "*.json")
 				ofn.Title = u16("Import profiles")
+			case "subs":
+				filter = multiString("Subtitle files (*.srt, *.ass, *.ssa)", "*.srt;*.ass;*.ssa")
+				ofn.Title = u16("Choose a subtitle file")
 			}
 			ofn.Flags = ofnExplorer | ofnFileMustExist | ofnPathMustExist | ofnHideReadOnly | ofnNoChangeDir | ofnEnableSizing
 			if multi {
@@ -306,6 +309,8 @@ func browseDialog(kind, initial string) (string, error) {
 		p, err = wavDialog(initial)
 	case "openJson":
 		p, err = specialDialog("json", initial)
+	case "subtitle":
+		p, err = specialDialog("subs", initial)
 	case "saveJson":
 		dialogKind = "json"
 		p, err = fileDialog(true, initial)
