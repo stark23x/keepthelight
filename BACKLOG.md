@@ -6,25 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **Dolby Vision profile 5: convert instead of refusing** (2026-11-11; option 2 of two discussed). Profile 5 (mostly
-  streaming downloads) has no HDR10 picture underneath: its colours are in Dolby's own format (IPTPQc2) and only look
-  right after a Dolby Vision player reshapes them, so today it is refused for re-encoding.
-  - Apply the Dolby Vision reshaping first (FFmpeg's libplacebo filter, on the graphics card) to get a normal
-    BT.2020/PQ HDR10 picture, then encode it like any HDR10 file. The result plays everywhere and Plex can convert it
-    with correct colours.
-  - Also keep Dolby Vision: convert the RPU to profile 8.1 with dovi_tool (mode 3) and inject it, so Dolby Vision
-    players still get Dolby Vision (an option, on by default; off = plain HDR10).
-  - Check first that the bundled FFmpeg has libplacebo and that it works on both PCs (NVIDIA laptop, Intel Dell); if
-    it is missing or the graphics card cannot run it, refuse with a clear reason as today.
-  - Test on a real profile 5 file and compare with a Dolby Vision player (colours, brightness); note in the README
-    that the HDR10 picture is a close match, not an exact one.
-  - **Tried 2026-11-11 on Eddington (2025)** (profile 5.06, full range, no colour tags, 3840×2080; 20-second samples
-    in Claude Dev\ktl-p5): `libplacebo=colorspace=bt2020nc:color_primaries=bt2020:color_trc=smpte2084:range=tv:format=yuv420p10le`
-    (with `-init_hw_device vulkan`) gives correct colours where a plain decode is green/purple; the HDR10 result,
-    tone-mapped, matches libplacebo's own Dolby Vision rendering within about 1.5/255. `dovi_tool -m 3` turns the RPU
-    into 8.1 (identity reshaping, limited range), as needed for the HDR10 base. HDR10 static metadata from the RPU's
-    L6 (1000 nits, MaxCLL 933, MaxFALL 171 here). The owner's FFmpeg (gyan.dev full build) has libplacebo and Vulkan;
-    the README's "essentials" advice may need to change if that build lacks it.
+Nothing at the moment.
 
 ## Ideas raised, not yet requested
 
@@ -32,6 +14,7 @@ None at the moment.
 
 ## Done
 
+- 1.36.0: Dolby Vision profile 5 converted (colours to HDR10 with libplacebo on the graphics card; Dolby Vision 8.1 kept, or dropped); HDR10 information read from the Dolby Vision data; stale Dolby Vision labels removed when Dolby Vision is dropped.
 - 1.35.1: Dolby Vision picture and sound stored together (no more black picture on streaming players); every new file checked and remuxed if needed; Library scan finds and fixes (remux) older files, plus `-fix-interleave`; a Dolby Vision label without Dolby Vision data no longer fails the job; no false "Interlaced video" warning after smooth-motion deinterlacing.
 - 1.35.0: double episodes (read S05E09-E10; mark or spot doubles/splits on the Plex names tab; season renumbered without overwriting, undoable); target file size follows double episodes.
 - 1.34.0: your own subtitle files (added as tracks, found by name, encoding fixed, timing offset); VobSub to SRT; the file's bitrate always shown with a target comparison.

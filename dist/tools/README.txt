@@ -12,9 +12,11 @@ Keep the Light runs these helper programs:
 
 Getting FFmpeg
 --------------
-  1. Go to https://www.gyan.dev/ffmpeg/builds/ and download "ffmpeg-release-essentials.zip"
-     (any FFmpeg build that includes libx265 works).
-  2. Open the zip, go into its "bin" folder, and copy ffmpeg.exe and ffprobe.exe into THIS folder.
+  1. Go to https://www.gyan.dev/ffmpeg/builds/ and download "ffmpeg-release-full.7z".
+     (Windows 11 opens .7z files; on Windows 10 use 7-Zip.) The smaller "ffmpeg-release-essentials.zip"
+     works for everything except Dolby Vision profile 5, whose colours need the libplacebo filter that
+     only the full build has. Any FFmpeg build that includes libx265 works.
+  2. Open it, go into its "bin" folder, and copy ffmpeg.exe and ffprobe.exe into THIS folder.
   3. In Keep the Light, press "Check again" (or restart it).
 
 Getting MP4Box (only for Dolby Vision files)

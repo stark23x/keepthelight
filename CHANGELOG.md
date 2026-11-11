@@ -18,6 +18,26 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.36.0 - 2026-11-11
+
+- **Dolby Vision profile 5 can now be converted** (it used to be refused). Profile 5, found mostly in streaming
+  downloads, has no ordinary picture underneath: its colours are stored in Dolby's own format, so anything but a
+  Dolby Vision player shows them green and purple (Plex too, when it converts the file while you watch).
+  - Keep the Light first applies the Dolby Vision data, on the graphics card (FFmpeg's libplacebo filter), which
+    turns the picture into normal HDR10. That is encoded like any HDR10 file, with the HDR10 information (mastering
+    display, MaxCLL/MaxFALL) read from the Dolby Vision data.
+  - With **Keep Dolby Vision** (the default), the Dolby Vision data becomes profile 8.1 and is put back, so the new
+    file plays as HDR10 everywhere and as Dolby Vision on Dolby Vision players. **Drop (plain HDR10)** makes plain HDR10.
+  - The conversion is tried on one frame before the job starts; if this FFmpeg lacks libplacebo or the graphics card
+    cannot run it, the job stops at once and says why. It needs the "full" FFmpeg build from gyan.dev (the smaller
+    "essentials" build does not have libplacebo); the setup instructions now recommend the full build.
+  - The 30-second test measures its quality against the original after the same colour conversion.
+  - With NVENC or QuickSync, the HDR10 mastering-display information cannot be written for these files (x265 writes
+    it); most TVs do not need it.
+- **Fixed:** with "Drop (plain HDR10)", an older FFmpeg could copy the original's Dolby Vision label into the new file
+  without any Dolby Vision data. Newer FFmpeg builds now remove it, and the check of the finished file warns if it is
+  still there.
+
 ## 1.35.1 - 2026-11-11
 
 - **Fixed: Dolby Vision files could play with a black picture on streaming players** (an Android TV box with Plex,

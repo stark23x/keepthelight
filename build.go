@@ -52,6 +52,8 @@ type Config struct {
 	vsyncArgs                                    []string       // keep every source frame exactly once (set at start-up)
 	hwaccel                                      []string       // input options for GPU decoding (set at start-up)
 	cuesFront                                    bool           // this ffmpeg can put an MKV's index at the front (set at start-up)
+	vulkan                                       bool           // a Vulkan device for libplacebo (Dolby Vision profile 5)
+	stripDV                                      bool           // remove Dolby Vision from the encoded video (the source has it, the plan drops it)
 	hqDenoise                                    *denoiseChoice // "high quality" noise reduction as chosen at start-up
 	gpu                                          *gpuPath       // the full-GPU path, when it works for this file
 	cleanup                                      []string       // files to remove when the job ends (a test's sample)
@@ -64,6 +66,7 @@ type Config struct {
 type Plan struct {
 	Kind         string // sdr | hdr10 | hlg
 	UseDV        bool   // run the Dolby Vision RPU pipeline
+	Reshape      bool   // Dolby Vision profile 5: its colours are converted to HDR10 first (reshape.go)
 	DVProfile    string // profile string for MP4Box, e.g. "8.1"
 	RPUMode      int    // dovi_tool -m value (0 = leave RPU as is)
 	UseHDR10Plus bool
@@ -141,7 +144,16 @@ func makePlan(cfg *Config, p *Probe) (*Plan, error) {
 	}
 	if p.DV != nil {
 		// A source tagged only by its DV record: infer the base layer type.
-		if plan.Kind == "sdr" {
+		if p.DV.Profile == 5 && !cfg.CopyVideo {
+			// no HDR10 picture underneath: its colours are converted first, then it is an HDR10 file
+			plan.Reshape, plan.Kind = true, "hdr10"
+			if cfg.DV == "drop" {
+				plan.Notes = append(plan.Notes, "Dolby Vision profile 5: the colours are converted to HDR10 (with libplacebo, on the graphics card); Dolby Vision is dropped, so the new file is plain HDR10")
+			} else {
+				plan.UseDV, plan.DVProfile, plan.RPUMode = true, "8.1", 3
+				plan.Notes = append(plan.Notes, "Dolby Vision profile 5: the colours are converted to HDR10 (with libplacebo, on the graphics card), and the Dolby Vision data becomes profile 8.1, so the new file plays as HDR10 everywhere and as Dolby Vision on Dolby Vision players")
+			}
+		} else if plan.Kind == "sdr" {
 			switch p.DV.Compat {
 			case 4:
 				plan.Kind = "hlg"
@@ -152,12 +164,7 @@ func makePlan(cfg *Config, p *Probe) (*Plan, error) {
 				warn("source has Dolby Vision but untagged colour info; assuming %s base layer", plan.Kind)
 			}
 		}
-		if p.DV.Profile == 5 && !cfg.CopyVideo {
-			return nil, fmt.Errorf("Dolby Vision profile 5 uses the IPT-PQ-C2 colour space and has no HDR10-compatible base layer. " +
-				"Re-encoding it without a Dolby Vision-aware encoder gives wrong (green/purple) colours, so this tool refuses. " +
-				"Use -copy-video to keep the video untouched (you can still change audio/container)")
-		}
-		if !cfg.CopyVideo && cfg.DV != "drop" {
+		if !cfg.CopyVideo && cfg.DV != "drop" && !plan.Reshape {
 			switch p.DV.Profile {
 			case 7:
 				plan.UseDV, plan.DVProfile, plan.RPUMode = true, "8.1", 2
@@ -173,7 +180,7 @@ func makePlan(cfg *Config, p *Probe) (*Plan, error) {
 				return nil, fmt.Errorf("Dolby Vision profile %d is not supported (supported: 7, 8.x; use -copy-video or -dv drop)", p.DV.Profile)
 			}
 		}
-		if cfg.DV == "drop" && !cfg.CopyVideo {
+		if cfg.DV == "drop" && !cfg.CopyVideo && !plan.Reshape {
 			warn("dropping Dolby Vision: output will be plain %s", plan.Kind)
 		}
 	}
@@ -216,7 +223,7 @@ func makePlan(cfg *Config, p *Probe) (*Plan, error) {
 		}
 	}
 
-	if p.Mastering == nil && cfg.MasterDisplay == "" && plan.Kind == "hdr10" && !cfg.CopyVideo {
+	if p.Mastering == nil && cfg.MasterDisplay == "" && plan.Kind == "hdr10" && !cfg.CopyVideo && !plan.Reshape { // profile 5: read from its Dolby Vision data
 		warn("the source has no mastering-display information, so the new file has the HDR10 colour tags only; most TVs handle this fine (it can be supplied under Advanced, or with -master-display)")
 	}
 	return plan, nil
@@ -241,6 +248,9 @@ func buildVideoArgs(cfg *Config, p *Probe, plan *Plan, hdr10plusJSON string) ([]
 		prim, space = dflt(prim, "bt2020"), dflt(space, "bt2020nc")
 	}
 	var args, filters []string
+	if plan.Reshape { // first of all: the frames become a normal HDR10 picture
+		filters = append(filters, reshapeFilter)
+	}
 	if f := plan.deintFilter(); f != "" { // first: resizing an interlaced picture would blend its fields
 		filters = append(filters, f)
 	}
@@ -274,7 +284,9 @@ func buildVideoArgs(cfg *Config, p *Probe, plan *Plan, hdr10plusJSON string) ([]
 		} else {
 			args = append(args, "-rc", "vbr", "-cq", fmt.Sprint(cfg.CRF), "-b:v", "0")
 		}
-		if plan.Kind != "sdr" {
+		if plan.Reshape {
+			warns = append(warns, "NVENC cannot write the HDR10 mastering-display information for a converted profile 5 file (x265 can); the HDR10 colour tags are set, which most TVs handle fine")
+		} else if plan.Kind != "sdr" {
 			warns = append(warns, "NVENC takes HDR10 static metadata from the decoded frames; check the verification line at the end")
 		}
 	case "qsv":
@@ -285,7 +297,9 @@ func buildVideoArgs(cfg *Config, p *Probe, plan *Plan, hdr10plusJSON string) ([]
 		} else {
 			args = append(args, "-global_quality", fmt.Sprint(cfg.CRF))
 		}
-		if plan.Kind != "sdr" {
+		if plan.Reshape {
+			warns = append(warns, "QuickSync cannot write the HDR10 mastering-display information for a converted profile 5 file (x265 can); the HDR10 colour tags are set, which most TVs handle fine")
+		} else if plan.Kind != "sdr" {
 			warns = append(warns, "QuickSync takes HDR10 static metadata from the decoded frames; check the verification line at the end")
 		}
 	default:
@@ -338,7 +352,14 @@ func buildVideoArgs(cfg *Config, p *Probe, plan *Plan, hdr10plusJSON string) ([]
 	if space != "" {
 		args = append(args, "-colorspace", space)
 	}
-	args = append(args, "-color_range", dflt(p.Range, "tv"))
+	if cfg.stripDV { // Dolby Vision is not kept: no stale label or data from the original
+		args = append(args, "-bsf:v", "dovi_rpu=strip=1")
+	}
+	rng := dflt(p.Range, "tv")
+	if plan.Reshape {
+		rng = "tv" // libplacebo's HDR10 picture is limited range (profile 5 is full range)
+	}
+	args = append(args, "-color_range", rng)
 	return args, warns
 }
 

@@ -1982,7 +1982,8 @@ function showInfo(r) {
   $('fName').textContent = path.slice(cut + 1); $('fDir').textContent = cut > 0 ? path.slice(0, cut) : ''; $('fName').title = path;
   if (!r.ok || r.blocker) $('secFiles').open = true; // a problem that stops the job must not hide in a closed section
   if (!r.ok) { notes.appendChild(note(r.error, 'bad')); return; }
-  if (r.kind === 'hdr10') b.appendChild(badge('HDR10 (PQ)', 'hdr'));
+  if (r.dvProfile === 5) { const pb = badge("Dolby's own colours", 'hdr'); pb.title = 'Dolby Vision profile 5 has no ordinary picture underneath: re-encoding converts its colours to HDR10 first.'; b.appendChild(pb); }
+  else if (r.kind === 'hdr10') b.appendChild(badge('HDR10 (PQ)', 'hdr'));
   else if (r.kind === 'hlg') b.appendChild(badge('HLG', 'hdr'));
   else b.appendChild(badge('SDR'));
   if (r.dv) b.appendChild(badge('Dolby Vision ' + r.dv, 'dv'));
@@ -1999,7 +2000,8 @@ function showInfo(r) {
     if (q.total) bits.push(mb(q.total) + (q.video ? ' (video ' + (q.videoExact ? '' : 'about ') + mb(q.video) + ')' : ''));
   }
   if (r.cll) bits.push('MaxCLL/FALL ' + r.cll);
-  bits.push(r.hasMastering ? 'mastering display metadata found' : 'no mastering display metadata');
+  if (r.dvProfile === 5) bits.push('HDR10 information inside the Dolby Vision data');
+  else bits.push(r.hasMastering ? 'mastering display metadata found' : 'no mastering display metadata');
   $('meta').textContent = bits.join('  ·  ');
   if (r.blocker) {
     const nb = note(r.blocker, 'bad');
@@ -3577,7 +3579,8 @@ async function checkTools() {
   const msgs = [], links = [];
   if (miss.length) {
     msgs.push('FFmpeg is needed and was not found (missing ' + miss.map(k => k + '.exe').join(' and ') + '). ' +
-      'Download the free "ffmpeg-release-essentials.zip" build, open it, and copy ffmpeg.exe and ffprobe.exe from its bin folder into the tools folder.');
+      'Download the free "ffmpeg-release-full.7z" build, open it, and copy ffmpeg.exe and ffprobe.exe from its bin folder into the tools folder. ' +
+      '(The smaller "essentials" build works too, except for Dolby Vision profile 5.)');
     links.push(linkButton('Get FFmpeg', FFMPEG_URL));
   }
   const problems = t.problems || {};

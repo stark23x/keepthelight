@@ -191,7 +191,7 @@ func analyse(it *scanItem, data []byte) {
 	if it.Done = ktlTagIn(p.Format.Tags); it.Done != "" {
 		return // already converted: no saving is expected from doing it again
 	}
-	if it.Duration <= 0 || videoBps <= 0 || it.Size <= 0 || dvProfile == 5 {
+	if it.Duration <= 0 || videoBps <= 0 || it.Size <= 0 {
 		return
 	}
 	after := math.Min(videoBps*codecFactor(vCodec), typicalHEVC(h, hdr != ""))

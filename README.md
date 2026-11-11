@@ -59,6 +59,9 @@ quality.
   still looks right on an HDR TV.
 - **Fixes a common Dolby Vision problem.** Many Plex players can't show Dolby Vision "profile 7" (used on 4K Blu-ray
   discs). Keep the Light converts it to "profile 8.1", which they can.
+- **Converts Dolby Vision "profile 5"** (streaming downloads), whose colours look green and purple anywhere except on
+  a Dolby Vision player. The new file is ordinary HDR10 that plays everywhere, with Dolby Vision 8.1 on top for Dolby
+  Vision players. Needs the "full" FFmpeg build.
 - **Checks its own work.** After converting, it looks at the new file to make sure the HDR information made it
   through.
 
@@ -205,7 +208,7 @@ Two free programs have to be added once:
 
 | Needed | For | How |
 |---|---|---|
-| FFmpeg | everything | Download `ffmpeg-release-essentials.zip` from [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) (any build with libx265 works) and copy `ffmpeg.exe` and `ffprobe.exe` from its `bin` folder into `tools`. |
+| FFmpeg | everything | Download `ffmpeg-release-full.7z` from [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) and copy `ffmpeg.exe` and `ffprobe.exe` from its `bin` folder into `tools`. The smaller `ffmpeg-release-essentials.zip` works for everything except Dolby Vision profile 5, which needs the full build's libplacebo filter. |
 | GPAC (MP4Box) | Dolby Vision only | Install it from [gpac.io](https://gpac.io/downloads/) with its normal installer. Keep the Light finds it in `Program Files\GPAC` or on PATH. |
 | Tesseract OCR | converting PGS subtitles to SRT only | Install it from [UB Mannheim's page](https://github.com/UB-Mannheim/tesseract/wiki) with its normal installer (English is included; tick other languages in the installer if you need them). Keep the Light finds it in `Program Files\Tesseract-OCR` or on PATH. |
 
@@ -333,7 +336,7 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   Plex convert it while you watch (the same checks as the library scan, below), so problems show up without
   scanning the library. Because the check knows your settings, each problem is marked as **fixed** by them (for
   example styled subtitles that will become SRT), **still there** with the setting that would fix it ("Turn on
-  'Add a compatible audio track when needed'"), or **cannot be fixed** (Dolby Vision profile 5). The Queue tab says
+  'Add a compatible audio track when needed'"). The Queue tab says
   how many waiting files will still have problems ("1 of 10 waiting files will still have Plex problems").
   On the Convert tab, a problem that a setting fixes has a **Fix** button that changes it for you. Each
   finished file is checked again, and the result is shown in its row and log. Warnings never stop a conversion.
@@ -463,7 +466,14 @@ command-line options when run from a command prompt, but its output appears afte
   scaled with the picture scene by scene using dovi_tool; everything else in the RPU is kept unchanged.
 - **A Dolby Vision label without Dolby Vision data** (a re-encode that kept the original's label): converted as the
   video it really is (often SDR), with a note.
-- **Dolby Vision 5**: refused for re-encode (no HDR10 base layer; colours would be wrong). Use `-copy-video`.
+- **Dolby Vision 5** (mostly streaming downloads): it has no ordinary picture underneath (its colours are in Dolby's
+  own format, green and purple anywhere but on a Dolby Vision player), so its Dolby Vision data is applied first, on
+  the graphics card (FFmpeg's libplacebo filter, in the "full" FFmpeg build), turning it into a normal HDR10 picture.
+  That is encoded like any HDR10 file, with the HDR10 information read from the Dolby Vision data, and the Dolby
+  Vision data becomes profile 8.1. The new file plays as HDR10 everywhere (Plex can convert it with the right
+  colours) and as Dolby Vision on Dolby Vision players; **Dolby Vision: Drop (plain HDR10)** makes plain HDR10. The HDR10 picture is
+  a close match to what a Dolby Vision player shows, not an exact one. With NVENC or QuickSync the HDR10
+  mastering-display information cannot be written (x265 writes it); most TVs do not need it.
 
 ## Target file size
 Pick **Target file size** in the window (or `-target-size 8G` / `-target-size 4500M`). Keep the Light subtracts the audio,

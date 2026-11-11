@@ -84,11 +84,15 @@ func TestPlexOutcome(t *testing.T) {
 		t.Errorf("SRT added next to the original: %v", got)
 	}
 
-	// Dolby Vision profile 5 copied: cannot be fixed
+	// Dolby Vision profile 5: copied, it stays; re-encoded, it becomes HDR10 + 8.1
 	src5 := plexSrc{VCodec: "hevc", DVProfile: 5}
 	cfg = &Config{CopyVideo: true}
-	if got := plexKeys(plexOutcome(src5, plexAfter(src5, cfg, &Plan{}), cfg)); got["dv5"] != "cannot" {
-		t.Errorf("profile 5: %v", got)
+	if got := plexKeys(plexOutcome(src5, plexAfter(src5, cfg, &Plan{}), cfg)); got["dv5"] != "open" {
+		t.Errorf("profile 5 copied: %v", got)
+	}
+	cfg = &Config{}
+	if got := plexKeys(plexOutcome(src5, plexAfter(src5, cfg, &Plan{UseDV: true, DVProfile: "8.1", Reshape: true}), cfg)); got["dv5"] != "fixed" {
+		t.Errorf("profile 5 re-encoded: %v", got)
 	}
 }
 

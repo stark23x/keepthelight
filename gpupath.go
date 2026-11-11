@@ -119,6 +119,9 @@ func chooseGPUPath(ctx context.Context, cfg *Config, p *Probe, plan *Plan) (*gpu
 	if g == nil || cfg.CopyVideo {
 		return nil, ""
 	}
+	if plan != nil && plan.Reshape {
+		return nil, "Full-GPU path: not used, because the profile 5 colour conversion has its own way onto the graphics card"
+	}
 	if cfg.Denoise != "" {
 		return nil, "Full-GPU path: not used, because noise reduction runs on the CPU (decoding on the GPU still applies if it is on)"
 	}

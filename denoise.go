@@ -219,6 +219,9 @@ func (cfg *Config) inputPrefix() []string {
 		return cfg.gpu.Input // decoded straight into GPU memory
 	}
 	var a []string
+	if cfg.vulkan {
+		a = append(a, vulkanInit...)
+	}
 	if cfg.Denoise == "hq" && cfg.hqDenoise != nil {
 		a = append(a, cfg.hqDenoise.Global...)
 	}

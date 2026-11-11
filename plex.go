@@ -74,7 +74,7 @@ func plexIssues(s plexSrc) []plexIssue {
 	case 7:
 		add("dv7", "Dolby Vision profile 7", "Dolby Vision profile 7 (dual layer): most Plex players cannot show its Dolby Vision; KTL converts it to profile 8.1, which they can")
 	case 5:
-		add("dv5", "Dolby Vision profile 5", "Dolby Vision profile 5: Keep the Light cannot re-encode it (it can only copy it)")
+		add("dv5", "Dolby Vision profile 5", "Dolby Vision profile 5: only Dolby Vision players show its colours right; other players, and Plex when it converts it, show it green and purple. Re-encoding turns it into HDR10 with Dolby Vision 8.1")
 	}
 	compatible := false
 	for _, a := range s.Audio {
@@ -175,9 +175,6 @@ func plexOutcome(src, out plexSrc, cfg *Config) []plexIssue {
 	list := []plexIssue{} // never null: an empty list means "checked, nothing found"
 	open := func(x plexIssue) plexIssue {
 		x.State, x.How = "open", plexFixHint(x.Key, cfg)
-		if x.Key == "dv5" {
-			x.State, x.How = "cannot", "Keep the Light can only copy this video, so this stays as it is."
-		}
 		return x
 	}
 	for _, x := range before {
@@ -206,6 +203,11 @@ func plexFixedHow(key string, out plexSrc) string {
 		return "the video is converted to HEVC"
 	case "forced-pgs", "forced-bitmap", "ass-default":
 		return "the subtitle settings take care of it (converted to SRT or left out)"
+	case "dv5":
+		if out.DVProfile == 8 {
+			return "the colours become HDR10, and Dolby Vision becomes profile 8.1"
+		}
+		return "the colours become HDR10 (Dolby Vision is left out)"
 	case "dv7":
 		if out.DVProfile == 8 {
 			return "Dolby Vision becomes profile 8.1"
@@ -229,7 +231,7 @@ func plexFixedHow(key string, out plexSrc) string {
 func plexFixHint(key string, cfg *Config) string {
 	reencode := `Choose "Re-encode" under Video to fix it.`
 	switch key {
-	case "h264-10", "old-video", "bitrate", "dv7":
+	case "h264-10", "old-video", "bitrate", "dv7", "dv5":
 		if cfg.CopyVideo {
 			return reencode
 		}

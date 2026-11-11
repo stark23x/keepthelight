@@ -94,8 +94,8 @@ func TestDVPlans(t *testing.T) {
 		t.Fatalf("P7 plan wrong: %+v %v", plan, err)
 	}
 	p.DV = &DoviConfig{Profile: 5, Compat: 0}
-	if _, err = makePlan(baseCfg(), p); err == nil {
-		t.Fatal("profile 5 must be refused for re-encode")
+	if plan, err = makePlan(baseCfg(), p); err != nil || !plan.Reshape || plan.RPUMode != 3 {
+		t.Fatalf("profile 5 is converted (colours to HDR10, Dolby Vision to 8.1): %+v %v", plan, err)
 	}
 	cfg := baseCfg()
 	cfg.CopyVideo = true

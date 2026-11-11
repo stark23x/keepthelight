@@ -68,6 +68,7 @@ which is not in the repository.
   - `quality.go` – the quality guide and the test's score.
   - `gpupath.go` – the full-GPU path and the encoder check.
   - `scale.go` – resizing (including Dolby Vision active area).
+  - `reshape.go` – Dolby Vision profile 5: colours to HDR10 with libplacebo, HDR10 information from the RPU.
   - `interleave.go` – picture and sound stored together: the check of each new file, the remux, the scan's Fix.
   - `worklocal.go`, `fsretry.go` – working locally, and retries when another program has a file open.
   - `profilecli.go` – `-profile`.

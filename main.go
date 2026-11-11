@@ -664,7 +664,22 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 			fmt.Println(msg)
 		}
 	}
-	if cfg.HWDecode && !cfg.CopyVideo && cfg.gpu == nil {
+	if p.DV != nil && !plan.UseDV && !cfg.CopyVideo && !cfg.DryRun && hasBSF(ctx, ffmpeg, "dovi_rpu") {
+		cfg.stripDV = true
+	}
+	if plan.Reshape && !cfg.CopyVideo {
+		cfg.vulkan = true
+		if cfg.HWDecode {
+			fmt.Println("GPU decoding: not used for Dolby Vision profile 5 (its colour conversion reads the Dolby Vision data from the normal decoder)")
+		}
+		if !cfg.DryRun {
+			if err := checkReshape(ctx, ffmpeg, cfg.Input); err != nil {
+				return err
+			}
+			fmt.Println("Dolby Vision profile 5 colour conversion: works on this PC (libplacebo)")
+		}
+	}
+	if cfg.HWDecode && !cfg.CopyVideo && cfg.gpu == nil && !plan.Reshape {
 		switch {
 		case cfg.DryRun:
 			cfg.hwaccel = hwaccelArgs()
@@ -694,7 +709,7 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 	if !cfg.DryRun {
 		cleanLeftovers(tmpBase) // what earlier jobs could not delete
 	}
-	needTmp := plan.UseDV || plan.UseHDR10Plus || plan.Size != nil || metaNeedsFiles(cfg, plan) || plan.needsOCR() || plan.hasExtSubs()
+	needTmp := plan.UseDV || plan.Reshape || plan.UseHDR10Plus || plan.Size != nil || metaNeedsFiles(cfg, plan) || plan.needsOCR() || plan.hasExtSubs()
 	tmp := filepath.Join(tmpBase, ".keepthelight-tmp")
 	if needTmp && !cfg.DryRun {
 		d, err := os.MkdirTemp(tmpBase, ".keepthelight-")
@@ -723,6 +738,10 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 	}
 	if err := prepareOCR(r, cfg, plan, tmp); err != nil {
 		return err
+	}
+	if plan.Reshape && !cfg.DryRun { // profile 5: the HDR10 information is inside its Dolby Vision data
+		dovi, _ := findTool("dovi_tool", cfg.DoviTool)
+		p5Static(r, cfg, dovi, tmp)
 	}
 	encode := func() error {
 		if plan.UseDV {
@@ -779,6 +798,9 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 		fmt.Println("\nMeasuring the test's quality")
 		w, h := plan.outSize(p)
 		pre := plan.deintFilter() // the original gets the same deinterlacing and cropping, so like is compared with like
+		if plan.Reshape {         // and a profile 5 original the same colour conversion
+			pre = strings.Trim(reshapeFilter+","+pre, ",")
+		}
 		if c := plan.cropFilter(); c != "" {
 			pre = strings.Trim(pre+","+c, ",")
 		}
@@ -1059,6 +1081,10 @@ func verify(ctx context.Context, cfg *Config, plan *Plan) {
 			fmt.Println("WARNING: output is not tagged HLG (arib-std-b67)")
 		}
 	}
+	if !plan.UseDV && plan.probe != nil && plan.probe.DV != nil && (o.DV != nil || o.DVLabelOnly != nil) {
+		fmt.Println("WARNING: the new file still carries the original's Dolby Vision label, without Dolby Vision data (this FFmpeg copies it). " +
+			"Some players may then show the picture wrongly; FFmpeg 7.1 or newer leaves it out")
+	}
 	if plan.UseDV && o.DV == nil {
 		fmt.Println("WARNING: ffprobe did not report a Dolby Vision configuration in the output. " +
 			"Check with MediaInfo; if it is missing, try the .mp4 output, which is the most reliable container for DV.")
@@ -1085,8 +1111,12 @@ func describeHDR(cfg *Config, plan *Plan) string {
 		return "metadata only (every kept stream copied unchanged)"
 	case cfg.CopyVideo:
 		return "video stream copy"
+	case plan.UseDV && plan.Reshape:
+		return "Dolby Vision profile 5 -> HDR10 + Dolby Vision 8.1 (colours converted -> encode -> RPU to 8.1, inject -> mux)"
 	case plan.UseDV:
 		return fmt.Sprintf("Dolby Vision %s (RPU extract -> encode -> inject -> mux)", plan.DVProfile)
+	case plan.Reshape:
+		return "Dolby Vision profile 5 -> HDR10 (colours converted, Dolby Vision dropped)"
 	case plan.UseHDR10Plus:
 		return "HDR10+ (dynamic metadata preserved)"
 	}

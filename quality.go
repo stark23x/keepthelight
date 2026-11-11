@@ -189,6 +189,12 @@ var (
 )
 
 // hasFilter reports whether this ffmpeg has a filter (e.g. libvmaf).
+// hasBSF reports whether this FFmpeg has a bitstream filter.
+func hasBSF(ctx context.Context, ffmpeg, name string) bool {
+	out, err := toolCommand(ctx, ffmpeg, "-hide_banner", "-bsfs").Output()
+	return err == nil && regexp.MustCompile(`(?m)^`+regexp.QuoteMeta(name)+`\s*$`).Match(out)
+}
+
 func hasFilter(ctx context.Context, ffmpeg, name string) bool {
 	out, err := toolCommand(ctx, ffmpeg, "-hide_banner", "-filters").Output()
 	return err == nil && regexp.MustCompile(`(?m)^\s*\S+\s+`+regexp.QuoteMeta(name)+`\s`).Match(out)
@@ -211,8 +217,12 @@ func scoreTest(ctx context.Context, ffmpeg, test, original string, w, h int, den
 	if vmaf {
 		f = prep + "[d][r]libvmaf=n_subsample=3:n_threads=4"
 	}
-	out, err := toolCommand(ctx, ffmpeg, "-hide_banner", "-nostdin", "-i", test, "-i", original, "-map", "0:v:0", "-map", "1:v:0",
-		"-filter_complex", f, "-an", "-f", "null", "-").CombinedOutput()
+	args := []string{"-hide_banner", "-nostdin"}
+	if strings.Contains(deint, "libplacebo") { // a profile 5 original: its colours are converted first
+		args = append(args, vulkanInit...)
+	}
+	args = append(args, "-i", test, "-i", original, "-map", "0:v:0", "-map", "1:v:0", "-filter_complex", f, "-an", "-f", "null", "-")
+	out, err := toolCommand(ctx, ffmpeg, args...).CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("measuring failed: %s", lastLine(string(out)))
 	}
