@@ -18,6 +18,13 @@ next build". Shipped features move to "Done" with their version number. Nothing 
     it is missing or the graphics card cannot run it, refuse with a clear reason as today.
   - Test on a real profile 5 file and compare with a Dolby Vision player (colours, brightness); note in the README
     that the HDR10 picture is a close match, not an exact one.
+  - **Tried 2026-11-11 on Eddington (2025)** (profile 5.06, full range, no colour tags, 3840×2080; 20-second samples
+    in Claude Dev\ktl-p5): `libplacebo=colorspace=bt2020nc:color_primaries=bt2020:color_trc=smpte2084:range=tv:format=yuv420p10le`
+    (with `-init_hw_device vulkan`) gives correct colours where a plain decode is green/purple; the HDR10 result,
+    tone-mapped, matches libplacebo's own Dolby Vision rendering within about 1.5/255. `dovi_tool -m 3` turns the RPU
+    into 8.1 (identity reshaping, limited range), as needed for the HDR10 base. HDR10 static metadata from the RPU's
+    L6 (1000 nits, MaxCLL 933, MaxFALL 171 here). The owner's FFmpeg (gyan.dev full build) has libplacebo and Vulkan;
+    the README's "essentials" advice may need to change if that build lacks it.
 
 ## Ideas raised, not yet requested
 
