@@ -6,6 +6,18 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
+- **Fix: Dolby Vision files with the picture stored far behind the sound (black picture on streaming players)**
+  (Exhuma 2024, 1.35.0, NVENC, ONN 4K Pro + LG C4: Dolby Vision indicator on, black picture, sound and subtitles
+  fine). The video itself is fine (valid profile 8.1, an RPU on every frame, dvvC record, picture decodes), but
+  the final mux ([5/5], ffmpeg: MP4Box's DV .mp4 + the original's audio) wrote the video far behind the audio: the
+  1st video frame at 0.7 MB but the 2nd at 471 MB (after ~10 minutes of audio); at 10 minutes in, video sits at
+  1,246 MB and audio at 411 MB. The first two video packets have no DTS. A player reading over the network never
+  reaches the picture, so it shows black with sound and subtitles.
+  - Fix the DV mux so the tracks are interleaved (timestamps for the MP4Box track, strict interleaving), and test
+    that the first second of video sits near the start of the file.
+  - The check of the finished file reports badly interleaved tracks (video and audio of the same moment more than a
+    few MB apart) as an error, with the fix: remux (no re-encoding).
+  - A **Fix interleaving (remux)** action for files already made, in the Library scan (find them) and as a one-off.
 - **Fix: files labelled Dolby Vision that hold no Dolby Vision data** (Exhuma 2024, 2026-11-10). The file is an SDR
   (BT.709) x265 re-encode at 6 Mb/s whose MKV header still carries the original disc's Dolby Vision label
   (profile 7.6, a "dvcC" record copied over by whoever made it); the video has no RPU at all. Keep the Light believed
