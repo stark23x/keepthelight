@@ -6,7 +6,18 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing at the moment.
+- **Dolby Vision profile 5: convert instead of refusing** (2026-11-11; option 2 of two discussed). Profile 5 (mostly
+  streaming downloads) has no HDR10 picture underneath: its colours are in Dolby's own format (IPTPQc2) and only look
+  right after a Dolby Vision player reshapes them, so today it is refused for re-encoding.
+  - Apply the Dolby Vision reshaping first (FFmpeg's libplacebo filter, on the graphics card) to get a normal
+    BT.2020/PQ HDR10 picture, then encode it like any HDR10 file. The result plays everywhere and Plex can convert it
+    with correct colours.
+  - Also keep Dolby Vision: convert the RPU to profile 8.1 with dovi_tool (mode 3) and inject it, so Dolby Vision
+    players still get Dolby Vision (an option, on by default; off = plain HDR10).
+  - Check first that the bundled FFmpeg has libplacebo and that it works on both PCs (NVIDIA laptop, Intel Dell); if
+    it is missing or the graphics card cannot run it, refuse with a clear reason as today.
+  - Test on a real profile 5 file and compare with a Dolby Vision player (colours, brightness); note in the README
+    that the HDR10 picture is a close match, not an exact one.
 
 ## Ideas raised, not yet requested
 
