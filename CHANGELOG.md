@@ -18,6 +18,27 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.35.1 - 2026-11-11
+
+- **Fixed: Dolby Vision files could play with a black picture on streaming players** (an Android TV box with Plex,
+  for example: the TV shows "Dolby Vision", the sound and subtitles play, the picture stays black). The video was
+  fine, but the last step stored the picture far behind the sound in the file, so a player reading it over the
+  network never reached the picture. Picture and sound are now stored together.
+  - Every new file is checked for this, and fixed on the spot if needed with a remux (the file copied again with
+    picture and sound in order; nothing is re-encoded, so nothing is lost).
+  - **Files made by earlier versions:** the Library scan now finds them (Keep the Light's own files are checked too,
+    and listed only if they have this problem), with a **Fix (remux)** button. The old copy goes to the Recycle Bin
+    (or is renamed "(original)" on a drive without one) only after the new one is checked. From the command line:
+    `keepthelight_cli -fix-interleave "file.mkv"`.
+- **Fixed: files labelled Dolby Vision that hold no Dolby Vision data.** Some re-encodes keep the original disc's
+  Dolby Vision label although the video has none (often plain SDR). Keep the Light believed the label and the job
+  failed. Now a Dolby Vision label counts only when the video really carries Dolby Vision data; otherwise the file is
+  converted as what it is, with a note saying so. If Dolby Vision data still cannot be read, the message says why
+  (it no longer calls it a glitch), and the job is not pointlessly tried a second time.
+- **Fixed: a false "Interlaced video" warning after deinterlacing with smooth motion.** The file was deinterlaced
+  correctly, but the check of the finished file was fooled by the doubled frame rate. When Keep the Light has
+  deinterlaced a file, that check no longer reports it as interlaced.
+
 ## 1.35.0 - 2026-11-10
 
 - **Double episodes no longer throw the rest of a season off.** When TMDB counts one file as two episodes (Laverne

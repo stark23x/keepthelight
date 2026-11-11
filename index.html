@@ -238,6 +238,7 @@
   .srow .ssave { font-weight: 600; font-size: 12.5px; white-space: nowrap; text-align: right; }
   .srow.worth .ssave { color: var(--ok); }
   .srow .sissue { font-size: 12px; color: var(--warn); margin-top: 2px; }
+  .srow .sfix { margin-top: 4px; font-size: 12px; padding: 2px 10px; }
   .srow .serr { font-size: 12px; color: var(--bad); }
   /* your own subtitle files */
   .xrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 8px; align-items: center; padding: 6px 8px; margin-top: 6px;
@@ -2717,6 +2718,16 @@ function renderScan() {
       if (it.folder) mid.append(el('div', 'qsub', 'in ' + it.folder));
       if (it.done) { const d = el('div', 'sdone', '✓ Already converted by Keep the Light'); d.title = it.done; mid.append(d); }
       (it.issues || []).forEach(x => mid.append(el('div', 'sissue', '⚠ ' + x)));
+      if (it.gap && it.fix !== 'running') {
+        const b = el('button', 'sfix', 'Fix (remux)');
+        b.title = 'Copies the file again with picture and sound stored together. Nothing is re-encoded, so nothing is lost. ' +
+          'The old copy goes to the Recycle Bin (or is renamed "(original)" on drives without one), only after the new one is checked.';
+        b.onclick = () => scanFixGo(it);
+        mid.append(b);
+      }
+      if (it.fix) mid.append(el('div', it.fix.startsWith('failed') ? 'serr' : 'sdone', it.fix === 'running'
+        ? 'Fixing… (the whole file is copied, so this takes a few minutes)'
+        : it.fix.replace(/^done: /, '✓ ').replace(/^failed: /, 'The fix failed: ')));
     }
     const right = el('div', 'ssave');
     if (it.estSize) {
@@ -2732,6 +2743,28 @@ function renderScan() {
 function scanButtons() {
   $('scanAdd').disabled = !scanSel.size;
   $('scanAdd').textContent = scanSel.size ? 'Add ' + scanSel.size + ' selected to queue' : 'Add selected to queue';
+}
+// Fixing files whose picture and sound are stored far apart (a remux, in the background).
+let scanFixTimer = null;
+async function scanFixGo(it) {
+  if (!await askUser('Fix "' + it.name + '"?\n\nKeep the Light copies the file again with picture and sound stored together (nothing is re-encoded). ' +
+    'When the new copy has been checked, the old one goes to the Recycle Bin, or, on a drive without one, is renamed "(original)" for you to delete.')) return;
+  const r = await api('scanFix', { path: it.path });
+  if (!r || !r.ok) { showError((r && r.error) || 'The fix could not be started.'); return; }
+  it.fix = 'running'; renderScan(); scanFixPoll();
+}
+async function scanFixPoll() {
+  if (scanFixTimer) clearTimeout(scanFixTimer);
+  const r = await api('scanFixStatus', {});
+  if (!r || !r.ok) return;
+  let running = false;
+  (r.fixes || []).forEach(f => {
+    const it = scanItems.find(x => x.path === f.path);
+    if (it) Object.assign(it, { fix: f.fix, gap: f.gap, issues: f.issues, size: f.size });
+    if (f.fix === 'running') running = true;
+  });
+  renderScan();
+  if (running) scanFixTimer = setTimeout(scanFixPoll, 2000);
 }
 async function scanPoll() {
   const r = await api('scanStatus', { since: scanItems.length });

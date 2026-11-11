@@ -1086,6 +1086,12 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 	case "scanStop":
 		g.scanStop()
 		return okResult()
+	case "scanFix":
+		var b struct{ Path string }
+		_ = json.Unmarshal(body, &b)
+		return g.scanFix(b.Path)
+	case "scanFixStatus":
+		return g.scanFixStatus()
 	case "scanStatus":
 		var b struct{ Since int }
 		_ = json.Unmarshal(body, &b)

@@ -7,6 +7,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type MasteringDisplay struct {
@@ -15,6 +16,7 @@ type MasteringDisplay struct {
 
 type ContentLight struct{ MaxCLL, MaxFALL int }
 
+// DVLabelOnly (on Probe): the file is labelled Dolby Vision, but its video holds no Dolby Vision data.
 type DoviConfig struct {
 	Profile   int
 	Level     int
@@ -35,6 +37,8 @@ type Probe struct {
 	Mastering                         *MasteringDisplay
 	CLL                               *ContentLight
 	DV                                *DoviConfig
+	DVLabelOnly                       *DoviConfig // labelled Dolby Vision, but no Dolby Vision data in the video
+	noRPU                             bool        // a Dolby Vision label, but the first frame holds no Dolby Vision data
 	HDR10Plus                         bool
 	Duration                          float64
 }
@@ -108,7 +112,11 @@ func probeFile(ctx context.Context, ffprobe, path string) (*Probe, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ffprobe failed on %q: %w", path, err)
 	}
-	return parseProbe(out)
+	p, err := parseProbe(out)
+	if err == nil {
+		p.labelOnly(ctx, ffprobe)
+	}
+	return p, err
 }
 
 func parseProbe(data []byte) (*Probe, error) {
@@ -140,8 +148,13 @@ func parseProbe(data []byte) (*Probe, error) {
 		p.VideoBps = p.TotalBps * 0.8 // refined by videoRate once the audio tracks are known
 	}
 	all := append([]map[string]any{}, s.SideData...)
+	rpu := false // the first frame carries Dolby Vision data
 	if len(j.Frames) > 0 {
 		all = append(all, j.Frames[0].SideData...)
+		for _, sd := range j.Frames[0].SideData {
+			t, _ := sd["side_data_type"].(string)
+			rpu = rpu || strings.Contains(strings.ToLower(t), "dolby vision")
+		}
 	}
 	for _, sd := range all {
 		t, _ := sd["side_data_type"].(string)
@@ -170,7 +183,49 @@ func parseProbe(data []byte) (*Probe, error) {
 			p.HDR10Plus = true
 		}
 	}
+	// A Dolby Vision label (the container's configuration record) with no Dolby Vision data in the video: a
+	// re-encode that kept the original's label. The file is what its own colour labels say.
+	p.noRPU = p.DV != nil && len(j.Frames) > 0 && !rpu
 	return p, nil
+}
+
+// labelOnly applies what parseProbe found: a Dolby Vision label without Dolby
+// Vision data counts as no Dolby Vision. Only for an FFprobe that shows the
+// data at all (FFmpeg 5 and newer), so an old one cannot hide real Dolby Vision.
+func (p *Probe) labelOnly(ctx context.Context, ffprobe string) {
+	if p.noRPU && showsRPU(ctx, ffprobe) {
+		p.DVLabelOnly, p.DV = p.DV, nil
+	}
+}
+
+var rpuVersions sync.Map // ffprobe path → bool
+
+// showsRPU reports whether this FFprobe shows Dolby Vision data on frames
+// (version 5 or newer; a build with a date or git name counts as new).
+func showsRPU(ctx context.Context, ffprobe string) bool {
+	if v, ok := rpuVersions.Load(ffprobe); ok {
+		return v.(bool)
+	}
+	ok := true
+	if out, err := toolCommand(ctx, ffprobe, "-version").Output(); err == nil {
+		ok = ffmpegMajorAtLeast(string(out), 5)
+	}
+	rpuVersions.Store(ffprobe, ok)
+	return ok
+}
+
+// ffmpegMajorAtLeast reads "ffprobe version 6.1.1-…" (or "n7.0", "N-11234-g…", "2024-05-01-git-…").
+func ffmpegMajorAtLeast(version string, major int) bool {
+	f := strings.Fields(version)
+	if len(f) < 3 {
+		return true
+	}
+	v := strings.TrimPrefix(f[2], "n")
+	n, err := strconv.Atoi(strings.SplitN(strings.SplitN(v, ".", 2)[0], "-", 2)[0])
+	if err != nil || n > 1000 { // a git build or a date: recent
+		return true
+	}
+	return n >= major
 }
 
 func unk(s string) string {

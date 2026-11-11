@@ -136,6 +136,9 @@ func makePlan(cfg *Config, p *Probe) (*Plan, error) {
 	}
 	warn := func(f string, a ...any) { plan.Warnings = append(plan.Warnings, fmt.Sprintf(f, a...)) }
 
+	if d := p.DVLabelOnly; d != nil {
+		plan.Notes = append(plan.Notes, fmt.Sprintf("the file is labelled Dolby Vision (profile %d.%d), but its video holds no Dolby Vision data (a re-encode that kept the original's label): it is converted as the %s video it is", d.Profile, d.Compat, strings.ToUpper(plan.Kind)))
+	}
 	if p.DV != nil {
 		// A source tagged only by its DV record: infer the base layer type.
 		if plan.Kind == "sdr" {

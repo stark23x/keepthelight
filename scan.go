@@ -33,6 +33,8 @@ type scanItem struct {
 	Issues   []string `json:"issues"`
 	Err      string   `json:"err,omitempty"`
 	Done     string   `json:"done,omitempty"` // already converted by Keep the Light: its tag
+	Gap      float64  `json:"gap,omitempty"`  // picture and sound stored this far apart (s): fixable by a remux
+	Fix      string   `json:"fix,omitempty"`  // the remux: "running", "done: …" or "failed: …"
 
 	height     int    // for the interlacing check
 	fieldOrder string // what the file says
@@ -265,7 +267,11 @@ func (g *guiServer) scanStart(dir string, recursive bool, tag string, skipExtras
 	s.mu.Unlock()
 
 	go func() {
-		files := make(chan string, 64)
+		type found struct {
+			path string
+			own  bool // a file Keep the Light made: shown only when it needs fixing
+		}
+		files := make(chan found, 64)
 		go func() { // find the videos
 			defer close(files)
 			walk := func(path string, d os.DirEntry, err error) error {
@@ -285,9 +291,10 @@ func (g *guiServer) scanStart(dir string, recursive bool, tag string, skipExtras
 				n := d.Name()
 				stem := strings.TrimSuffix(n, filepath.Ext(n))
 				if !videoExts[strings.ToLower(filepath.Ext(n))] || strings.HasSuffix(stem, ".partial") || strings.Contains(stem, " s test)") ||
-					strings.Contains(stem, " s original)") || strings.HasPrefix(n, ".keepthelight") || isOwnOutput(stem, tag) {
+					strings.Contains(stem, " s original)") || strings.HasPrefix(n, ".keepthelight") {
 					return nil
 				}
+				own := isOwnOutput(stem, tag)
 				if skipExtras {
 					if rel, err := filepath.Rel(dir, path); err == nil && isPlexExtra(rel) {
 						s.mu.Lock()
@@ -296,10 +303,12 @@ func (g *guiServer) scanStart(dir string, recursive bool, tag string, skipExtras
 						return nil
 					}
 				}
-				s.mu.Lock()
-				s.found++
-				s.mu.Unlock()
-				files <- path
+				if !own {
+					s.mu.Lock()
+					s.found++
+					s.mu.Unlock()
+				}
+				files <- found{path, own}
 				return nil
 			}
 			_ = filepath.WalkDir(dir, walk)
@@ -312,7 +321,8 @@ func (g *guiServer) scanStart(dir string, recursive bool, tag string, skipExtras
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				for path := range files {
+				for f := range files {
+					path := f.path
 					if ctx.Err() != nil {
 						continue
 					}
@@ -333,9 +343,23 @@ func (g *guiServer) scanStart(dir string, recursive bool, tag string, skipExtras
 						it.Err = "could not be read as video"
 					} else {
 						analyse(it, out)
+						if it.Done != "" && it.Err == "" && ctx.Err() == nil {
+							checkScanInterleave(ctx, ffprobe, it)
+						}
+						if f.own && it.Gap == 0 {
+							continue // Keep the Light's own new file, and nothing wrong with it
+						}
 						if it.Err == "" && ffmpeg != "" && ctx.Err() == nil {
 							checkScanInterlace(ctx, ffmpeg, it)
 						}
+					}
+					if f.own && it.Gap == 0 {
+						continue
+					}
+					if f.own {
+						s.mu.Lock()
+						s.found++
+						s.mu.Unlock()
 					}
 					s.mu.Lock()
 					s.items = append(s.items, it)
@@ -393,4 +417,85 @@ func isOwnOutput(stem, tag string) bool {
 		}
 	}
 	return false
+}
+
+// interleaveIssue is the scan's note for a file whose picture and sound are stored far apart.
+const interleaveIssue = "Picture and sound are stored far apart in this file: streaming players (Plex on a TV box, for example) may show a black picture. Fix it with a remux (no re-encoding)."
+
+// checkScanInterleave: files Keep the Light made are checked for the black-picture problem of versions before 1.35.1.
+func checkScanInterleave(ctx context.Context, ffprobe string, it *scanItem) {
+	pctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	if bad, gap := badInterleave(pctx, ffprobe, it.Path); bad {
+		it.Gap = math.Round(gap)
+		it.Issues = append(it.Issues, interleaveIssue)
+	}
+}
+
+// scanFix remuxes a scanned file whose picture and sound are stored far
+// apart, in the background; scanStatus reports how it went (the item's Fix).
+func (g *guiServer) scanFix(path string) map[string]any {
+	ffmpeg, err := findTool("ffmpeg", "")
+	if err != nil {
+		return failResult("ffmpeg was not found")
+	}
+	ffprobe, err := findTool("ffprobe", "")
+	if err != nil {
+		return failResult("ffprobe was not found")
+	}
+	s := &g.scan
+	s.mu.Lock()
+	var it *scanItem
+	for _, x := range s.items {
+		if samePath(x.Path, path) {
+			it = x
+		}
+	}
+	if it == nil || it.Gap == 0 {
+		s.mu.Unlock()
+		return failResult("That file is not in the scan's list of files to fix.")
+	}
+	if it.Fix == "running" {
+		s.mu.Unlock()
+		return okResult()
+	}
+	it.Fix = "running"
+	s.mu.Unlock()
+	go func() {
+		lines, err := fixInterleaveFile(context.Background(), ffmpeg, ffprobe, path)
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if err != nil {
+			it.Fix = "failed: " + err.Error()
+			return
+		}
+		it.Fix = "done: " + strings.Join(lines, " ")
+		it.Gap = 0
+		var keep []string
+		for _, x := range it.Issues {
+			if x != interleaveIssue {
+				keep = append(keep, x)
+			}
+		}
+		it.Issues = keep
+		if st, err := os.Stat(path); err == nil {
+			it.Size = st.Size()
+		}
+	}()
+	return okResult()
+}
+
+// scanFixStatus lists the scanned files being fixed or fixed, for the page to update their rows.
+func (g *guiServer) scanFixStatus() map[string]any {
+	s := &g.scan
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var fixes []*scanItem
+	for _, it := range s.items {
+		if it.Fix != "" {
+			c := *it
+			fixes = append(fixes, &c)
+		}
+	}
+	return map[string]any{"ok": true, "fixes": fixes}
 }

@@ -286,7 +286,10 @@ func checkScanInterlace(ctx context.Context, ffmpeg string, it *scanItem) {
 
 // plexCheckFile checks a finished file and prints the result in the log: one
 // "Plex check:" line per problem, or one saying it is clean.
-func plexCheckFile(ctx context.Context, ffprobe, ffmpeg, path string) []string {
+// deinterlaced: the job deinterlaced the picture, so the new file is not checked for interlacing again. FFmpeg's
+// detector compares neighbouring frames, and "smooth motion" output (a frame per field, each half a line apart from
+// the next) fools it into reporting interlacing that is not there.
+func plexCheckFile(ctx context.Context, ffprobe, ffmpeg, path string, deinterlaced bool) []string {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	data, err := toolCommand(ctx, ffprobe, "-v", "error", "-show_streams", "-show_format", "-of", "json", path).Output()
@@ -306,7 +309,7 @@ func plexCheckFile(ctx context.Context, ffprobe, ffmpeg, path string) []string {
 	}
 	src := plexSrcFromScan(&p, int(total/1000))
 	for _, st := range p.Streams {
-		if st.Type == "video" && st.Disp["attached_pic"] != 1 {
+		if st.Type == "video" && st.Disp["attached_pic"] != 1 && !deinterlaced {
 			dur, _ := strconv.ParseFloat(p.Format.Duration, 64)
 			src.Interlaced = detectInterlace(ctx, ffmpeg, path, st.Height, st.FieldOrder, dur).Interlaced
 			break

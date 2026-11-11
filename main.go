@@ -5,6 +5,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -445,6 +446,9 @@ func main() {
 			"Use keepthelight_cli.exe for command-line use, or start Keep the Light.exe without arguments to open the window.", true)
 		os.Exit(2)
 	}
+	if len(args) == 2 && args[0] == "-fix-interleave" {
+		os.Exit(runFixInterleave(args[1]))
+	}
 	os.Exit(run())
 }
 
@@ -727,7 +731,8 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 		return runSimple(r, cfg, p, plan, tmp)
 	}
 	err = encode()
-	if err != nil && cfg.gpu != nil && ctx.Err() == nil && !cfg.DryRun {
+	var notGPU notGPUError
+	if err != nil && cfg.gpu != nil && ctx.Err() == nil && !cfg.DryRun && !errors.As(err, &notGPU) {
 		// The full-GPU path passed its quick check but failed on the real file:
 		// try again at once the normal way (frames through the CPU), instead of failing.
 		fmt.Printf("\nThe full-GPU path failed on this file (%v).\nTrying again the normal way: frames go through the CPU, the graphics card still encodes.\n", err)
@@ -748,6 +753,11 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 	if cfg.DryRun {
 		return nil
 	}
+	work := tmp
+	if work == "" {
+		work = os.TempDir()
+	}
+	fixInterleaveNew(ctx, cfg.Ffmpeg, cfg.Ffprobe, cfg.Output, work)
 	verify(ctx, cfg, plan)
 	reportTarget(cfg)
 	if lw != nil {
@@ -781,7 +791,7 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 	keepOriginalClip(cfg)
 	if cfg.sample == "" { // the same Plex check as the library scan, on the new file
 		fmt.Println()
-		for _, l := range plexCheckFile(ctx, cfg.Ffprobe, cfg.Ffmpeg, cfg.Output) {
+		for _, l := range plexCheckFile(ctx, cfg.Ffprobe, cfg.Ffmpeg, cfg.Output, plan.Deint != "") {
 			fmt.Println(l)
 		}
 	}
@@ -1015,7 +1025,7 @@ func runDV(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 	margs = append(margs, audioArgs(plan.Audio, 1)...)
 	margs = append(margs, subtitleArgs(plan.Subs, 1)...)
 	margs = append(margs, meta.Args...)
-	margs = append(margs, "-c:v", "copy")
+	margs = append(margs, "-c:v", "copy", "-max_interleave_delta", "0") // picture and sound stored together (see interleave.go)
 	if mp4 {
 		margs = append(margs, "-tag:v", "dvh1", "-movflags", "+faststart+use_metadata_tags")
 	} else {

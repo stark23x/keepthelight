@@ -130,7 +130,8 @@ quality.
 - **Library scan.** Point it at a folder, for example your whole Movies folder. It shows how much space converting
   each file would save, and which files are likely to cause problems in Plex. Plex extras like trailers and
   featurettes can be skipped.
-- **Finished files are checked again,** to confirm they are clean.
+- **Finished files are checked again,** to confirm they are clean, including that picture and sound are stored
+  together in the file (if not, streaming players can show a black picture; Keep the Light fixes that on the spot).
 - **Tells Plex** when new files are ready, so they appear straight away (set up once with your Plex server and token).
 - **Marks converted files,** so you are warned before converting a file twice, and the Library scan shows what is done.
 
@@ -345,8 +346,12 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   in SD files and files marked interlaced). Show all files, those worth
   converting (at least 300 MB and a quarter saved) or those with trouble spots; **Select worth converting**, then
   **Add selected to queue** with the current settings or a profile. The estimate assumes x265 at very good quality; a
-  30-second test shows the real result. Files Keep the Light made (ending in the name tag) are left out, and so are
-  Plex extras (**Skip Plex extras**, on by default): files in Behind The Scenes, Deleted Scenes, Featurettes,
+  30-second test shows the real result. Files Keep the Light made (ending in the name tag) are left out, unless their
+  picture and sound are stored far apart (a problem of Dolby Vision files made before version 1.35.1, which can play
+  with a black picture on streaming players): those are listed with a **Fix (remux)** button, which copies the file
+  again in the right order without re-encoding and puts the old copy in the Recycle Bin (or renames it "(original)" on
+  a drive without one) once the new one is checked. From the command line: `keepthelight_cli -fix-interleave "file.mkv"`.
+  Plex extras are left out too (**Skip Plex extras**, on by default): files in Behind The Scenes, Deleted Scenes, Featurettes,
   Interviews, Scenes, Shorts, Trailers and Other folders, files ending in -trailer, -featurette, -deleted and the
   like, and Plex Versions folders. The summary says how many were skipped.
 - **Add a compatible audio track when needed** (Audio rules): if a file has no AC-3, E-AC-3 or AAC track (TrueHD,
@@ -456,6 +461,8 @@ command-line options when run from a command prompt, but its output appears afte
 - **Resizing**: the picture is scaled in 10-bit with its colour space unchanged, so HDR10 / HDR10+ / HLG metadata
   stays valid as is. Dolby Vision's only size-dependent data, the active area (black-bar sizes, level 5), is
   scaled with the picture scene by scene using dovi_tool; everything else in the RPU is kept unchanged.
+- **A Dolby Vision label without Dolby Vision data** (a re-encode that kept the original's label): converted as the
+  video it really is (often SDR), with a note.
 - **Dolby Vision 5**: refused for re-encode (no HDR10 base layer; colours would be wrong). Use `-copy-video`.
 
 ## Target file size

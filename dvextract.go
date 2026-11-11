@@ -43,6 +43,12 @@ func extractRPU(r *runner, cfg *Config, dovi string, mode int, rpu, tmp string) 
 	if r.ctx.Err() != nil {
 		return err2
 	}
-	return fmt.Errorf("this file's video has a glitch (%v), so its Dolby Vision data cannot be read. "+
-		"To convert it, set Dolby Vision to \"Drop (plain HDR10)\", or re-mux the file with MKVToolNix first and try again", err)
+	return notGPUError{fmt.Errorf("the Dolby Vision data could not be read from this file (%v). If it is labelled Dolby Vision but is a "+
+		"re-encode, it may hold none. To convert it, set Dolby Vision to \"Drop (plain HDR10)\", or re-mux the file with MKVToolNix first and try again", err)}
 }
+
+// notGPUError is a failure that has nothing to do with the graphics card: the
+// job is not tried again without the full-GPU path.
+type notGPUError struct{ error }
+
+func (e notGPUError) Unwrap() error { return e.error }

@@ -6,36 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **Fix: Dolby Vision files with the picture stored far behind the sound (black picture on streaming players)**
-  (Exhuma 2024, 1.35.0, NVENC, ONN 4K Pro + LG C4: Dolby Vision indicator on, black picture, sound and subtitles
-  fine). The video itself is fine (valid profile 8.1, an RPU on every frame, dvvC record, picture decodes), but
-  the final mux ([5/5], ffmpeg: MP4Box's DV .mp4 + the original's audio) wrote the video far behind the audio: the
-  1st video frame at 0.7 MB but the 2nd at 471 MB (after ~10 minutes of audio); at 10 minutes in, video sits at
-  1,246 MB and audio at 411 MB. The first two video packets have no DTS. A player reading over the network never
-  reaches the picture, so it shows black with sound and subtitles. **Confirmed 2026-11-11:** a remux (the file read
-  twice: video from one input, audio/subtitles from the other, `-max_interleave_delta 0`) plays on the ONN.
-  - Fix the DV mux so the tracks are interleaved (timestamps for the MP4Box track, strict interleaving), and test
-    that the first second of video sits near the start of the file.
-  - The check of the finished file reports badly interleaved tracks (video and audio of the same moment more than a
-    few MB apart) as an error, with the fix: remux (no re-encoding).
-  - A **Fix interleaving (remux)** action for files already made, in the Library scan (find them) and as a one-off.
-- **Fix: files labelled Dolby Vision that hold no Dolby Vision data** (Exhuma 2024, 2026-11-10). The file is an SDR
-  (BT.709) x265 re-encode at 6 Mb/s whose MKV header still carries the original disc's Dolby Vision label
-  (profile 7.6, a "dvcC" record copied over by whoever made it); the video has no RPU at all. Keep the Light believed
-  the label, dovi_tool found nothing, and the job failed, calling it a "glitch".
-  - Believe a Dolby Vision label only when the video carries Dolby Vision data (FFprobe shows "Dolby Vision RPU /
-    Metadata" on the first frame); otherwise treat the file by its own colour labels (here SDR), with a note: "labelled
-    Dolby Vision, but the video holds no Dolby Vision data (a re-encode that kept the original's label)".
-  - If dovi_tool still says "No RPU was found", carry on the same way instead of failing; the message never calls it a
-    glitch.
-  - A Dolby Vision failure is not retried "the normal way" without the full-GPU path (it has nothing to do with the
-    graphics card, and each try reads the whole file again).
-- **Fix: false "Interlaced video" warning after deinterlacing with smooth motion** (Laverne & Shirley S08E14,
-  2026-11-10). The file was deinterlaced correctly (frames compared: the source's combing is gone), but the check of
-  the finished file ran FFmpeg's interlace detector again, and on 59.94 fps "smooth motion" output (each frame made
-  from one field, so neighbouring frames are offset by half a line) its frame-to-frame comparison reports
-  interlacing (TFF 0 / BFF 196 / progressive 105 in one stretch). Fix: the finished-file check trusts the job when it
-  deinterlaced (and otherwise judges by idet's single-frame counts, which are not fooled by the field offset).
+Nothing at the moment.
 
 ## Ideas raised, not yet requested
 
@@ -43,6 +14,7 @@ None at the moment.
 
 ## Done
 
+- 1.35.1: Dolby Vision picture and sound stored together (no more black picture on streaming players); every new file checked and remuxed if needed; Library scan finds and fixes (remux) older files, plus `-fix-interleave`; a Dolby Vision label without Dolby Vision data no longer fails the job; no false "Interlaced video" warning after smooth-motion deinterlacing.
 - 1.35.0: double episodes (read S05E09-E10; mark or spot doubles/splits on the Plex names tab; season renumbered without overwriting, undoable); target file size follows double episodes.
 - 1.34.0: your own subtitle files (added as tracks, found by name, encoding fixed, timing offset); VobSub to SRT; the file's bitrate always shown with a target comparison.
 - 1.33.2: pop-ups always kept inside the window; right-click menu placed correctly at any text size.
