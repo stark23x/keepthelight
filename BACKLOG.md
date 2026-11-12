@@ -6,7 +6,13 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing at the moment.
+- **MP4Box's new Dolby Vision option name** (2026-11-12). GPAC 26.08-dev prints "Deprecated option name, use `:dvp=`
+  instead" for the `:dv-profile=` Keep the Light passes when packaging the Dolby Vision track ([4/5]). It still works,
+  but a future GPAC could drop the old name and break every Dolby Vision job.
+  - Use `:dvp=` when this MP4Box knows it (check its version or help once at start-up), and keep `:dv-profile=` for
+    older GPAC builds.
+  - While there: hide dovi_tool's stray "Reordering metadata... Done." lines from the log (when the RPU is read for
+    the HDR10 information, and during [1/5]).
 
 ## Ideas raised, not yet requested
 
