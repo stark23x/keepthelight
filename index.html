@@ -234,6 +234,8 @@
   .srow { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 10px; align-items: start; padding: 8px 10px;
     border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); margin-bottom: 6px; }
   .srow > div { min-width: 0; }
+  .srow.gone { opacity: .5; }
+  .srow .sgone { font-size: 12px; color: var(--muted); margin-top: 2px; }
   .srow input { margin-top: 3px; }
   .srow .ssave { font-weight: 600; font-size: 12.5px; white-space: nowrap; text-align: right; }
   .srow.worth .ssave { color: var(--ok); }
@@ -740,6 +742,8 @@
     </div>
     <div id="scanProg" class="hint hidden" style="margin-top:10px"></div>
     <div id="scanResult" class="hidden">
+      <div id="scanWhen" class="hint hidden" style="margin:12px 0 0"><span id="scanWhenText"></span>
+        <button class="linkbtn" id="scanClear" style="padding:0 4px" title="Forget these results (the files themselves are not touched)">Clear results</button></div>
       <div id="scanSumLine" class="note info" style="margin:12px 0 10px"></div>
       <div class="row" style="flex-wrap:wrap; gap:8px; margin-bottom:8px">
         <div><label for="scanShow">Show</label>
@@ -2679,7 +2683,7 @@ window.addEventListener('resize', closeCtx); window.addEventListener('blur', clo
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCtx(); });
 
 // ---------- library scan ----------
-let scanItems = [], scanTimer = null, scanSel = new Set();
+let scanItems = [], scanTimer = null, scanSel = new Set(), scanRev = null;
 function fmtSize(b) {
   if (b >= 1e12) return (b / 1e12).toFixed(2) + ' TB';
   if (b >= 1e9) return (b / 1e9).toFixed(1) + ' GB';
@@ -2709,18 +2713,20 @@ function renderScan() {
   list.innerHTML = '';
   const rows = scanVisible().sort((a, b) => (b.saving || 0) - (a.saving || 0));
   rows.slice(0, 2000).forEach(it => {
-    const r = el('div', 'srow' + (it.worth ? ' worth' : ''));
-    const cb = el('input'); cb.type = 'checkbox'; cb.checked = scanSel.has(it.path); cb.disabled = !!it.err;
+    const r = el('div', 'srow' + (it.worth && !it.gone ? ' worth' : '') + (it.gone ? ' gone' : ''));
+    const cb = el('input'); cb.type = 'checkbox'; cb.checked = scanSel.has(it.path) && !it.gone; cb.disabled = !!it.err || !!it.gone;
     cb.onchange = () => { if (cb.checked) scanSel.add(it.path); else scanSel.delete(it.path); scanButtons(); };
     const mid = el('div');
     const nm = el('div', 'qname', it.name); nm.title = it.path; mid.append(nm);
+    if (it.gone) mid.append(el('div', 'sgone', 'No longer there: this file has been moved, renamed or deleted since the scan.'));
+    else if (it.changed) mid.append(el('div', 'sgone', 'Changed since the scan (converted or replaced?): the details below may be out of date. Scan again to update them.'));
     if (it.err) mid.append(el('div', 'serr', it.err));
     else {
       mid.append(el('div', 'qsub', [it.video, it.kbps ? (it.kbps / 1000).toFixed(1) + ' Mbps' : '', it.audio].filter(Boolean).join(' · ')));
       if (it.folder) mid.append(el('div', 'qsub', 'in ' + it.folder));
       if (it.done) { const d = el('div', 'sdone', '✓ Already converted by Keep the Light'); d.title = it.done; mid.append(d); }
       (it.issues || []).forEach(x => mid.append(el('div', 'sissue', '⚠ ' + x)));
-      if (it.gap && it.fix !== 'running') {
+      if (it.gap && it.fix !== 'running' && !it.gone) {
         const b = el('button', 'sfix', 'Fix (remux)');
         b.title = 'Copies the file again with picture and sound stored together. Nothing is re-encoded, so nothing is lost. ' +
           'The old copy goes to the Recycle Bin (or is renamed "(original)" on drives without one), only after the new one is checked.';
@@ -2769,10 +2775,27 @@ async function scanFixPoll() {
   if (running) scanFixTimer = setTimeout(scanFixPoll, 2000);
 }
 async function scanPoll() {
-  const r = await api('scanStatus', { since: scanItems.length });
+  let r = await api('scanStatus', { since: scanItems.length });
   if (!r || !r.ok) return;
+  if (scanRev !== null && r.rev !== scanRev) { // rows already shown have changed (a new scan, saved results checked, a fix): all again
+    r = await api('scanStatus', { since: 0 });
+    if (!r || !r.ok) return;
+    scanItems = [];
+    const keep = new Set(r.items.filter(it => !it.gone).map(it => it.path));
+    scanSel = new Set([...scanSel].filter(p => keep.has(p)));
+  }
+  scanRev = r.rev;
   if (r.items && r.items.length) { scanItems = scanItems.concat(r.items); renderScan(); }
+  else if (!scanItems.length) renderScan();
   const running = r.running;
+  const when = !running && r.at && scanItems.length;
+  $('scanWhen').classList.toggle('hidden', !when);
+  if (when) {
+    let t = 'Scanned on ' + r.at + (r.stopped ? ' (stopped before the end)' : '') + '. These results are kept until the next scan.';
+    if (r.checking) t += ' Looking at the files again…';
+    else if (r.saved && (r.gone || r.changed)) t += ' Since then: ' + [r.gone ? r.gone + ' no longer there' : '', r.changed ? r.changed + ' changed' : ''].filter(Boolean).join(', ') + '.';
+    $('scanWhenText').textContent = t + ' ';
+  }
   $('scanProg').classList.toggle('hidden', !running && !r.found);
   $('scanProg').textContent = running ? (r.listing ? 'Looking for videos… ' + r.found + ' found, ' : '') + r.done + ' of ' + r.found + ' read…'
     : (r.found ? 'Read ' + r.done + ' of ' + r.found + ' video files in ' + r.dir + '.' : '');
@@ -2783,7 +2806,9 @@ async function scanPoll() {
     $('sumScan').textContent = scanItems.length ? r.worth + ' worth converting (about ' + r.saving + ')' : '';
   }
   $('scanGo').classList.toggle('hidden', running); $('scanStop').classList.toggle('hidden', !running);
-  if (running) scanTimer = setTimeout(scanPoll, 700); else scanTimer = null;
+  if (running) scanTimer = setTimeout(scanPoll, 700);
+  else if (r.checking) scanTimer = setTimeout(scanPoll, 1500);
+  else scanTimer = null;
   if (!running && !r.found && r.dir) $('scanProg').classList.remove('hidden'), $('scanProg').textContent = 'No video files were found in ' + r.dir + '.';
 }
 $('scanBrowse').onclick = async () => {
@@ -2798,14 +2823,19 @@ $('scanGo').onclick = async () => {
   api('setPref', { name: 'scanExtras', value: $('scanExtras').checked });
   const r = await api('scanStart', { dir, recursive: $('scanSub').checked, tag: nameTag(), skipExtras: $('scanExtras').checked });
   if (!r.ok) { showError(r.error); return; }
-  scanItems = []; scanSel = new Set(); renderScan(); scanButtons();
-  $('scanResult').classList.add('hidden');
+  scanItems = []; scanSel = new Set(); scanRev = null; renderScan(); scanButtons();
+  $('scanResult').classList.add('hidden'); $('scanWhen').classList.add('hidden');
   if (scanTimer) clearTimeout(scanTimer);
   scanPoll();
 };
 $('scanStop').onclick = () => api('scanStop', {});
+$('scanClear').onclick = async () => {
+  await api('scanClear', {});
+  scanItems = []; scanSel = new Set(); scanRev = null; renderScan(); scanButtons();
+  $('scanResult').classList.add('hidden'); $('scanProg').classList.add('hidden'); $('sumScan').textContent = '';
+};
 $('scanShow').onchange = renderScan;
-$('scanSelWorth').onclick = () => { scanItems.forEach(it => { if (it.worth) scanSel.add(it.path); }); renderScan(); scanButtons(); };
+$('scanSelWorth').onclick = () => { scanItems.forEach(it => { if (it.worth && !it.gone) scanSel.add(it.path); }); renderScan(); scanButtons(); };
 $('scanSelNone').onclick = () => { scanSel = new Set(); renderScan(); scanButtons(); };
 $('scanAdd').onclick = async () => {
   if (!batchOutReady()) return;
@@ -2819,6 +2849,7 @@ $('scanAdd').onclick = async () => {
   if (r && r.added) { scanSel = new Set(); renderScan(); scanButtons(); }
 };
 fillScanWith();
+scanPoll(); // the last scan's results, kept until the next one
 
 // ---------- your own subtitle files ----------
 let extSubs = [], extSubsFor = '', extChecks = [];

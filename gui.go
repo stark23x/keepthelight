@@ -450,6 +450,7 @@ func runGUI(initialFiles []string, forceServer bool) (code int) {
 		}
 	}()
 	g := newGUIServer(initialFiles...)
+	g.scanLoad() // the last Library scan's results, until the next scan
 	if claimInstance(g) {
 		return 0 // the window that is already open took the files
 	}
@@ -1083,6 +1084,9 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		}
 		_ = json.Unmarshal(body, &b)
 		return g.scanStart(strings.TrimSpace(b.Dir), b.Recursive, b.Tag, b.SkipExtras == nil || *b.SkipExtras)
+	case "scanClear":
+		g.scanClear()
+		return okResult()
 	case "scanStop":
 		g.scanStop()
 		return okResult()

@@ -32,9 +32,12 @@ type scanItem struct {
 	Worth    bool     `json:"worth"`
 	Issues   []string `json:"issues"`
 	Err      string   `json:"err,omitempty"`
-	Done     string   `json:"done,omitempty"` // already converted by Keep the Light: its tag
-	Gap      float64  `json:"gap,omitempty"`  // picture and sound stored this far apart (s): fixable by a remux
-	Fix      string   `json:"fix,omitempty"`  // the remux: "running", "done: …" or "failed: …"
+	Done     string   `json:"done,omitempty"`    // already converted by Keep the Light: its tag
+	Gap      float64  `json:"gap,omitempty"`     // picture and sound stored this far apart (s): fixable by a remux
+	Fix      string   `json:"fix,omitempty"`     // the remux: "running", "done: …" or "failed: …"
+	Mtime    int64    `json:"mtime,omitempty"`   // when the file was last changed (Unix ms), to tell later whether it still is the same
+	Gone     bool     `json:"gone,omitempty"`    // saved results: the file is no longer there
+	Changed  bool     `json:"changed,omitempty"` // saved results: the file has changed since the scan
 
 	height     int    // for the interlacing check
 	fieldOrder string // what the file says
@@ -51,6 +54,19 @@ type scanState struct {
 	items     []*scanItem
 	cancel    context.CancelFunc
 	startedAt time.Time
+	finished  time.Time // when the results were made (shown as "Scanned on …")
+	saved     bool      // the results were read back from the last scan
+	stopped   bool      // the scan was stopped before the end
+	checking  bool      // saved results: their files are being looked at again
+	rev       int       // goes up when rows already sent change (the page then reloads them)
+	opts      scanOpts
+}
+
+// scanOpts are the choices a scan ran with, kept with its results.
+type scanOpts struct {
+	Recursive  bool   `json:"recursive"`
+	Tag        string `json:"tag,omitempty"`
+	SkipExtras bool   `json:"skipExtras"`
 }
 
 // typicalHEVC is a bitrate (bits/s) that looks very good with x265 at
@@ -263,7 +279,8 @@ func (g *guiServer) scanStart(dir string, recursive bool, tag string, skipExtras
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s.running, s.dir, s.found, s.done, s.items, s.cancel, s.listing, s.startedAt = true, dir, 0, 0, nil, cancel, true, time.Now()
-	s.extras = 0
+	s.extras, s.saved, s.stopped, s.checking, s.opts = 0, false, false, false, scanOpts{recursive, tag, skipExtras}
+	s.rev++
 	s.mu.Unlock()
 
 	go func() {
@@ -331,7 +348,7 @@ func (g *guiServer) scanStart(dir string, recursive bool, tag string, skipExtras
 						it.Folder = rel
 					}
 					if st, err := os.Stat(path); err == nil {
-						it.Size = st.Size()
+						it.Size, it.Mtime = st.Size(), st.ModTime().UnixMilli()
 					}
 					pctx, pcancel := context.WithTimeout(ctx, 60*time.Second)
 					out, err := toolCommand(pctx, ffprobe, "-v", "error", "-show_streams", "-show_format", "-of", "json", path).Output()
@@ -371,7 +388,9 @@ func (g *guiServer) scanStart(dir string, recursive bool, tag string, skipExtras
 		wg.Wait()
 		s.mu.Lock()
 		s.running, s.listing = false, false
+		s.stopped, s.finished = ctx.Err() != nil, time.Now()
 		s.mu.Unlock()
+		g.scanSave()
 	}()
 	return okResult()
 }
@@ -383,6 +402,128 @@ func (g *guiServer) scanStop() {
 		s.cancel()
 	}
 	s.mu.Unlock()
+}
+
+// ---------- the results kept until the next scan ----------
+//
+// When a scan ends, its results are saved in the app's data folder and shown
+// again the next time the window opens; the next scan replaces them. Before
+// they are shown, each file is looked at again (its size and date only, so
+// it is quick even on a network drive): a file that is gone, or that has
+// changed since (converted, replaced), is marked.
+
+type savedScan struct {
+	Dir     string      `json:"dir"`
+	Opts    scanOpts    `json:"opts"`
+	At      time.Time   `json:"at"`
+	Stopped bool        `json:"stopped,omitempty"`
+	Found   int         `json:"found"`
+	Extras  int         `json:"extras,omitempty"`
+	Items   []*scanItem `json:"items"`
+}
+
+func scanSavePath() string { return filepath.Join(appDataDir(), "library-scan.json") }
+
+// scanSave writes the current results (nothing while a scan runs).
+func (g *guiServer) scanSave() {
+	s := &g.scan
+	s.mu.Lock()
+	if s.running || s.dir == "" {
+		s.mu.Unlock()
+		return
+	}
+	sv := savedScan{Dir: s.dir, Opts: s.opts, At: s.finished, Stopped: s.stopped, Found: s.found, Extras: s.extras}
+	for _, it := range s.items {
+		c := *it
+		c.Gone, c.Changed = false, false // worked out again when they are read back
+		if c.Fix == "running" {
+			c.Fix = ""
+		}
+		sv.Items = append(sv.Items, &c)
+	}
+	s.mu.Unlock()
+	b, err := json.Marshal(sv)
+	if err != nil {
+		return
+	}
+	_ = os.MkdirAll(appDataDir(), 0o755)
+	tmp := scanSavePath() + ".tmp"
+	if os.WriteFile(tmp, b, 0o644) == nil {
+		_ = os.Rename(tmp, scanSavePath())
+	}
+}
+
+// scanLoad shows the last scan's results again, and looks at their files.
+func (g *guiServer) scanLoad() {
+	b, err := os.ReadFile(scanSavePath())
+	if err != nil {
+		return
+	}
+	var sv savedScan
+	if json.Unmarshal(b, &sv) != nil || sv.Dir == "" {
+		return
+	}
+	s := &g.scan
+	s.mu.Lock()
+	if s.running || len(s.items) > 0 {
+		s.mu.Unlock()
+		return
+	}
+	s.dir, s.opts, s.finished, s.stopped, s.found, s.done, s.extras = sv.Dir, sv.Opts, sv.At, sv.Stopped, sv.Found, len(sv.Items), sv.Extras
+	s.items, s.saved, s.checking = sv.Items, true, true
+	items := append([]*scanItem(nil), sv.Items...)
+	s.rev++
+	s.mu.Unlock()
+	go func() {
+		type state struct{ gone, changed bool }
+		res := make([]state, len(items))
+		var wg sync.WaitGroup
+		next := make(chan int)
+		for w := 0; w < 8; w++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for i := range next {
+					res[i].gone, res[i].changed = fileChanged(items[i])
+				}
+			}()
+		}
+		for i := range items {
+			next <- i
+		}
+		close(next)
+		wg.Wait()
+		s.mu.Lock()
+		for i, it := range items {
+			it.Gone, it.Changed = res[i].gone, res[i].changed
+		}
+		s.checking = false
+		s.rev++
+		s.mu.Unlock()
+	}()
+}
+
+// fileChanged: is the scanned file gone, or not the same any more?
+func fileChanged(it *scanItem) (gone, changed bool) {
+	st, err := os.Stat(it.Path)
+	if err != nil {
+		return os.IsNotExist(err), false // a drive that is not connected right now is not "gone"
+	}
+	return false, st.Size() != it.Size || (it.Mtime != 0 && st.ModTime().UnixMilli() != it.Mtime)
+}
+
+// scanClear forgets the results (and the saved copy).
+func (g *guiServer) scanClear() {
+	s := &g.scan
+	s.mu.Lock()
+	if s.cancel != nil {
+		s.cancel()
+	}
+	s.running, s.dir, s.found, s.done, s.items, s.extras, s.saved, s.stopped, s.checking = false, "", 0, 0, nil, 0, false, false, false
+	s.finished = time.Time{}
+	s.rev++
+	s.mu.Unlock()
+	_ = os.Remove(scanSavePath())
 }
 
 // scanStatus returns the progress, the totals and the items found since "since".
@@ -405,8 +546,22 @@ func (g *guiServer) scanStatus(since int) map[string]any {
 	since = max(0, min(since, len(s.items)))
 	items := append([]*scanItem(nil), s.items[since:]...)
 	sort.SliceStable(items, func(a, b int) bool { return items[a].Saving > items[b].Saving })
-	return map[string]any{"ok": true, "running": s.running, "listing": s.listing, "dir": s.dir, "found": s.found, "done": s.done,
-		"next": len(s.items), "items": items, "size": formatBytes(size), "worth": worth, "saving": formatBytes(saving), "trouble": trouble, "extras": s.extras}
+	r := map[string]any{"ok": true, "running": s.running, "listing": s.listing, "dir": s.dir, "found": s.found, "done": s.done,
+		"next": len(s.items), "items": items, "size": formatBytes(size), "worth": worth, "saving": formatBytes(saving), "trouble": trouble, "extras": s.extras,
+		"rev": s.rev, "saved": s.saved, "checking": s.checking, "stopped": s.stopped, "opts": s.opts}
+	if !s.finished.IsZero() {
+		r["at"] = s.finished.Format("2 January 2006, 15:04")
+	}
+	gone, changed := 0, 0
+	for _, it := range s.items {
+		if it.Gone {
+			gone++
+		} else if it.Changed {
+			changed++
+		}
+	}
+	r["gone"], r["changed"] = gone, changed
+	return r
 }
 
 // isOwnOutput: a file Keep the Light made (its name ends with the name tag).
@@ -479,8 +634,10 @@ func (g *guiServer) scanFix(path string) map[string]any {
 		}
 		it.Issues = keep
 		if st, err := os.Stat(path); err == nil {
-			it.Size = st.Size()
+			it.Size, it.Mtime, it.Changed = st.Size(), st.ModTime().UnixMilli(), false
 		}
+		s.rev++
+		go g.scanSave()
 	}()
 	return okResult()
 }

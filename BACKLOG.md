@@ -6,15 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **Keep the Library scan's results until the next scan** (2026-11-12). Today they live only in memory and are gone
-  when Keep the Light is closed.
-  - Save the results (folder, settings used, every row with its issues and estimates, and when it ran) to the app's
-    data folder when a scan finishes, and show them again on start-up, with "Scanned on <date>" above the list.
-  - A new scan replaces them (no history), like the running total of space saved.
-  - On showing saved results, a quick check of each file (size and date, no re-reading): a file that is gone is
-    greyed out ("no longer there"), one that changed (converted since, replaced) is marked "changed since the scan".
-    Fix (remux) and Add to queue work as before; a fix updates the saved row.
-  - Clearing them: a small "Clear results" link.
+Nothing at the moment.
 
 ## Ideas raised, not yet requested
 
@@ -22,6 +14,7 @@ None at the moment.
 
 ## Done
 
+- 1.37.0: Library scan results kept until the next scan (saved, shown with their date, gone/changed files marked, Clear results).
 - 1.36.1: faster Dolby Vision profile 5 conversion: Vulkan device matched to the encoder; GPU decoding (on the graphics card, or copied back) used only after a 48-frame check against processor decoding on the file itself, with fallback during the job.
 - 1.36.0: Dolby Vision profile 5 converted (colours to HDR10 with libplacebo on the graphics card; Dolby Vision 8.1 kept, or dropped); HDR10 information read from the Dolby Vision data; stale Dolby Vision labels removed when Dolby Vision is dropped.
 - 1.35.1: Dolby Vision picture and sound stored together (no more black picture on streaming players); every new file checked and remuxed if needed; Library scan finds and fixes (remux) older files, plus `-fix-interleave`; a Dolby Vision label without Dolby Vision data no longer fails the job; no false "Interlaced video" warning after smooth-motion deinterlacing.

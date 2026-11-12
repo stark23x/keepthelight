@@ -18,6 +18,17 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.37.0 - 2026-11-12
+
+- **The Library scan's results are kept until the next scan.** They used to be lost when Keep the Light was closed.
+  Now they are saved when a scan finishes and shown again the next time, with "Scanned on …" above the list. A new
+  scan replaces them; **Clear results** forgets them (the files themselves are not touched).
+  - When they come back, each file is looked at again (only its size and date, so it is quick even on a network
+    drive). A file that has been moved, renamed or deleted is greyed out as "no longer there" and cannot be selected;
+    one that has changed (converted or replaced) is marked "changed since the scan". A file on a drive that is not
+    connected right now is left as it was.
+  - Adding to the queue and **Fix (remux)** work as before, and a fix is saved into the results.
+
 ## 1.36.1 - 2026-11-12
 
 - **Faster Dolby Vision profile 5 conversion, without risking the colours.**
