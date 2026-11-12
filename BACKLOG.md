@@ -6,17 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **Faster Dolby Vision profile 5 conversion, only if it is reliable** (2026-11-11). A profile 5 job takes about 6×
-  as long as a normal one (20 min → 2 h). Likely causes: decoding on the processor (GPU decoding is switched off for
-  profile 5), each 4K frame copied to the graphics card for libplacebo and back, then to the encoder, and Vulkan
-  possibly picking the laptop's Intel graphics instead of the NVIDIA card.
-  - Try: GPU decoding that still hands libplacebo the Dolby Vision data on every frame; choosing the Vulkan device
-    that matches the encoder (NVIDIA for NVENC, Intel for QuickSync); keeping frames on the graphics card where FFmpeg
-    allows.
-  - **Owner's condition:** ship it only if it is as reliable as the current way. Check on both PCs (laptop NVENC,
-    Dell QuickSync) that every frame is converted with its Dolby Vision data (compare against the current way), with
-    fallback to the current way when anything fails. If it cannot be made reliable, keep the current way and say so;
-    the owner has few profile 5 files and is fine with it being slow.
+Nothing at the moment.
 
 ## Ideas raised, not yet requested
 
@@ -24,6 +14,7 @@ None at the moment.
 
 ## Done
 
+- 1.36.1: faster Dolby Vision profile 5 conversion: Vulkan device matched to the encoder; GPU decoding (on the graphics card, or copied back) used only after a 48-frame check against processor decoding on the file itself, with fallback during the job.
 - 1.36.0: Dolby Vision profile 5 converted (colours to HDR10 with libplacebo on the graphics card; Dolby Vision 8.1 kept, or dropped); HDR10 information read from the Dolby Vision data; stale Dolby Vision labels removed when Dolby Vision is dropped.
 - 1.35.1: Dolby Vision picture and sound stored together (no more black picture on streaming players); every new file checked and remuxed if needed; Library scan finds and fixes (remux) older files, plus `-fix-interleave`; a Dolby Vision label without Dolby Vision data no longer fails the job; no false "Interlaced video" warning after smooth-motion deinterlacing.
 - 1.35.0: double episodes (read S05E09-E10; mark or spot doubles/splits on the Plex names tab; season renumbered without overwriting, undoable); target file size follows double episodes.

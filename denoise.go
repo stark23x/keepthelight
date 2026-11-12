@@ -220,7 +220,7 @@ func (cfg *Config) inputPrefix() []string {
 	}
 	var a []string
 	if cfg.vulkan {
-		a = append(a, vulkanInit...)
+		a = append(a, cfg.vulkanArgs()...)
 	}
 	if cfg.Denoise == "hq" && cfg.hqDenoise != nil {
 		a = append(a, cfg.hqDenoise.Global...)

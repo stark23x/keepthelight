@@ -669,14 +669,10 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 	}
 	if plan.Reshape && !cfg.CopyVideo {
 		cfg.vulkan = true
-		if cfg.HWDecode {
-			fmt.Println("GPU decoding: not used for Dolby Vision profile 5 (its colour conversion reads the Dolby Vision data from the normal decoder)")
-		}
 		if !cfg.DryRun {
-			if err := checkReshape(ctx, ffmpeg, cfg.Input); err != nil {
+			if err := setupP5(ctx, ffmpeg, cfg, p.Duration); err != nil {
 				return err
 			}
-			fmt.Println("Dolby Vision profile 5 colour conversion: works on this PC (libplacebo)")
 		}
 	}
 	if cfg.HWDecode && !cfg.CopyVideo && cfg.gpu == nil && !plan.Reshape {
@@ -691,6 +687,9 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 	}
 	if cfg.Denoise == "hq" && !cfg.CopyVideo && !cfg.DryRun {
 		c, msg := chooseHQDenoise(ctx, ffmpeg, cfg.Input, cfg.hwaccel)
+		if plan.Reshape {
+			c, msg = chooseHQDenoiseP5(ctx, ffmpeg, cfg)
+		}
 		cfg.hqDenoise = &c
 		fmt.Println(msg)
 	} else if cfg.Denoise != "" && !cfg.CopyVideo {
@@ -762,6 +761,18 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 			cfg.hwaccel = args
 			fmt.Println(msg)
 		}
+		err = encode()
+	}
+	if err != nil && plan.Reshape && cfg.hwaccel != nil && ctx.Err() == nil && !cfg.DryRun && !errors.As(err, &notGPU) {
+		// the faster profile 5 way passed its check but failed on the real file: the processor decodes, as before
+		fmt.Printf("\nDecoding this profile 5 file on the graphics card failed (%v).\nTrying again with the processor decoding (slower, the way that always works).\n", err)
+		cfg.hwaccel, cfg.p5OnGPU = nil, false
+		if cfg.hqDenoise != nil && cfg.hqDenoise.Global == nil && cfg.Denoise == "hq" {
+			c, msg := chooseHQDenoiseP5(ctx, ffmpeg, cfg)
+			cfg.hqDenoise = &c
+			fmt.Println(msg)
+		}
+		_ = os.Remove(cfg.Output)
 		err = encode()
 	}
 	if err != nil {

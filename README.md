@@ -631,7 +631,9 @@ subtitles and container from the target to get a video bitrate, then:
 - Black bars are cropped only at 576p and 480p, and never in Dolby Vision files. Resizing keeps the frame count, so
   it never changes the frame rate (deinterlacing with smooth motion doubles it on purpose).
 - GPU decoding uses the GPU that runs the main display (Direct3D 11). The decoded frames are copied back to the
-  CPU, which costs a little but keeps everything else exactly as without it.
+  CPU, which costs a little but keeps everything else exactly as without it. For Dolby Vision profile 5 it is used
+  only when a check on the file shows the converted picture is the same as with the processor decoding (48 frames
+  compared); the colour conversion runs on the graphics card that matches the encoder.
 - Dolby Vision mode assumes constant frame rate.
 - QuickSync (`-codec qsv`) and NVENC (`-codec nvenc`) are fast but cannot keep HDR10+, and their quality number is not the same scale as x265 CRF.
 - Re-encoding is lossy; the Dolby Vision tone-mapping metadata is preserved, not recomputed.

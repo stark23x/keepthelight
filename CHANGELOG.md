@@ -18,6 +18,20 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.36.1 - 2026-11-12
+
+- **Faster Dolby Vision profile 5 conversion, without risking the colours.**
+  - The colour conversion now runs on the graphics card that matches the encoder: the NVIDIA card for NVENC, Intel
+    graphics for QuickSync (on a laptop with both, FFmpeg could pick the slower one). If that card cannot do it,
+    FFmpeg's own choice is used, as before.
+  - With **GPU decoding** on (⚙ Settings), Keep the Light also tries decoding on the graphics card, first keeping the
+    frames there for the conversion, then the usual way (copied back to memory). A faster way is used only after a
+    check on the file being converted: 48 frames are converted both that way and the way that is known to be right,
+    and every frame must come out the same. A way that lost the Dolby Vision data of even one frame would show
+    different colours and is not used. The log says which way was chosen, or why the faster ones were not.
+  - If the faster way still fails during the job, the job starts again at once with the processor decoding.
+  - "High quality" noise reduction runs on the same graphics card as the conversion, or else on the processor.
+
 ## 1.36.0 - 2026-11-11
 
 - **Dolby Vision profile 5 can now be converted** (it used to be refused). Profile 5, found mostly in streaming

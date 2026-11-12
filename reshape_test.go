@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -101,7 +102,7 @@ func TestProfile5Job(t *testing.T) {
 	if in == "" || e1 != nil || e2 != nil {
 		t.Skip("no profile 5 sample (KTL_P5_SAMPLE) or no ffmpeg")
 	}
-	if err := checkReshape(context.Background(), ffmpeg, in); err != nil {
+	if err := checkReshape(context.Background(), ffmpeg, in, vulkanInit); err != nil {
 		t.Skip(err)
 	}
 	out := filepath.Join(t.TempDir(), "out.mkv")
@@ -116,5 +117,82 @@ func TestProfile5Job(t *testing.T) {
 		if !strings.Contains(s, want) {
 			t.Errorf("missing %q:\n%s", want, s)
 		}
+	}
+}
+
+func TestVulkanDevices(t *testing.T) {
+	log := `[Vulkan @ 000001] GPU listing:
+[Vulkan @ 000001]     0: Intel(R) UHD Graphics 770 (integrated) (0xa780)
+[Vulkan @ 000001]     1: NVIDIA GeForce RTX 4070 Laptop GPU (discrete) (0x2820)
+[Vulkan @ 000001] Device 0 selected: Intel(R) UHD Graphics 770 (integrated) (0xa780)`
+	devs := parseVulkanDevices(log)
+	if len(devs) != 2 || devs[1].Name != "NVIDIA GeForce RTX 4070 Laptop GPU" || devs[0].Kind != "integrated" {
+		t.Fatalf("%+v", devs)
+	}
+	for codec, want := range map[string]int{"nvenc": 1, "qsv": 0, "x265": 1} {
+		if got := pickVulkan(devs, codec); got != want {
+			t.Errorf("%s: device %d, want %d", codec, got, want)
+		}
+	}
+	if pickVulkan(devs[:1], "nvenc") != -1 {
+		t.Error("one device: leave it to FFmpeg")
+	}
+	cfg := &Config{}
+	if a := strings.Join(cfg.vulkanArgs(), " "); a != "-init_hw_device vulkan" {
+		t.Errorf("default device: %s", a)
+	}
+	cfg.vulkanDev = "1"
+	if a := strings.Join(cfg.vulkanArgs(), " "); a != "-init_hw_device vulkan=ktlvk:1 -filter_hw_device ktlvk" {
+		t.Errorf("chosen device: %s", a)
+	}
+}
+
+func TestP5Compare(t *testing.T) {
+	line := func(n int, y string) string {
+		return fmt.Sprintf("n:%d mse_avg:0.00 mse_y:0.00 mse_u:0.00 mse_v:0.00 psnr_avg:inf psnr_y:%s psnr_u:inf psnr_v:62.10\n", n, y)
+	}
+	var good, bad, short strings.Builder
+	for i := 1; i <= p5CheckFrames; i++ {
+		good.WriteString(line(i, "inf"))
+		y := "inf"
+		if i == 30 {
+			y = "14.2" // one frame without its Dolby Vision data
+		}
+		bad.WriteString(line(i, y))
+		if i < 40 {
+			short.WriteString(line(i, "inf"))
+		}
+	}
+	if ok, why := p5Compare(good.String()); !ok {
+		t.Errorf("good: %s", why)
+	}
+	if ok, why := p5Compare(bad.String()); ok || !strings.Contains(why, "differs") {
+		t.Errorf("bad: %v %s", ok, why)
+	}
+	if ok, why := p5Compare(short.String()); ok || !strings.Contains(why, "39 of 48") {
+		t.Errorf("short: %v %s", ok, why)
+	}
+}
+
+// With a real profile 5 file: the check passes for a way that decodes the
+// same, and fails (falling back) for one that cannot run.
+func TestChooseP5Way(t *testing.T) {
+	in := os.Getenv("KTL_P5_SAMPLE")
+	ffmpeg, err := exec.LookPath("ffmpeg")
+	if in == "" || err != nil {
+		t.Skip("no profile 5 sample (KTL_P5_SAMPLE) or no ffmpeg")
+	}
+	if err := checkReshape(context.Background(), ffmpeg, in, vulkanInit); err != nil {
+		t.Skip(err)
+	}
+	cfg := &Config{Input: in, vulkanDev: "0"}
+	ok, why := sameAsCPU(context.Background(), ffmpeg, cfg, p5Way{hw: nil, desc: "processor"}, 0)
+	if !ok {
+		t.Fatalf("the same way must match itself: %s", why)
+	}
+	w, msg := chooseP5Way(context.Background(), ffmpeg, cfg, 6)
+	t.Log(msg)
+	if w.onGPU && !strings.Contains(msg, "checked on this file") {
+		t.Errorf("%+v %s", w, msg)
 	}
 }

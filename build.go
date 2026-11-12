@@ -53,6 +53,8 @@ type Config struct {
 	hwaccel                                      []string       // input options for GPU decoding (set at start-up)
 	cuesFront                                    bool           // this ffmpeg can put an MKV's index at the front (set at start-up)
 	vulkan                                       bool           // a Vulkan device for libplacebo (Dolby Vision profile 5)
+	vulkanDev                                    string         // which one (its Vulkan number; "": FFmpeg's choice); see reshape.go
+	p5OnGPU                                      bool           // profile 5 frames are decoded and converted on the graphics card
 	stripDV                                      bool           // remove Dolby Vision from the encoded video (the source has it, the plan drops it)
 	hqDenoise                                    *denoiseChoice // "high quality" noise reduction as chosen at start-up
 	gpu                                          *gpuPath       // the full-GPU path, when it works for this file
@@ -249,7 +251,7 @@ func buildVideoArgs(cfg *Config, p *Probe, plan *Plan, hdr10plusJSON string) ([]
 	}
 	var args, filters []string
 	if plan.Reshape { // first of all: the frames become a normal HDR10 picture
-		filters = append(filters, reshapeFilter)
+		filters = append(filters, cfg.reshapeChain())
 	}
 	if f := plan.deintFilter(); f != "" { // first: resizing an interlaced picture would blend its fields
 		filters = append(filters, f)
