@@ -6,7 +6,17 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing at the moment.
+- **Faster Dolby Vision profile 5 conversion, only if it is reliable** (2026-11-11). A profile 5 job takes about 6×
+  as long as a normal one (20 min → 2 h). Likely causes: decoding on the processor (GPU decoding is switched off for
+  profile 5), each 4K frame copied to the graphics card for libplacebo and back, then to the encoder, and Vulkan
+  possibly picking the laptop's Intel graphics instead of the NVIDIA card.
+  - Try: GPU decoding that still hands libplacebo the Dolby Vision data on every frame; choosing the Vulkan device
+    that matches the encoder (NVIDIA for NVENC, Intel for QuickSync); keeping frames on the graphics card where FFmpeg
+    allows.
+  - **Owner's condition:** ship it only if it is as reliable as the current way. Check on both PCs (laptop NVENC,
+    Dell QuickSync) that every frame is converted with its Dolby Vision data (compare against the current way), with
+    fallback to the current way when anything fails. If it cannot be made reliable, keep the current way and say so;
+    the owner has few profile 5 files and is fine with it being slow.
 
 ## Ideas raised, not yet requested
 
