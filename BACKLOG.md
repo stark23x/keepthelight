@@ -6,7 +6,15 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing at the moment.
+- **Keep the Library scan's results until the next scan** (2026-11-12). Today they live only in memory and are gone
+  when Keep the Light is closed.
+  - Save the results (folder, settings used, every row with its issues and estimates, and when it ran) to the app's
+    data folder when a scan finishes, and show them again on start-up, with "Scanned on <date>" above the list.
+  - A new scan replaces them (no history), like the running total of space saved.
+  - On showing saved results, a quick check of each file (size and date, no re-reading): a file that is gone is
+    greyed out ("no longer there"), one that changed (converted since, replaced) is marked "changed since the scan".
+    Fix (remux) and Add to queue work as before; a fix updates the saved row.
+  - Clearing them: a small "Clear results" link.
 
 ## Ideas raised, not yet requested
 
