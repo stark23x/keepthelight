@@ -6,6 +6,8 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
+- **Queue tab: "Clear the queue" button in red** (2026-11-13), styled like the Cancel button (`class="danger"`), so
+  it reads as the button that removes everything. "Clear finished" stays as it is.
 - **MP4Box's new Dolby Vision option name** (2026-11-12). GPAC 26.08-dev prints "Deprecated option name, use `:dvp=`
   instead" for the `:dv-profile=` Keep the Light passes when packaging the Dolby Vision track ([4/5]). It still works,
   but a future GPAC could drop the old name and break every Dolby Vision job.
