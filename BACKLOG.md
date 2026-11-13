@@ -6,7 +6,24 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing at the moment.
+TVmaze, made useful (2026-11-13). In 1.38.0 it is only asked after TMDB has matched the show, only on the Plex names
+tab, only for seasons with 3+ files, and it shows nothing when the two agree, so the owner saw it do nothing. The
+case that prompted this: **Red vs. Blue: Restoration** (released in 2024 as a film, also as episodes). TMDB has
+Restoration as a film, and on the show (TMDB 39373) only a season 0 special "Red vs. Blue: Restoration - The Final
+Season (Prologue)"; TVmaze's Red vs. Blue (show 6090) ends at season 19, so Restoration is probably among its
+specials (season 0), which 1.38.0 leaves out.
+
+- **TVmaze as a fallback when TMDB finds nothing** (or nothing that fits: no such season or episode), on the Convert,
+  Queue and Plex names tabs. TMDB is still tried first. From TVmaze: the show's name and year, the episode's title,
+  date and description, and its poster (TVmaze's show/season image). The note says where it came from ("TVmaze: …").
+- **A visible result** of the second opinion: "TVmaze: agrees with TMDB", "TVmaze: numbers it differently" (the
+  existing note), "TVmaze: show not found", "TVmaze: not reachable", per season on the Plex names tab and in the
+  file's lookup note, so it is clear it ran. Also for seasons with fewer than 3 files.
+- **Search TVmaze in the Edit / "Which one?" search,** beside TMDB's results (marked as TVmaze), for when the
+  automatic match picks the wrong show or none.
+- **Specials (season 0):** include TVmaze's specials when the file says S00Exx, and let a show's specials be
+  searched by title, so episodes released outside the normal seasons (like Restoration) can be found. Check against
+  the real Red vs. Blue: Restoration files (ask the owner how they are named) before shipping.
 
 ## Ideas raised, not yet requested
 
