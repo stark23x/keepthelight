@@ -764,7 +764,7 @@ func (g *guiServer) queueTMDBAgain(ids []int, again bool) map[string]any {
 		}
 		g.oneOff = nil
 		g.mu.Unlock()
-		lk := &tmdbLookup{key: key, coverDir: dir, picks: picks, found: map[string]*tmdbFound{}, shifts: g.renShifts()}
+		lk := &tmdbLookup{key: key, coverDir: dir, picks: picks, found: map[string]*tmdbFound{}, shifts: g.renShifts(), numbering: g.tvNumbering()}
 		for _, id := range todo {
 			g.mu.Lock()
 			it := g.findItemLocked(id)
@@ -822,6 +822,7 @@ type tmdbLookup struct {
 	picks         map[string]tmdbPick
 	found         map[string]*tmdbFound
 	shifts        map[string][]epShift // double / split episodes marked on the Plex names tab (episodes.go)
+	numbering     map[string]string    // seasons (shiftKey) numbered TVmaze's way: "tvmaze" (tvmaze.go)
 }
 
 type tmdbFound struct {
@@ -900,10 +901,22 @@ func (lk *tmdbLookup) file(input string) (string, *MetaEdit) {
 	var f *tmdbFill
 	var err error
 	ep := tmdbEp{First: gs.Episode, Last: gs.Episode2}
+	byTVmaze, tvmNote := false, ""
 	if _, renumbered := lk.shifts["fixed|"+strings.ToLower(input)]; gs.Kind == "tv" && !renumbered {
-		ep = mapEpisode(gs.Episode, gs.Episode2, lk.shifts[shiftKey(pk, gs.Season)])
+		if lk.numbering[shiftKey(pk, gs.Season)] == "tvmaze" && hit.Kind == "tv" {
+			byTVmaze = true // the file's own numbers, as TVmaze has them
+		} else {
+			ep = mapEpisode(gs.Episode, gs.Episode2, lk.shifts[shiftKey(pk, gs.Season)])
+		}
 	}
-	if ep.Last > ep.First || ep.Part > 0 {
+	if byTVmaze {
+		if f, tvmNote = tvmazeFill(ctx, key, hit, gs.Season, ep, coverDir); f == nil {
+			byTVmaze = false
+		}
+	}
+	if byTVmaze {
+		// filled in from TVmaze
+	} else if ep.Last > ep.First || ep.Part > 0 {
 		f, err = tmdbEpisodes(ctx, key, hit.ID, gs.Season, ep, coverDir)
 	} else {
 		f, err = tmdbDetails(ctx, key, hit.Kind, hit.ID, gs.Season, ep.First, coverDir)
@@ -928,6 +941,11 @@ func (lk *tmdbLookup) file(input string) (string, *MetaEdit) {
 	}
 	if gs.Kind == "tv" && (ep.First != gs.Episode || ep.Last != gs.Episode2 || ep.Part > 0) {
 		what += " (" + ep.String() + " on TMDB)"
+	}
+	if byTVmaze {
+		what += " (episode title from TVmaze: this season uses TVmaze's numbering)"
+	} else if tvmNote != "" {
+		what += " (" + tvmNote + ")"
 	}
 	if fd.remembered {
 		return "TMDB: " + what + " (as matched before; check it with Edit)", m

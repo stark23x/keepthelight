@@ -850,6 +850,10 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		}
 		_ = json.Unmarshal(body, &b)
 		return g.renMark(b.ID, b.Kind)
+	case "renNumbering":
+		var b struct{ Key, Source string }
+		_ = json.Unmarshal(body, &b)
+		return g.renNumbering(b.Key, b.Source)
 	case "renAnswer":
 		var b struct {
 			Key string

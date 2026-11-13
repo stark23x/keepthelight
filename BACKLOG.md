@@ -6,18 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **TVmaze as a second opinion for TV episode numbers** (2026-11-13). TMDB stays the main source. TVmaze's public
-  API is free with no key (at least 20 calls per 10 s per IP; HTTP 429 means back off), licensed CC BY-SA: credit
-  TVmaze with a link (About box). Show lookup by TVDB id (`/lookup/shows?thetvdb=`), IMDb id, or name;
-  `/shows/:id/episodes` for the episode list.
-  - In the Plex names tab (and TMDB lookups for TV in the queue), fetch the season from TVmaze too and compare:
-    episode count, order, titles and runtimes. When they disagree (a double episode, a split, a different order),
-    show both numberings side by side, like the double-episode banner, and let the owner pick; never rename without
-    it being shown first.
-  - TVmaze usually follows broadcast order, often (not always) the same as TVDB; say so in the UI ("TVmaze's
-    numbering, often the same as TVDB's"), since Plex can number a show either TMDB's or TVDB's way.
-  - Works without TVmaze (offline, rate-limited, show not found): TMDB alone, as now. A setting to turn the second
-    opinion off.
+Nothing at the moment.
 
 ## Ideas raised, not yet requested
 
@@ -25,6 +14,7 @@ None at the moment.
 
 ## Done
 
+- 1.38.0: TVmaze as a second opinion for TV episode numbers (compare, choose per show and season, titles from TVmaze, remembered; setting to turn off; credited in About).
 - 1.37.1: red "Clear the queue" button; MP4Box `:dvp=` when GPAC knows it (else `:dv-profile=`); dovi_tool's "Reordering metadata" lines hidden.
 - 1.37.0: Library scan results kept until the next scan (saved, shown with their date, gone/changed files marked, Clear results).
 - 1.36.1: faster Dolby Vision profile 5 conversion: Vulkan device matched to the encoder; GPU decoding (on the graphics card, or copied back) used only after a 48-frame check against processor decoding on the file itself, with fallback during the job.

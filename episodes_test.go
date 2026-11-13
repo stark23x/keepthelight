@@ -82,6 +82,8 @@ func laverneTMDB(t *testing.T) {
 		switch {
 		case p == "/3/search/tv":
 			_, _ = w.Write([]byte(`{"results":[{"id":1985,"name":"Laverne & Shirley","first_air_date":"1976-01-27"}]}`))
+		case p == "/3/tv/1985/external_ids":
+			_, _ = w.Write([]byte(`{"tvdb_id":77777,"imdb_id":"tt0074016"}`))
 		case p == "/3/tv/1985":
 			_, _ = w.Write([]byte(`{"name":"Laverne & Shirley","first_air_date":"1976-01-27","overview":"Milwaukee."}`))
 		case strings.HasPrefix(p, "/3/tv/1985/season/5/episode/"):
@@ -105,6 +107,7 @@ func laverneTMDB(t *testing.T) {
 	oldAPI, oldImg := tmdbAPI, tmdbImages
 	tmdbAPI, tmdbImages = srv.URL+"/3", srv.URL+"/img/"
 	t.Cleanup(func() { tmdbAPI, tmdbImages = oldAPI, oldImg })
+	fakeTVmaze(t, nil) // TVmaze knows nothing: TMDB alone, as before
 }
 
 func TestDoubleEpisodeRenumbering(t *testing.T) {

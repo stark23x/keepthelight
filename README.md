@@ -549,6 +549,15 @@ subtitles and container from the target to get a video bitrate, then:
     shows both episodes), and the halves of a split one end in `-pt1` / `-pt2`.
   - A file already named `S05E09-E10` (or `S05E09E10`, `S05E09-10`) is looked up as both episodes: the title
     "… (Parts 1 & 2)", the first part's date and both descriptions.
+  - **A second opinion from TVmaze:** for each season, Keep the Light also asks [TVmaze](https://www.tvmaze.com)
+    (free, no key) how it numbers the episodes. When TMDB and TVmaze disagree (a different number of episodes, or
+    different titles at the same numbers), the tab says so and lets you choose, with **Compare** showing both lists
+    side by side. Plex can number a show either way (Edit the show in Plex → Advanced → Episode ordering), so pick
+    the one your Plex uses; TVmaze's numbering is often the same as TVDB's. **Use TVmaze's numbering** keeps the
+    files' own numbers and gives them TVmaze's episode titles (the show's name, year and poster still come from
+    TMDB); a TVmaze episode about twice the usual length still gets twice the size with Target file size. The choice
+    is remembered per show and season, and **Use TMDB's instead** undoes it. Turn the second opinion off in
+    ⚙ Settings. Without TVmaze (offline, show not found), TMDB alone is used, as before.
 - **Metadata only** (under Video) copies every kept stream unchanged into a new file with the new metadata: no
   re-encoding, so the quality is identical, and it takes about as long as copying the file. Audio tracks can be kept
   or dropped but not converted. A new file is always written (FFmpeg cannot change a file in place), so Keep the

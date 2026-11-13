@@ -40,7 +40,8 @@ which is not in the repository.
 - **Layout:** Convert / Queue / Library scan / Plex names tabs, Start bar always at the bottom (at every window width), PC
   settings in the ⚙ Settings dialog. Wide windows: the Convert tab in two columns (owner chose this over one wide
   column); narrow windows: one column. Text size zooms the whole page.
-- **TMDB:** English is the default language (a setting). The key lives in Windows Credential Manager.
+- **TMDB:** English is the default language (a setting). The key lives in Windows Credential Manager. TVmaze is only a
+  second opinion on episode numbers (no key; CC BY-SA, credited in About); TVDB is not used (paid / per-user PIN).
 - **Plex-style names** are optional and never applied without being shown first. The Plex names tab renames
   originals (with their subtitle files, undoable); it never renames or creates folders.
 - **Subtitles to SRT:** ASS via FFmpeg; PGS and VobSub read with Tesseract OCR (installed separately, never bundled).
@@ -60,7 +61,7 @@ which is not in the repository.
   - `tracks.go`, `trackrules.go` – track choice, rules and naming.
   - `subs.go`, `ocr.go`, `vobsub.go`, `extsubs.go` – subtitles; the PGS and VobSub readers and Tesseract; added subtitle files.
   - `meta.go` – metadata and replacing the original.
-  - `tmdb.go` – TMDB lookups.
+  - `tmdb.go` – TMDB lookups; `tvmaze.go` – TVmaze, the second opinion on episode numbers.
   - `scan.go` – the library scan.
   - `plexnames.go`, `renamer.go`, `episodes.go` – Plex-style names, the Plex names tab (renaming, undo, the rename log),
     and double / split episodes (renumbering a season; the target size of a double).

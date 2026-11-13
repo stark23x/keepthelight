@@ -235,6 +235,13 @@
     border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); margin-bottom: 6px; }
   .srow > div { min-width: 0; }
   .srow.gone { opacity: .5; }
+  details.numcmp { margin-top: 8px; }
+  details.numcmp summary { cursor: pointer; font-size: 13px; }
+  table.numtbl { border-collapse: collapse; margin-top: 6px; font-size: 13px; color: var(--text); }
+  table.numtbl th, table.numtbl td { text-align: left; padding: 2px 12px 2px 0; vertical-align: top; }
+  table.numtbl tr.file td { font-weight: 600; }
+  table.numtbl tr.differ td { color: var(--warn); }
+  table.numtbl th { color: var(--muted); font-weight: 600; }
   .srow .sgone { font-size: 12px; color: var(--muted); margin-top: 2px; }
   .srow input { margin-top: 3px; }
   .srow .ssave { font-weight: 600; font-size: 12.5px; white-space: nowrap; text-align: right; }
@@ -780,6 +787,7 @@
       <select id="plexShow" style="width:auto" aria-label="Show"><option value="all">all files</option><option value="todo">needing attention</option><option value="ready">ready to rename</option></select>
       <input type="text" id="plexFind" spellcheck="false" placeholder="Search" style="width:160px" aria-label="Search">
     </div>
+    <div id="plexNumbering"></div>
     <div id="plexDoubles"></div>
     <div id="plexEmpty" class="hint" style="margin:14px 0">No files yet. Add some to the queue, or use <b>Add files…</b> or <b>Add folder…</b> here.</div>
     <div id="plexList" style="margin-top:10px"></div>
@@ -883,6 +891,9 @@
           <option value="ko-KR">Korean</option><option value="zh-CN">Chinese (simplified)</option><option value="zh-TW">Chinese (traditional)</option>
         </select>
         <div class="hint">When TMDB has no translation, it gives the original.</div></div>
+      <label class="check" style="margin-top:10px"><input type="checkbox" id="tvmazeOn" checked> <span><b>Ask TVmaze for a second opinion on episode numbers</b> –
+        on the Plex names tab, when TMDB and <a href="https://www.tvmaze.com">TVmaze</a> number a season differently (a double episode, another order), both are
+        shown and you choose. TVmaze is free and needs no key; its numbering is often the same as TVDB's.</span></label>
       <div class="row" style="margin-top:10px; align-items:center"><span class="hint grow" id="tmdbPicksText">When you match a file by hand, the other files with
         that title follow, and the choice is remembered for later (the next season, say).</span>
         <button id="tmdbForget" class="hidden">Forget remembered matches</button></div>
@@ -955,6 +966,8 @@ __ABOUT__
     </div>
     <p class="about-claude tmdbcredit"><img class="tmdblogo" alt="TMDB" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB2aWV3Qm94PSIwIDAgMTkwLjI0IDgxLjUyIj48ZGVmcz48c3R5bGU+LmNscy0xe2ZpbGw6dXJsKCNsaW5lYXItZ3JhZGllbnQpO308L3N0eWxlPjxsaW5lYXJHcmFkaWVudCBpZD0ibGluZWFyLWdyYWRpZW50IiB5MT0iNDAuNzYiIHgyPSIxOTAuMjQiIHkyPSI0MC43NiIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzkwY2VhMSIvPjxzdG9wIG9mZnNldD0iMC41NiIgc3RvcC1jb2xvcj0iIzNjYmVjOSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzAwYjNlNSIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxnIGlkPSJMYXllcl8yIiBkYXRhLW5hbWU9IkxheWVyIDIiPjxnIGlkPSJMYXllcl8xLTIiIGRhdGEtbmFtZT0iTGF5ZXIgMSI+PHBhdGggY2xhc3M9ImNscy0xIiBkPSJNMTA1LjY3LDM2LjA2aDY2LjlBMTcuNjcsMTcuNjcsMCwwLDAsMTkwLjI0LDE4LjRoMEExNy42NywxNy42NywwLDAsMCwxNzIuNTcuNzNoLTY2LjlBMTcuNjcsMTcuNjcsMCwwLDAsODgsMTguNGgwQTE3LjY3LDE3LjY3LDAsMCwwLDEwNS42NywzNi4wNlptLTg4LDQ1aDc2LjlBMTcuNjcsMTcuNjcsMCwwLDAsMTEyLjI0LDYzLjRoMEExNy42NywxNy42NywwLDAsMCw5NC41Nyw0NS43M0gxNy42N0ExNy42NywxNy42NywwLDAsMCwwLDYzLjRIMEExNy42NywxNy42NywwLDAsMCwxNy42Nyw4MS4wNlpNMTAuNDEsMzUuNDJoNy44VjYuOTJoMTAuMVYwSC4zMXY2LjloMTAuMVptMjguMSwwaDcuOFY4LjI1aC4xbDksMjcuMTVoNmw5LjMtMjcuMTVoLjFWMzUuNGg3LjhWMEg2Ni43NmwtOC4yLDIzLjFoLS4xTDUwLjMxLDBIMzguNTFaTTE1Mi40Myw1NS42N2ExNS4wNywxNS4wNywwLDAsMC00LjUyLTUuNTIsMTguNTcsMTguNTcsMCwwLDAtNi42OC0zLjA4LDMzLjU0LDMzLjU0LDAsMCwwLTguMDctMWgtMTEuN3YzNS40aDEyLjc1YTI0LjU4LDI0LjU4LDAsMCwwLDcuNTUtMS4xNUExOS4zNCwxOS4zNCwwLDAsMCwxNDguMTEsNzdhMTYuMjcsMTYuMjcsMCwwLDAsNC4zNy01LjUsMTYuOTEsMTYuOTEsMCwwLDAsMS42My03LjU4QTE4LjUsMTguNSwwLDAsMCwxNTIuNDMsNTUuNjdaTTE0NSw2OC42QTguOCw4LjgsMCwwLDEsMTQyLjM2LDcyYTEwLjcsMTAuNywwLDAsMS00LDEuODIsMjEuNTcsMjEuNTcsMCwwLDEtNSwuNTVoLTQuMDV2LTIxaDQuNmExNywxNywwLDAsMSw0LjY3LjYzLDExLjY2LDExLjY2LDAsMCwxLDMuODgsMS44N0E5LjE0LDkuMTQsMCwwLDEsMTQ1LDU5YTkuODcsOS44NywwLDAsMSwxLDQuNTJBMTEuODksMTEuODksMCwwLDEsMTQ1LDY4LjZabTQ0LjYzLS4xM2E4LDgsMCwwLDAtMS41OC0yLjYyQTguMzgsOC4zOCwwLDAsMCwxODUuNjMsNjRhMTAuMzEsMTAuMzEsMCwwLDAtMy4xNy0xdi0uMWE5LjIyLDkuMjIsMCwwLDAsNC40Mi0yLjgyLDcuNDMsNy40MywwLDAsMCwxLjY4LTUsOC40Miw4LjQyLDAsMCwwLTEuMTUtNC42NSw4LjA5LDguMDksMCwwLDAtMy0yLjcyLDEyLjU2LDEyLjU2LDAsMCwwLTQuMTgtMS4zLDMyLjg0LDMyLjg0LDAsMCwwLTQuNjItLjMzaC0xMy4ydjM1LjRoMTQuNWEyMi40MSwyMi40MSwwLDAsMCw0LjcyLS41LDEzLjUzLDEzLjUzLDAsMCwwLDQuMjgtMS42NSw5LjQyLDkuNDIsMCwwLDAsMy4xLTMsOC41Miw4LjUyLDAsMCwwLDEuMi00LjY4QTkuMzksOS4zOSwwLDAsMCwxODkuNjYsNjguNDdaTTE3MC4yMSw1Mi43Mmg1LjNhMTAsMTAsMCwwLDEsMS44NS4xOCw2LjE4LDYuMTgsMCwwLDEsMS43LjU3LDMuMzksMy4zOSwwLDAsMSwxLjIyLDEuMTMsMy4yMiwzLjIyLDAsMCwxLC40OCwxLjgyLDMuNjMsMy42MywwLDAsMS0uNDMsMS44LDMuNCwzLjQsMCwwLDEtMS4xMiwxLjIsNC45Miw0LjkyLDAsMCwxLTEuNTguNjUsNy41MSw3LjUxLDAsMCwxLTEuNzcuMmgtNS42NVptMTEuNzIsMjBhMy45LDMuOSwwLDAsMS0xLjIyLDEuMyw0LjY0LDQuNjQsMCwwLDEtMS42OC43LDguMTgsOC4xOCwwLDAsMS0xLjgyLjJoLTd2LThoNS45YTE1LjM1LDE1LjM1LDAsMCwxLDIsLjE1LDguNDcsOC40NywwLDAsMSwyLjA1LjU1LDQsNCwwLDAsMSwxLjU3LDEuMTgsMy4xMSwzLjExLDAsMCwxLC42MywyQTMuNzEsMy43MSwwLDAsMSwxODEuOTMsNzIuNzJaIi8+PC9nPjwvZz48L3N2Zz4="><span>Film and TV information: <a href="https://www.themoviedb.org/">TMDB</a>.
       This product uses the TMDB API but is not endorsed or certified by TMDB.</span></p>
+    <p class="about-claude">Second opinion on TV episode numbers: <a href="https://www.tvmaze.com/">TVmaze</a>
+      (its data is shared under the <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA</a> licence).</p>
     <p class="about-claude" style="border:0; padding-top:0; margin-top:0">Keep the Light was written with the help of Claude, an AI model made by Anthropic.</p>
     <details><summary>Open-source licenses</summary><pre class="lic">__NOTICES__</pre></details>
   </div>
@@ -1903,6 +1916,7 @@ async function restorePrefs() {
   $('plexURL').value = r.plexURL || ''; $('plexToken').value = ''; $('plexToken').placeholder = r.plexToken ? 'saved (type to change)' : 'not set';
   tmdbPicksUI(r.tmdbPicks || 0);
   if (typeof r.prefs.scanTMDB === 'boolean') $('scanTMDB').checked = r.prefs.scanTMDB;
+  $('tvmazeOn').checked = r.prefs.tvmazeOff !== true;
   tmdbKeyUI();
   if (typeof r.prefs.scanDir === 'string') $('scanDir').value = r.prefs.scanDir;
   if (typeof r.prefs.scanSub === 'boolean') $('scanSub').checked = r.prefs.scanSub;
@@ -2485,6 +2499,7 @@ $('tmdbKey').addEventListener('change', () => {
 });
 $('tmdbLangSel').onchange = () => api('tmdbLang', { lang: $('tmdbLangSel').value });
 $('scanTMDB').onchange = () => api('setPref', { name: 'scanTMDB', value: $('scanTMDB').checked });
+$('tvmazeOn').onchange = () => api('setPref', { name: 'tvmazeOff', value: !$('tvmazeOn').checked });
 $('qTMDB').onclick = async () => {
   if (!$('tmdbKey').value.trim()) { showError('Add your free TMDB API key in Settings (⚙) first.'); return; }
   const r = await api('queueTMDB', { ids: [] });
@@ -2971,6 +2986,7 @@ async function plexPoll() {
   const r = await api('renList', {});
   if (!r || !r.ok) return;
   plexRows = r.rows || [];
+  renderNumbering(r.numbering || [], r.byTVmaze || []);
   renderDoubles(r.doubles || []);
   const ids = new Set(plexRows.map(x => x.id));
   plexSel.forEach(id => { if (!ids.has(id)) plexSel.delete(id); });
@@ -2980,6 +2996,53 @@ async function plexPoll() {
   const busy = plexRows.some(x => x.state === 'checking' || x.state === 'looking');
   if (plexAwait && !busy) { plexAwait = false; openWhichOne(); } // after a lookup: ask about the titles it could not settle
   if (curTab === 'plex') plexTimer = setTimeout(plexPoll, busy ? 700 : 2500);
+}
+// Seasons TMDB and TVmaze number differently (and the seasons set to TVmaze's numbering).
+const numOpen = new Set();
+function renderNumbering(list, byTVmaze) {
+  const box = $('plexNumbering'); box.innerHTML = '';
+  const choose = async (key, source) => {
+    const r = await api('renNumbering', { key, source });
+    if (!r.ok) showError(r.error);
+    plexPoll();
+  };
+  list.forEach(d => {
+    const b = el('div', 'note warn');
+    b.style.margin = '10px 0';
+    const t = el('div', '', '');
+    t.append(el('b', '', 'TMDB and TVmaze number season ' + d.season + ' of ' + d.show + ' differently: '),
+      document.createTextNode(d.summary + '. Plex can number a show either way (Edit the show in Plex → Advanced → Episode ordering), ' +
+        'so use the one your Plex uses. TVmaze\'s numbering is often the same as TVDB\'s.'));
+    const row = el('div', 'row'); row.style.gap = '8px'; row.style.marginTop = '8px'; row.style.flexWrap = 'wrap';
+    const tvm = el('button', 'primary', 'Use TVmaze\'s numbering');
+    tvm.title = 'The files keep their own numbers and get TVmaze\'s episode titles. Nothing is renamed until you press Rename.';
+    tvm.onclick = () => choose(d.key, 'tvmaze');
+    const tmdb = el('button', '', 'Keep TMDB\'s numbering');
+    tmdb.onclick = () => choose(d.key, 'tmdb');
+    row.append(tvm, tmdb);
+    const det = document.createElement('details'); det.className = 'numcmp'; det.open = numOpen.has(d.key);
+    det.ontoggle = () => { det.open ? numOpen.add(d.key) : numOpen.delete(d.key); };
+    det.append(el('summary', '', 'Compare the two, episode by episode'));
+    const tbl = el('table', 'numtbl');
+    const hd = el('tr'); ['No.', 'TMDB', 'TVmaze'].forEach(h => hd.append(el('th', '', h))); tbl.append(hd);
+    (d.rows || []).forEach(x => {
+      const tr = el('tr', (x.differ ? 'differ' : '') + (x.file ? ' file' : ''));
+      tr.title = (x.file ? 'You have a file with this number. ' : '') + (x.differ ? 'The two disagree here.' : '');
+      tr.append(el('td', '', (x.differ ? '⚠ ' : '') + 'E' + String(x.n).padStart(2, '0')), el('td', '', x.tmdb || '—'), el('td', '', x.tvmaze || '—'));
+      tbl.append(tr);
+    });
+    det.append(tbl, el('div', 'hint', 'Bold: episode numbers you have files for.'));
+    b.append(t, row, det);
+    box.append(b);
+  });
+  byTVmaze.forEach(s => {
+    const h = el('div', 'hint'); h.style.margin = '6px 0';
+    h.append(document.createTextNode('Season ' + s.season + ' of ' + s.show + ' uses TVmaze\'s numbering (episode titles from TVmaze). '));
+    const back = el('button', 'linkbtn', 'Use TMDB\'s instead');
+    back.onclick = () => choose(s.key, 'tmdb');
+    h.append(back);
+    box.append(h);
+  });
 }
 function renderDoubles(list) {
   const box = $('plexDoubles'); box.innerHTML = '';

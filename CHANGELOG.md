@@ -18,6 +18,24 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.38.0 - 2026-11-13
+
+- **A second opinion on TV episode numbers, from TVmaze.** TMDB stays the main source. On the Plex names tab,
+  Keep the Light also asks TVmaze (free, no key needed) how it numbers each season.
+  - When the two disagree (a different number of episodes, or different titles at the same numbers, as with a
+    double episode), a note says so: **Use TVmaze's numbering** or **Keep TMDB's numbering**, with **Compare the two,
+    episode by episode** to see both lists side by side (the numbers you have files for in bold, the differences
+    marked).
+  - Plex can number a show either TMDB's way or TVDB's way (Edit the show in Plex → Advanced → Episode ordering);
+    TVmaze's numbering is often the same as TVDB's, so this helps when your Plex uses TVDB's.
+  - With TVmaze's numbering, the files keep their own numbers and get TVmaze's episode titles, dates and
+    descriptions (the show's name, year and poster still come from TMDB). No double episode is suggested for that
+    season, but a TVmaze episode about twice the usual length still gets twice the size with Target file size.
+  - The choice is remembered for each show and season; **Use TMDB's instead** undoes it. As always, nothing is
+    renamed until you press Rename now.
+  - Without TVmaze (offline, busy, show not found), TMDB alone is used, as before. It can be turned off in
+    ⚙ Settings (under TMDB). TVmaze is credited in the About box, as its free licence asks.
+
 ## 1.37.1 - 2026-11-13
 
 - **Queue tab: "Clear the queue" is red,** like Cancel, so it is clear that it removes everything.

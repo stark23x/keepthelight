@@ -307,6 +307,9 @@ func (g *guiServer) renSizeFactor(input string) float64 {
 	if pk == "" {
 		return 0
 	}
+	if k := shiftKey(pk, gs.Season); g.tvNumbering()[k] == "tvmaze" { // TVmaze's way: a double is one long episode there
+		return tvmazeLengthFactor(g.ren.tvmEps[k], gs.Episode)
+	}
 	e := mapEpisode(gs.Episode, 0, g.ren.shifts[shiftKey(pk, gs.Season)])
 	switch {
 	case e.Last > e.First:
