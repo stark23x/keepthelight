@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -200,6 +202,9 @@ func (r *runner) pipe(n1 string, a1 []string, n2 string, a2 []string) error {
 	c2.Stdin = out
 	c1.Stderr = os.Stderr
 	c2.Stdout = os.Stdout
+	if strings.Contains(strings.ToLower(filepath.Base(n2)), "dovi_tool") {
+		c2.Stdout = &dropLines{w: os.Stdout, drop: "Reordering metadata"} // dovi_tool's housekeeping, not news
+	}
 	c2.Stderr = os.Stderr
 	if err := c1.Start(); err != nil {
 		return fmt.Errorf("%s: %w", filepath.Base(n1), err)
@@ -221,4 +226,29 @@ func (r *runner) pipe(n1 string, a1 []string, n2 string, a2 []string) error {
 		return toolError(n1, err1)
 	}
 	return nil
+}
+
+// dropLines passes text on, leaving out lines that start with drop.
+type dropLines struct {
+	w    io.Writer
+	drop string
+	buf  []byte
+}
+
+func (d *dropLines) Write(p []byte) (int, error) {
+	d.buf = append(d.buf, p...)
+	for {
+		i := bytes.IndexByte(d.buf, '\n')
+		if i < 0 {
+			break
+		}
+		line := d.buf[:i+1]
+		if !bytes.HasPrefix(bytes.TrimSpace(line), []byte(d.drop)) {
+			if _, err := d.w.Write(line); err != nil {
+				return len(p), err
+			}
+		}
+		d.buf = d.buf[i+1:]
+	}
+	return len(p), nil
 }

@@ -18,6 +18,15 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.37.1 - 2026-11-13
+
+- **Queue tab: "Clear the queue" is red,** like Cancel, so it is clear that it removes everything.
+- **Dolby Vision jobs use MP4Box's new option name** (`:dvp=`) when the installed GPAC knows it. Newer GPAC builds
+  called the old name deprecated, and a future one could have dropped it and stopped Dolby Vision jobs working; older
+  GPAC builds still get the old name.
+- **A tidier log:** dovi_tool's "Reordering metadata... Done." lines are left out.
+- The Queue tab no longer calls a Dolby Vision profile 5 file "SDR" (it is shown as "Dolby Vision 5.0").
+
 ## 1.37.0 - 2026-11-12
 
 - **The Library scan's results are kept until the next scan.** They used to be lost when Keep the Light was closed.

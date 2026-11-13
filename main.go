@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
 
 //go:generate go -C tools/mkres run . ../..
@@ -1037,7 +1039,7 @@ func runDV(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 	if fps == "" || fps == "0/0" {
 		fps = p.RFPS
 	}
-	src := injected + ":dv-profile=" + plan.DVProfile + ":hdr=none"
+	src := injected + ":" + mp4boxDVOption(r.ctx, mp4box) + "=" + plan.DVProfile + ":hdr=none"
 	if fps != "" && fps != "0/0" {
 		src += ":fps=" + fps
 	}
@@ -1180,4 +1182,30 @@ func supportsFpsMode(ctx context.Context, ffmpeg string) bool {
 		return true
 	}
 	return strings.Contains(string(out), "-fps_mode")
+}
+
+var mp4boxDV sync.Map // MP4Box path → its name for the Dolby Vision profile option
+
+// mp4boxDVOption is how this MP4Box names the Dolby Vision profile of an
+// imported track: "dvp" (GPAC 2 and newer, which call "dv-profile" deprecated)
+// or "dv-profile" (older builds).
+func mp4boxDVOption(ctx context.Context, mp4box string) string {
+	if v, ok := mp4boxDV.Load(mp4box); ok {
+		return v.(string)
+	}
+	name := "dv-profile"
+	tctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	out, _ := toolCommand(tctx, mp4box, "-h", "dvp").CombinedOutput()
+	cancel()
+	if mp4boxKnowsDVP(string(out)) {
+		name = "dvp"
+	}
+	mp4boxDV.Store(mp4box, name)
+	return name
+}
+
+// mp4boxKnowsDVP reads "MP4Box -h dvp": GPAC 2+ describes the option there.
+func mp4boxKnowsDVP(help string) bool {
+	h := strings.ToLower(help)
+	return strings.Contains(h, "dvp") && strings.Contains(h, "dolby vision") && !strings.Contains(h, "unknown")
 }

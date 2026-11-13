@@ -6,15 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **Queue tab: "Clear the queue" button in red** (2026-11-13), styled like the Cancel button (`class="danger"`), so
-  it reads as the button that removes everything. "Clear finished" stays as it is.
-- **MP4Box's new Dolby Vision option name** (2026-11-12). GPAC 26.08-dev prints "Deprecated option name, use `:dvp=`
-  instead" for the `:dv-profile=` Keep the Light passes when packaging the Dolby Vision track ([4/5]). It still works,
-  but a future GPAC could drop the old name and break every Dolby Vision job.
-  - Use `:dvp=` when this MP4Box knows it (check its version or help once at start-up), and keep `:dv-profile=` for
-    older GPAC builds.
-  - While there: hide dovi_tool's stray "Reordering metadata... Done." lines from the log (when the RPU is read for
-    the HDR10 information, and during [1/5]).
+Nothing at the moment.
 
 ## Ideas raised, not yet requested
 
@@ -22,6 +14,7 @@ None at the moment.
 
 ## Done
 
+- 1.37.1: red "Clear the queue" button; MP4Box `:dvp=` when GPAC knows it (else `:dv-profile=`); dovi_tool's "Reordering metadata" lines hidden.
 - 1.37.0: Library scan results kept until the next scan (saved, shown with their date, gone/changed files marked, Clear results).
 - 1.36.1: faster Dolby Vision profile 5 conversion: Vulkan device matched to the encoder; GPU decoding (on the graphics card, or copied back) used only after a 48-frame check against processor decoding on the file itself, with fallback during the job.
 - 1.36.0: Dolby Vision profile 5 converted (colours to HDR10 with libplacebo on the graphics card; Dolby Vision 8.1 kept, or dropped); HDR10 information read from the Dolby Vision data; stale Dolby Vision labels removed when Dolby Vision is dropped.

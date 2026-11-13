@@ -736,6 +736,9 @@ func applyProbe(it *queueItem, r map[string]any) {
 		parts[0] = "SDR"
 	}
 	if dv, ok := r["dv"].(string); ok {
+		if strings.HasPrefix(dv, "5") { // no SDR (or HDR10) picture underneath: Dolby's own colours
+			parts = parts[:0]
+		}
 		parts = append(parts, "Dolby Vision "+dv)
 	}
 	if hp, _ := r["hdr10plus"].(bool); hp {
