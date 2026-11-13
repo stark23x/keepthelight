@@ -18,6 +18,22 @@ tab, only for seasons with 3+ files, and it shows nothing when the two agree, so
 - **Search TVmaze in the Edit / "Which one?" search,** beside TMDB's results (marked as TVmaze), for when the
   automatic match picks the wrong show or none.
 
+Audio rules: copy what is already compatible (2026-11-13).
+
+- **"Copy tracks that are already compatible"**, a setting in the Audio rules, on to begin with (saved in profiles).
+  When a rule converts audio (say "Convert to E-AC-3"), a kept track that already plays everywhere (AC-3, E-AC-3,
+  AAC) is copied unchanged instead of converted again, when it fits the channel setting and is not bigger than the
+  rule's bitrate. Anything else (TrueHD, DTS, FLAC, PCM) is converted as before.
+  - On the Convert tab the track's choice shows **Copy** with a short note ("already compatible"); it can still be
+    changed to a conversion by hand. The queue and the summary say the same.
+- **Keep the best track and a compatible one** (the owner's example: keep the TrueHD 7.1 Atmos track as it is, and
+  also an E-AC-3 5.1). With "Add a compatible audio track when needed", when the file already has a compatible
+  track in the same language (E-AC-3 5.1, say), that one is copied instead of a new E-AC-3 being made from the
+  main track; only when there is none is one made. Works together with "one track per language" (best + the
+  compatible one of that language are both kept; commentary as before).
+- Per-track choices on the Convert tab stay the owner's: any track can be kept as it is or converted, whatever
+  the rules say.
+
 ## Ideas raised, not yet requested
 
 None at the moment.
