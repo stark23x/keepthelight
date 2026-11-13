@@ -18,6 +18,28 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.39.0 - 2026-11-13
+
+- **TVmaze now helps when TMDB has nothing,** on the Convert, Queue and Plex names tabs (it used to be only a second
+  opinion for shows TMDB already had, so it often seemed to do nothing).
+  - **A show TMDB does not have** is looked up on TVmaze: the show's name and year, the episode's title, date and
+    description, and its poster come from there. The note says "from TVmaze".
+  - **An episode TMDB does not have** (a show it has, but not that season or episode) gets its title from TVmaze.
+  - **The searches** (Edit on the Convert tab, and "Which one?") list TVmaze's shows after TMDB's, marked
+    **TVmaze**, so a show can be chosen there. The choice is remembered like a TMDB one.
+  - **You can see what TVmaze said:** a "TVmaze second opinion" line on the Plex names tab gives each season's
+    answer: agrees with TMDB, numbers it differently, show not found, or could not be reached. This is now shown for
+    every season, not only seasons of three or more files.
+  - Turning TVmaze off in ⚙ Settings turns all of this off.
+- **Audio: tracks that are already compatible are copied.** When your rules convert audio (say "Convert to
+  E-AC-3"), a track that is already AC-3, E-AC-3 or AAC, and fits your channels and bitrate, is now copied as it is
+  instead of being converted again (no loss, nothing to gain by converting). The Convert tab marks it **already
+  compatible**, and you can still choose a conversion for it. A new rule, **Copy tracks that are already
+  compatible**, is on to begin with; turn it off for the old way.
+- **Audio: the best track and a compatible one.** With "Add a compatible audio track when needed", the file's own
+  AC-3, E-AC-3 or AAC track is kept beside the main one (TrueHD 7.1 Atmos and E-AC-3 5.1, say), also with "One track
+  per language"; only when there is none is an E-AC-3 copy made from the main track, as before.
+
 ## 1.38.0 - 2026-11-13
 
 - **A second opinion on TV episode numbers, from TVmaze.** TMDB stays the main source. On the Plex names tab,

@@ -360,7 +360,11 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   like, and Plex Versions folders. The summary says how many were skipped.
 - **Add a compatible audio track when needed** (Audio rules): if a file has no AC-3, E-AC-3 or AAC track (TrueHD,
   DTS or FLAC only), an E-AC-3 5.1 copy of the main track is added next to the original, so TVs and streamers that
-  cannot play the original get sound without Plex converting it. Files that already have one are left as they are.
+  cannot play the original get sound without Plex converting it. Files that already have one are left as they are,
+  and that track is kept beside the main one even with "One track per language" (TrueHD 7.1 Atmos and E-AC-3 5.1).
+- **Copy tracks that are already compatible** (Audio rules, on to begin with): when the rules convert audio, an
+  AC-3, E-AC-3 or AAC track that fits the channels and bitrate is copied as it is instead of converted again. The
+  Convert tab marks it "already compatible"; you can still choose a conversion for it.
 - **Work locally with network files** (⚙ Settings, remembered): a file on a network drive (`\\PlexRaid01\...`
   or a mapped drive letter) is first copied to this PC (the temp folder, or Windows' temp folder if that is on the
   network too), converted there, and the result copied back. Reading and writing over the network during a long
@@ -558,6 +562,10 @@ subtitles and container from the target to get a video bitrate, then:
     TMDB); a TVmaze episode about twice the usual length still gets twice the size with Target file size. The choice
     is remembered per show and season, and **Use TMDB's instead** undoes it. Turn the second opinion off in
     ⚙ Settings. Without TVmaze (offline, show not found), TMDB alone is used, as before.
+  - **When TMDB has nothing,** TVmaze fills the file in by itself: a show TMDB does not have (name, year, episode
+    titles, poster), or an episode it does not have. The searches (Edit, and "Which one?") list TVmaze's shows after
+    TMDB's, marked **TVmaze**. A "TVmaze second opinion" line above the list says what TVmaze said about each
+    season (agrees, numbers it differently, not found, not reachable).
 - **Metadata only** (under Video) copies every kept stream unchanged into a new file with the new metadata: no
   re-encoding, so the quality is identical, and it takes about as long as copying the file. Audio tracks can be kept
   or dropped but not converted. A new file is always written (FFmpeg cannot change a file in place), so Keep the

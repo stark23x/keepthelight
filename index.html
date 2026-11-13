@@ -235,6 +235,10 @@
     border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); margin-bottom: 6px; }
   .srow > div { min-width: 0; }
   .srow.gone { opacity: .5; }
+  .tvmline .tvm-agree, .tvmline .tvm-alone { color: var(--ok); }
+  .tvmline .tvm-differ { color: var(--warn); }
+  .srcbadge { margin-left: 8px; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 8px; border: 1px solid var(--line); color: var(--muted); vertical-align: 1px; }
+  .twhy { margin-left: 8px; font-size: 12px; color: var(--ok, #6fcf97); white-space: nowrap; }
   details.numcmp { margin-top: 8px; }
   details.numcmp summary { cursor: pointer; font-size: 13px; }
   table.numtbl { border-collapse: collapse; margin-top: 6px; font-size: 13px; color: var(--text); }
@@ -612,8 +616,12 @@
         <div><label for="abitrate">Bitrate for converted tracks</label><input type="text" id="abitrate" spellcheck="false" placeholder="automatic (by format and channels)"></div>
       </div>
       <label class="check" style="margin-top:10px"><input type="checkbox" id="dropComm"> <span>Leave out commentary tracks</span></label>
-      <label class="check" style="margin-top:6px"><input type="checkbox" id="addCompat"> <span><b>Add a compatible audio track when needed</b> – an E-AC-3 copy of the
-        main track when there is only TrueHD, DTS or FLAC, so Plex does not have to convert the sound. The original stays.</span></label>
+      <label class="check" style="margin-top:6px"><input type="checkbox" id="copyCompat" checked> <span><b>Copy tracks that are already compatible</b> – when
+        tracks are converted, an AC-3, E-AC-3 or AAC track is copied as it is instead (it already plays everywhere), if it fits the
+        channels and bitrate above.</span></label>
+      <label class="check" style="margin-top:6px"><input type="checkbox" id="addCompat"> <span><b>Add a compatible audio track when needed</b> – keeps the
+        file's own AC-3, E-AC-3 or AAC track beside the main one when it has one (TrueHD 7.1 Atmos and E-AC-3 5.1, say), or else adds an
+        E-AC-3 copy of the main track, so Plex does not have to convert the sound. The original stays.</span></label>
       <div style="margin-top:10px; max-width:420px"><label for="audioOne">One track per language</label>
         <select id="audioOne"><option value="">no, keep every matching track</option><option value="best">yes, the best quality (e.g. TrueHD over AC-3)</option>
           <option value="compatible">yes, the most compatible (AC-3, E-AC-3 or AAC)</option></select>
@@ -1031,7 +1039,7 @@ function settings() {
     dv: $('dv').value, masterDisplay: $('master').value.trim(), maxCLL: $('cll').value.trim(), tmp: $('tmp').value.trim(),
     targetSize: $('targetNum').value.trim().replace(',', '.') + $('targetUnit').value, retries: +$('retries').value,
     scale: $('scale').value, crop: $('crop').checked, denoise: $('denoise').value, deinterlace: $('deinterlace').value,
-    audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, audioChannels: $('audioCh').value, addCompatAudio: $('addCompat').checked, subLang: $('subLang').value.trim(), subMode: $('subMode').value, subToSRT: $('subToSRT').value,
+    audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, audioChannels: $('audioCh').value, addCompatAudio: $('addCompat').checked, copyCompatible: $('copyCompat').checked, subLang: $('subLang').value.trim(), subMode: $('subMode').value, subToSRT: $('subToSRT').value,
     audioOnePerLang: $('audioOne').value, subNameMode: $('subNameMode').value, subNameWords: $('subNameWords').value.trim(), nameTracks: $('nameTracks').checked, fillFromNames: $('fillFromNames').checked,
     ...trackSettings(),
     meta: metaEdits(), replaceOriginal: replacing(), profile: $('profile').value,
@@ -1120,7 +1128,7 @@ const RULES_ONLY = { audioTracks: null, subTracks: null, audioDefault: 0, subDef
 // The choice Keep the Light worked out from the rules, for a newly read file.
 function tracksFromProbe(r, input) {
   const ac = r.audioChoice || { tracks: [], default: 0 }, sc = r.subChoice || { tracks: [], default: -1 };
-  return { input, audio: ac.tracks.map(a => ({ n: a.n, codec: a.codec, channels: a.channels || 'orig' })), audioDefault: ac.default,
+  return { input, audio: ac.tracks.map(a => ({ n: a.n, codec: a.codec, channels: a.channels || 'orig', why: a.why || '' })), audioDefault: ac.default,
     subs: sc.tracks.map(x => ({ n: x.n, forced: !!x.forced, srt: x.srt || '' })), subDefault: sc.default };
 }
 
@@ -1188,7 +1196,7 @@ function renderTracks() {
     sel.onchange = () => {
       const i = t.audio.findIndex(a => a.n === src.n);
       if (sel.value === 'drop') { if (i >= 0) t.audio.splice(i, 1); if (t.audioDefault === src.n) t.audioDefault = t.audio.length ? t.audio[0].n : 0; }
-      else if (i >= 0) t.audio[i].codec = sel.value;
+      else if (i >= 0) { t.audio[i].codec = sel.value; t.audio[i].why = ''; }
       else { t.audio.push({ n: src.n, codec: sel.value, channels: $('audioCh').value || 'orig' }); t.audio.sort((x, y) => x.n - y.n); if (!t.audioDefault) t.audioDefault = src.n; }
       tracksChanged();
     };
@@ -1209,6 +1217,11 @@ function renderTracks() {
       chSel.onchange = () => { kept.channels = chSel.value; tracksChanged(); };
     }
     const d = el('div', 'tdesc'); d.append(el('span', 'tnum', String(src.n)), document.createTextNode(src.desc)); d.title = src.desc;
+    if (kept && kept.why && kept.codec === 'copy') {
+      const w = el('span', 'twhy', 'already compatible');
+      w.title = 'Your rules convert audio, but this track already plays everywhere and fits the channels and bitrate, so it is copied as it is. Choose a conversion to change that.';
+      d.append(w);
+    }
     if (kept) langPick(d, 'a', src); // UI-10
     row.append(sel, d, chSel, kept ? radioLabel('adef', t.audioDefault === src.n, 'default', () => { t.audioDefault = src.n; tracksChanged(); }) : el('span'));
     al.append(row);
@@ -1299,7 +1312,7 @@ function tracksChanged() { renderTracks(); renderMeta(); updateSummaries(); sche
 // The rules changed: start again from them for the file in the form.
 function rulesChanged() {
   tracks = null;
-  api('setPref', { name: 'trackRules', value: { audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, audioChannels: $('audioCh').value, addCompatAudio: $('addCompat').checked,
+  api('setPref', { name: 'trackRules', value: { audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, audioChannels: $('audioCh').value, addCompatAudio: $('addCompat').checked, copyCompatible: $('copyCompat').checked,
     subLang: $('subLang').value.trim(), subMode: $('subMode').value, subToSRT: $('subToSRT').value, audioOnePerLang: $('audioOne').value,
     subNameMode: $('subNameMode').value, subNameWords: $('subNameWords').value.trim(), nameTracks: $('nameTracks').checked, fillFromNames: $('fillFromNames').checked } });
   updateSummaries(); scheduleProbe(150);
@@ -1310,6 +1323,7 @@ function audioRulesText() {
   if ($('audioLang').value.trim()) parts.unshift($('audioLang').value.trim());
   if ($('dropComm').checked) parts.push('no commentary');
   if ($('addCompat').checked) parts.push('+ compatible copy');
+  if (a.value !== 'copy' && $('copyCompat').checked) parts.push('compatible ones copied');
   if (a.value !== 'copy' && $('audioCh').value) parts.push($('audioCh').value === '5.1' ? 'max 5.1' : 'stereo');
   return parts.join('  ·  ');
 }
@@ -1510,7 +1524,7 @@ async function confirmNewFiles(form) {
 // A profile is a named set of the settings below the Files section. It can
 // name converted files after itself ("Film_Plex 4K.mkv").
 const PROFILE_KEYS = ['mode', 'codec', 'preset', 'scale', 'crop', 'denoise', 'deinterlace', 'dv', 'quality', 'crf', 'bitrate', 'targetSize', 'retries',
-  'audio', 'audioBitrate', 'audioChannels', 'audioLang', 'dropCommentary', 'addCompatAudio', 'subLang', 'subMode', 'subToSRT', 'audioOnePerLang', 'subNameMode', 'subNameWords', 'nameTracks', 'fillFromNames', 'masterDisplay', 'maxCLL', 'format'];
+  'audio', 'audioBitrate', 'audioChannels', 'audioLang', 'dropCommentary', 'addCompatAudio', 'copyCompatible', 'subLang', 'subMode', 'subToSRT', 'audioOnePerLang', 'subNameMode', 'subNameWords', 'nameTracks', 'fillFromNames', 'masterDisplay', 'maxCLL', 'format'];
 let profiles = []; // [{ name, useNameTag, settings }]
 function activeProfile() { const n = $('profile').value; return n ? profiles.find(p => p.name === n) || null : null; }
 function profileTag(p) { return '_' + cleanTagText(p.name.trim().replace(/\s+/g, ' ')); }
@@ -1569,6 +1583,7 @@ function applyFields(st, keys) {
   if (has('audioLang')) $('audioLang').value = st.audioLang;
   if (has('dropCommentary')) $('dropComm').checked = !!st.dropCommentary;
   if (has('addCompatAudio')) $('addCompat').checked = !!st.addCompatAudio;
+  if (has('copyCompatible')) $('copyCompat').checked = st.copyCompatible !== false;
   if (has('subLang')) $('subLang').value = st.subLang;
   if (has('subMode')) $('subMode').value = st.subMode;
   if (has('subToSRT')) $('subToSRT').value = st.subToSRT || '';
@@ -1584,7 +1599,7 @@ function applyFields(st, keys) {
 // a profile's format (MKV or MP4) for an output name
 function withFormat(out, p) { return p && p.settings && ['.mkv', '.mp4'].includes(p.settings.format) ? out.replace(/\.[A-Za-z0-9]+$/, '') + p.settings.format : out; }
 // settings added after a profile was saved: their defaults, so older profiles still apply cleanly
-const PROFILE_DEFAULTS = { crop: true, denoise: '', deinterlace: '', addCompatAudio: false, subToSRT: '', audioOnePerLang: '', subNameMode: '', subNameWords: '', nameTracks: false, fillFromNames: true };
+const PROFILE_DEFAULTS = { crop: true, denoise: '', deinterlace: '', addCompatAudio: false, copyCompatible: true, subToSRT: '', audioOnePerLang: '', subNameMode: '', subNameWords: '', nameTracks: false, fillFromNames: true };
 function withDefaults(st) { return Object.assign({}, PROFILE_DEFAULTS, st); }
 function applyProfile(p) {
   if (p) applyFields(withDefaults(p.settings), PROFILE_KEYS);
@@ -1882,7 +1897,7 @@ function updateSummaries() {
   const opt = s => s.options[s.selectedIndex].text;
   $('sumARules').textContent = [$('audioLang').value.trim() || 'all languages', opt($('audio')).replace(' (no re-encode)', '').toLowerCase(),
     $('audio').value !== 'copy' && $('audioCh').value && opt($('audioCh')).replace(/ \(.*\)/, ''), $('dropComm').checked && 'no commentary',
-    $('addCompat').checked && '+ compatible track', $('audioOne').value && 'one per language (' + ($('audioOne').value === 'best' ? 'best' : 'compatible') + ')'].filter(Boolean).join('  ·  ');
+    $('addCompat').checked && '+ compatible track', $('audio').value !== 'copy' && !$('copyCompat').checked && 'compatible ones converted too', $('audioOne').value && 'one per language (' + ($('audioOne').value === 'best' ? 'best' : 'compatible') + ')'].filter(Boolean).join('  ·  ');
   const rt = $('ruleTess'), needT = !!$('subToSRT').value && lastTools && !lastTools.tesseract;
   if (needT !== !rt.classList.contains('hidden')) {
     rt.innerHTML = '';
@@ -1949,6 +1964,7 @@ async function restorePrefs() {
   const tr = r.prefs.trackRules;
   if (tr) {
     $('audioLang').value = tr.audioLang || ''; $('dropComm').checked = !!tr.dropCommentary; $('addCompat').checked = !!tr.addCompatAudio;
+    $('copyCompat').checked = tr.copyCompatible !== false;
     $('audioCh').value = ['', '5.1', 'stereo'].includes(tr.audioChannels) ? tr.audioChannels : '';
     $('subLang').value = tr.subLang || ''; $('subMode').value = ['', 'forced', 'none'].includes(tr.subMode) ? tr.subMode : '';
     $('subToSRT').value = ['', 'replace', 'add'].includes(tr.subToSRT) ? tr.subToSRT : '';
@@ -2138,7 +2154,7 @@ $('container').addEventListener('change', () => {
 $('targetNum').addEventListener('input', () => scheduleProbe(600));
 $('audio').addEventListener('change', () => { updateVisibility(); rulesChanged(); });
 ['audioLang', 'subLang'].forEach(id => $(id).addEventListener('change', rulesChanged));
-['dropComm', 'subMode', 'subToSRT', 'audioCh', 'addCompat', 'audioOne', 'subNameMode', 'subNameWords', 'nameTracks', 'fillFromNames'].forEach(id => $(id).addEventListener('change', rulesChanged));
+['dropComm', 'subMode', 'subToSRT', 'audioCh', 'addCompat', 'copyCompat', 'audioOne', 'subNameMode', 'subNameWords', 'nameTracks', 'fillFromNames'].forEach(id => $(id).addEventListener('change', rulesChanged));
 $('fillFromNames').addEventListener('change', () => renderMeta()); // the suggestions shown in Metadata
 $('codec').addEventListener('change', () => { updateVisibility(); scheduleProbe(200); });
 $('crf').addEventListener('input', () => { updateVisibility(); scheduleProbe(500); });
@@ -2347,6 +2363,12 @@ async function tmdbPrefill(input) {
   $('tSeason').value = g.season || ''; $('tEpisode').value = g.episode || '';
   tmdbEpUI();
 }
+// A search result's title, with "TVmaze" on results that come from there (not TMDB).
+function resultTitle(x) {
+  const t = el('div', 'ttl', x.title + (x.year ? ' (' + x.year + ')' : ''));
+  if (x.kind === 'tvmaze') { const b = el('span', 'srcbadge', 'TVmaze'); b.title = 'Found on TVmaze (TMDB results come first)'; t.append(b); }
+  return t;
+}
 async function tmdbSearch() {
   if (!$('tmdbKey').value.trim()) { showError('Add your TMDB API key in Settings (⚙) first (it is free for personal use).'); return; }
   const box = $('tResults');
@@ -2362,7 +2384,7 @@ async function tmdbSearch() {
     let img;
     if (x.thumb) { img = el('img'); img.src = x.thumb; img.alt = ''; } else img = el('div', 'noimg');
     const mid = el('div');
-    mid.append(el('div', 'ttl', x.title + (x.year ? ' (' + x.year + ')' : '')), el('div', 'tov', x.overview || 'No description.'));
+    mid.append(resultTitle(x), el('div', 'tov', x.overview || 'No description.'));
     const use = el('button', '', 'Use');
     use.onclick = () => tmdbUse(x, use);
     row.append(img, mid, use);
@@ -2459,7 +2481,7 @@ $('openLogs').onclick = async () => { const r = await api('openLogs', {}); if (!
 $('tmdbForget').onclick = async () => { await api('tmdbForget', {}); tmdbPicksUI(0); notify('Remembered TMDB matches forgotten.'); };
 async function tmdbUse(x, btn) {
   const m = metaFor(); if (!m) return;
-  const tv = x.kind === 'tv';
+  const tv = x.kind === 'tv' || x.kind === 'tvmaze';
   const season = tv ? parseInt($('tSeason').value, 10) || 0 : 0, episode = tv && season ? parseInt($('tEpisode').value, 10) || 0 : 0;
   btn.disabled = true; btn.textContent = '…';
   const r = await api('tmdbDetails', { kind: x.kind, id: x.id, season, episode });
@@ -2478,7 +2500,7 @@ async function tmdbUse(x, btn) {
   if (f.thumb) { const i = el('img'); i.src = f.thumb; i.alt = ''; box.append(i); }
   const t = el('div');
   const a = el('a', '', f.title); a.href = f.link;
-  t.append('Filled in from TMDB: ', a, '. Check the fields below; "Undo all metadata changes" puts back the file\'s own.');
+  t.append(x.kind === 'tvmaze' ? 'Filled in from TVmaze: ' : 'Filled in from TMDB: ', a, '. Check the fields below; "Undo all metadata changes" puts back the file\'s own.');
   if (tv && !episode) t.append(' (No season and episode given, so this is the show\'s information.)');
   if (f.note) t.append(el('div', 'hint', f.note));
   if ($('plexNames').checked && f.plexName) { // the Plex way, shown in the Output box (still editable)
@@ -2580,7 +2602,7 @@ function showAsk() {
   whichSearch();
 }
 async function whichSearch() {
-  const box = $('wResults'); box.className = ''; box.innerHTML = ''; box.append(el('div', 'hint', 'Searching TMDB…'));
+  const box = $('wResults'); box.className = ''; box.innerHTML = ''; box.append(el('div', 'hint', 'Searching…'));
   $('wMore').classList.add('hidden');
   const r = await api('tmdbSearch', { kind: $('wKind').value, query: $('wQuery').value.trim(), year: $('wYear').value.trim() });
   box.innerHTML = '';
@@ -2592,7 +2614,7 @@ async function whichSearch() {
     let img;
     if (x.thumb) { img = el('img'); img.src = x.thumb; img.alt = ''; } else img = el('div', 'noimg');
     const mid = el('div');
-    mid.append(el('div', 'ttl', x.title + (x.year ? ' (' + x.year + ')' : '')), el('div', 'tov', x.overview || 'No description.'));
+    mid.append(resultTitle(x), el('div', 'tov', x.overview || 'No description.'));
     const use = el('button', 'primary', 'This one');
     use.onclick = () => whichUse(x, use);
     row.append(img, mid, use);
@@ -2609,7 +2631,7 @@ async function whichUse(x, btn) {
   const title = x.title + (x.year ? ' (' + x.year + ')' : ''); // the year tells shows of the same name apart
   const r = await api('tmdbChoose', { key: a.key, pick: { kind: x.kind, id: x.id, title } });
   if (!r.ok) { btn.disabled = false; btn.textContent = 'This one'; showError(r.error); return; }
-  notify(title + ': filling in ' + r.files + (r.files === 1 ? ' file' : ' files') + ' from TMDB.');
+  notify(title + ': filling in ' + r.files + (r.files === 1 ? ' file' : ' files') + (x.kind === 'tvmaze' ? ' from TVmaze.' : ' from TMDB.'));
   api('prefs', {}).then(p => { if (p && p.ok) tmdbPicksUI(p.tmdbPicks || 0); });
   whichNext(); poll(); if (curTab === 'plex') plexPoll();
 }
@@ -2986,7 +3008,7 @@ async function plexPoll() {
   const r = await api('renList', {});
   if (!r || !r.ok) return;
   plexRows = r.rows || [];
-  renderNumbering(r.numbering || [], r.byTVmaze || []);
+  renderNumbering(r.numbering || [], r.byTVmaze || [], r.tvmazeOn ? (r.tvmaze || []) : []);
   renderDoubles(r.doubles || []);
   const ids = new Set(plexRows.map(x => x.id));
   plexSel.forEach(id => { if (!ids.has(id)) plexSel.delete(id); });
@@ -2999,8 +3021,18 @@ async function plexPoll() {
 }
 // Seasons TMDB and TVmaze number differently (and the seasons set to TVmaze's numbering).
 const numOpen = new Set();
-function renderNumbering(list, byTVmaze) {
+function renderNumbering(list, byTVmaze, statuses) {
   const box = $('plexNumbering'); box.innerHTML = '';
+  if (statuses.length) { // what TVmaze said about each season, so it is clear it was asked
+    const h = el('div', 'hint tvmline'); h.style.margin = '6px 0';
+    h.append(el('b', '', 'TVmaze second opinion: '));
+    statuses.forEach((s, i) => {
+      if (i) h.append(document.createTextNode(' · '));
+      const sp = el('span', 'tvm-' + s.kind, s.show + ' season ' + s.season + ': ' + s.text);
+      h.append(sp);
+    });
+    box.append(h);
+  }
   const choose = async (key, source) => {
     const r = await api('renNumbering', { key, source });
     if (!r.ok) showError(r.error);
@@ -3253,6 +3285,7 @@ function settingsText(st) {
     if (st.audio && st.audio !== 'copy') parts.push('audio → ' + st.audio.toUpperCase() + (st.audioChannels ? ' ' + (st.audioChannels === '5.1' ? 'max 5.1' : 'stereo') : '') + (st.audioBitrate ? ' ' + st.audioBitrate : ''));
     if (st.dropCommentary) parts.push('no commentary');
     if (st.addCompatAudio) parts.push('+ compatible audio');
+    if (st.audio && st.audio !== 'copy' && st.copyCompatible === false) parts.push('compatible audio converted too');
     if (st.subMode === 'none') parts.push('no subtitles');
     else if (st.subLang || st.subMode === 'forced') parts.push('subtitles ' + (st.subLang || 'all') + (st.subMode === 'forced' ? ' forced' : ''));
     if (st.subToSRT && st.subMode !== 'none') parts.push('subtitles → SRT');

@@ -161,6 +161,7 @@ func parseArgs() (*Config, bool) {
 	subLang := fs.String("sub-lang", "", "")
 	fs.BoolVar(&cfg.DropCommentary, "drop-commentary", false, "")
 	fs.BoolVar(&cfg.AddCompatAudio, "add-compatible-audio", false, "")
+	fs.BoolVar(&cfg.ConvertCompatible, "convert-compatible", false, "") // also convert tracks already AC-3/E-AC-3/AAC
 	fs.StringVar(&cfg.SubMode, "subs", "", "")
 	fs.StringVar(&cfg.SubsToSRT, "subs-to-srt", "", "")
 	fs.StringVar(&cfg.AudioOnePerLang, "audio-one-per-language", "", "")

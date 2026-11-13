@@ -106,6 +106,7 @@ type settings struct {
 	AudioLang, SubLang         string // rules: languages to keep, e.g. "eng, jpn" (empty = all)
 	DropCommentary             bool
 	AddCompatAudio             bool      // rule: add an E-AC-3 copy when no track plays everywhere
+	CopyCompatible             *bool     // rule: copy tracks already AC-3/E-AC-3/AAC instead of converting them (nil: on)
 	SubToSRT                   string    // rule: convert ASS/SSA and PGS subtitles to SRT: "", "replace" or "add"
 	AudioOnePerLang            string    // rule: one audio track per language: "", "best", "compatible"
 	SubNameMode, SubNameWords  string    // rule: keep only / drop subtitles whose name contains these words
@@ -237,6 +238,7 @@ func (s *settings) toConfig() (*Config, error) {
 	}
 	cfg.AudioLangs, cfg.SubLangs, cfg.DropCommentary = parseLangs(s.AudioLang), parseLangs(s.SubLang), s.DropCommentary
 	cfg.AddCompatAudio = s.AddCompatAudio
+	cfg.ConvertCompatible = s.CopyCompatible != nil && !*s.CopyCompatible
 	switch s.SubToSRT {
 	case "", "replace", "add":
 		cfg.SubsToSRT = s.SubToSRT
@@ -384,6 +386,9 @@ func (cfg *Config) cliArgs() []string {
 	}
 	if cfg.AddCompatAudio {
 		a = append(a, "-add-compatible-audio")
+	}
+	if cfg.ConvertCompatible {
+		a = append(a, "-convert-compatible")
 	}
 	if cfg.AudioChannels != "" {
 		a = append(a, "-audio-channels", cfg.AudioChannels)

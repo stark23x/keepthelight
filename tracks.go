@@ -66,6 +66,7 @@ type trackSel struct {
 
 type outAudio struct {
 	Src      srcTrack
+	Why      string // why the rules chose this ("already compatible")
 	Codec    string // "copy" or an ffmpeg encoder
 	Bitrate  string // for converted tracks
 	Channels int    // >0: mixed down to this many channels
@@ -560,7 +561,14 @@ func selectTracks(cfg *Config, t *Tracks, mp4 bool) (audio []outAudio, subs []ou
 			}
 		}
 		if cfg.AudioOnePerLang != "" {
-			audio = onePerLanguage(audio, cfg.AudioOnePerLang)
+			audio = onePerLanguage(audio, cfg.AudioOnePerLang, cfg.AddCompatAudio)
+		}
+		if general != "copy" && !cfg.ConvertCompatible && !cfg.MetaOnly {
+			for i := range audio {
+				if fitsAlready(cfg, audio[i].Src, general) {
+					audio[i].Codec, audio[i].Why = "copy", "already compatible"
+				}
+			}
 		}
 		if len(audio) == 0 && len(t.Audio) > 0 { // never leave a file silent by accident
 			keep := t.Audio[0]
@@ -1077,7 +1085,7 @@ func audioChoice(audio []outAudio) map[string]any {
 		} else if a.Channels == 2 {
 			ch = "stereo"
 		}
-		sel = append(sel, map[string]any{"n": a.Src.N, "codec": c, "bitrate": a.Bitrate, "channels": ch, "name": a.Title})
+		sel = append(sel, map[string]any{"n": a.Src.N, "codec": c, "bitrate": a.Bitrate, "channels": ch, "name": a.Title, "why": a.Why})
 		if a.Default {
 			def = a.Src.N
 		}
@@ -1142,6 +1150,38 @@ func addCompatibleAudio(cfg *Config, audio []outAudio, main int, warns []string)
 	add.Title = strings.TrimSpace("E-AC-3 " + outLayout(add) + " (compatible copy)")
 	out := append(append(append([]outAudio{}, audio[:main+1]...), add), audio[main+1:]...)
 	return out, append(warns, fmt.Sprintf("note: adds an %s copy of audio track %d (%s), for TVs and streamers that cannot play it", add.Title[:len(add.Title)-len(" (compatible copy)")], src.N, codecName(src)))
+}
+
+// fitsAlready: a track the rules would convert that already plays everywhere
+// (AC-3, E-AC-3, AAC), has no more channels than the rules allow, and is no
+// bigger than the rules' bitrate: it is copied instead (nothing to gain).
+func fitsAlready(cfg *Config, src srcTrack, codec string) bool {
+	if !compatibleCodecs[src.Codec] {
+		return false
+	}
+	switch cfg.AudioChannels {
+	case "5.1":
+		if src.Channels > 6 {
+			return false
+		}
+	case "stereo":
+		if src.Channels > 2 {
+			return false
+		}
+	}
+	if src.BitRate <= 0 {
+		return true // unknown: AC-3, E-AC-3 and AAC are small anyway
+	}
+	ch := src.Channels
+	if want := outChannels(codec, cfg.AudioChannels, src.Channels); want > 0 && want < ch {
+		ch = want
+	}
+	target := cfg.AudioBitrate
+	if target == "" {
+		target = autoBitrate(codec, ch)
+	}
+	bps, ok := parseBitrateBps(target)
+	return !ok || src.BitRate <= bps*1.05
 }
 
 // splitNotes separates information ("note: ...") from warnings.

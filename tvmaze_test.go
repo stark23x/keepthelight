@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -27,6 +28,13 @@ func fakeTVmaze(t *testing.T, eps []tvmazeEp) {
 		case r.URL.Path == "/shows/7/episodes":
 			b, _ := json.Marshal(eps)
 			_, _ = w.Write(b)
+		case r.URL.Path == "/singlesearch/shows" && strings.EqualFold(r.URL.Query().Get("q"), "Obscure Show"),
+			r.URL.Path == "/shows/8":
+			_, _ = w.Write([]byte(`{"id":8,"name":"Obscure Show","premiered":"2019-03-01","summary":"<p>Only on TVmaze.</p>","url":"https://www.tvmaze.com/shows/8"}`))
+		case r.URL.Path == "/search/shows":
+			_, _ = w.Write([]byte(`[{"score":0.9,"show":{"id":8,"name":"Obscure Show","premiered":"2019-03-01","summary":"<p>Only on TVmaze.</p>"}}]`))
+		case r.URL.Path == "/shows/8/episodes":
+			_, _ = w.Write([]byte(`[{"season":1,"number":1,"name":"Pilot","airdate":"2019-03-01","runtime":30,"summary":"<p>It starts.</p>"},{"season":1,"number":2,"name":"Second","airdate":"2019-03-08","runtime":30}]`))
 		default:
 			w.WriteHeader(404)
 		}
@@ -35,7 +43,7 @@ func fakeTVmaze(t *testing.T, eps []tvmazeEp) {
 	old := tvmazeAPI
 	tvmazeAPI = srv.URL
 	tvmaze.mu.Lock()
-	tvmaze.shows, tvmaze.eps, tvmaze.at = map[string]int{}, map[int][]tvmazeEp{}, map[string]time.Time{}
+	tvmaze.shows, tvmaze.eps, tvmaze.at, tvmaze.calls = map[string]int{}, map[int][]tvmazeEp{}, map[string]time.Time{}, nil // and no waiting for earlier tests' calls
 	tvmaze.mu.Unlock()
 	t.Cleanup(func() { tvmazeAPI = old })
 }
@@ -141,6 +149,9 @@ func TestTVmazeNumbering(t *testing.T) {
 	if len(sug) != 1 || sug[0].Season != 5 || sug[0].TMDB != 24 || sug[0].TVmaze != 23 {
 		t.Fatalf("suggestion: %+v", sug)
 	}
+	if st, _ := g.renList()["tvmaze"].([]tvmStatus); len(st) != 1 || st[0].Kind != "differ" {
+		t.Errorf("status: %+v", st)
+	}
 	if r := g.renNumbering(sug[0].Key, "tvmaze"); r["ok"] != true {
 		t.Fatalf("choose: %v", r)
 	}
@@ -169,6 +180,14 @@ func TestTVmazeNumbering(t *testing.T) {
 	if f := g.renSizeFactor(paths[2]); f != 2 { // S05E09: one long episode on TVmaze
 		t.Errorf("size factor: %v", f)
 	}
+	for i := 0; i < 100; i++ { // looked at again: the status follows the choice
+		if st, _ := g.renList()["tvmaze"].([]tvmStatus); len(st) == 1 && st[0].Kind == "chosen" {
+			break
+		} else if i == 99 {
+			t.Errorf("status after choosing: %+v", st)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 	// the choice is remembered, and can be undone
 	if g.tvNumbering()[sug[0].Key] != "tvmaze" {
 		t.Error("not remembered")
@@ -181,4 +200,53 @@ func TestTVmazeNumbering(t *testing.T) {
 		}
 	}
 	_ = os.Remove(dir)
+}
+
+// TMDB has no such show: TVmaze fills the file in by itself, and its shows are
+// offered in the search.
+func TestTVmazeFallback(t *testing.T) {
+	t.Setenv("LOCALAPPDATA", t.TempDir())
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/3/search/tv" {
+			_, _ = w.Write([]byte(`{"results":[]}`))
+			return
+		}
+		w.WriteHeader(404)
+		_, _ = w.Write([]byte(`{"status_message":"not found"}`))
+	}))
+	t.Cleanup(srv.Close)
+	oldAPI := tmdbAPI
+	tmdbAPI = srv.URL + "/3"
+	t.Cleanup(func() { tmdbAPI = oldAPI })
+	fakeTVmaze(t, laverneTVmaze())
+
+	lk := &tmdbLookup{key: "k3y", found: map[string]*tmdbFound{}, tvmaze: true}
+	note, m := lk.file(filepath.Join(t.TempDir(), "Obscure Show S01E02.mkv"))
+	if m == nil || m.plexName != "Obscure Show (2019).S01E02.Second."+plexDetailsMark || !strings.Contains(note, "from TVmaze") {
+		t.Fatalf("fallback: %q %+v", note, m)
+	}
+	if m.Tags["title"] != "Obscure Show – S01E02 – Second" || m.Tags["date"] != "2019-03-08" {
+		t.Errorf("tags: %v", m.Tags)
+	}
+	// TVmaze turned off: TMDB alone, as before
+	lk = &tmdbLookup{key: "k3y", found: map[string]*tmdbFound{}}
+	if note, m := lk.file(filepath.Join(t.TempDir(), "Obscure Show S01E02.mkv")); m != nil || !strings.HasPrefix(note, "TMDB: nothing found") {
+		t.Errorf("off: %q %+v", note, m)
+	}
+	// the search offers TVmaze's shows (marked), and they can be filled in from
+	g := newGUIServer()
+	g.prefsPath = filepath.Join(t.TempDir(), "settings.json")
+	_ = g.setTMDBKey("k3y")
+	r := g.tmdbCall(context.Background(), "tmdbSearch", []byte(`{"kind":"tv","query":"Obscure Show"}`))
+	res, _ := r["results"].([]tmdbResult)
+	if r["ok"] != true || len(res) != 1 || res[0].Kind != "tvmaze" || res[0].ID != 8 || res[0].Year != "2019" {
+		t.Fatalf("search: %v", r)
+	}
+	d := g.tmdbCall(context.Background(), "tmdbDetails", []byte(`{"kind":"tvmaze","id":8,"season":1,"episode":1}`))
+	if f, _ := d["fill"].(*tmdbFill); d["ok"] != true || f == nil || f.Title != "Obscure Show – S01E01 – Pilot" || f.Description != "It starts." {
+		t.Errorf("details: %v", d)
+	}
+	if c := g.tmdbChoose("x", tmdbPick{Kind: "tvmaze", ID: 8}); c["error"] == "nothing chosen" {
+		t.Error("a TVmaze show cannot be chosen")
+	}
 }

@@ -32,8 +32,13 @@ func audioScore(t srcTrack, mode string) int {
 // onePerLanguage keeps one main track per language: the best quality, or the
 // most compatible one. Commentary tracks are not counted (they are kept or
 // dropped by their own rule), nor are tracks without a language.
-func onePerLanguage(audio []outAudio, mode string) []outAudio {
-	best := map[string]int{} // language -> index of the track kept
+//
+// With withCompatible (the "Add a compatible audio track" rule), the best track
+// of a language that is not compatible keeps the language's most compatible
+// track beside it (TrueHD 7.1 Atmos and E-AC-3 5.1), rather than a new one
+// being made from the best.
+func onePerLanguage(audio []outAudio, mode string, withCompatible bool) []outAudio {
+	best, compat := map[string]int{}, map[string]int{} // language -> index of the track kept
 	for i, a := range audio {
 		k := langKey(a.Src.Lang)
 		if k == "" || k == "und" || isCommentary(a.Src) {
@@ -42,12 +47,19 @@ func onePerLanguage(audio []outAudio, mode string) []outAudio {
 		if j, ok := best[k]; !ok || audioScore(a.Src, mode) > audioScore(audio[j].Src, mode) {
 			best[k] = i
 		}
+		if compatibleCodecs[a.Src.Codec] {
+			if j, ok := compat[k]; !ok || audioScore(a.Src, "best") > audioScore(audio[j].Src, "best") {
+				compat[k] = i
+			}
+		}
 	}
 	out := audio[:0:0]
 	for i, a := range audio {
 		k := langKey(a.Src.Lang)
 		if j, ok := best[k]; ok && j != i && !isCommentary(a.Src) {
-			continue
+			if c, ok := compat[k]; !(withCompatible && c == i && !compatibleCodecs[audio[j].Src.Codec]) || !ok {
+				continue
+			}
 		}
 		out = append(out, a)
 	}

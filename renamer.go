@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -68,6 +69,7 @@ type renState struct {
 	fixed     map[string]bool       // files renamed to TMDB's numbers here (the marks no longer apply to them)
 	numSug    []numberingSuggestion // seasons TMDB and TVmaze number differently (tvmaze.go)
 	tvmEps    map[string][]tvmazeEp // TVmaze's episodes of the seasons checked, by shift key
+	tvmStatus map[string]tvmStatus  // what TVmaze said about each season, by shift key
 }
 
 // renShifts is a copy of the marked double / split episodes, for a lookup.
@@ -379,13 +381,27 @@ func (g *guiServer) renList() map[string]any {
 		Show   string `json:"show"`
 	}
 	var byTVmaze []tvmSeason // seasons on the list that use TVmaze's numbering (so it can be undone)
+	var statuses []tvmStatus // what TVmaze said about each season on the list
 	seen := map[string]bool{}
 	for _, r := range g.ren.rows {
-		if k := r.shiftKey(); k != "" && numbering[k] == "tvmaze" && !seen[k] {
-			seen[k] = true
+		k := r.shiftKey()
+		if k == "" || seen[k] {
+			continue
+		}
+		seen[k] = true
+		if numbering[k] == "tvmaze" {
 			byTVmaze = append(byTVmaze, tvmSeason{k, r.Season, guessSearch(r.Path, "").Query})
 		}
+		if st, ok := g.ren.tvmStatus[k]; ok {
+			statuses = append(statuses, st)
+		}
 	}
+	sort.Slice(statuses, func(a, b int) bool {
+		if statuses[a].Show != statuses[b].Show {
+			return statuses[a].Show < statuses[b].Show
+		}
+		return statuses[a].Season < statuses[b].Season
+	})
 	busy := false
 	for _, r := range g.ren.rows {
 		busy = busy || r.looking || !r.probed
@@ -396,7 +412,7 @@ func (g *guiServer) renList() map[string]any {
 	}
 	undo := g.renUndoList()
 	return map[string]any{"ok": true, "rows": rows, "undo": len(undo), "hasKey": g.tmdbKey() != "", "doubles": sug,
-		"numbering": nsug, "byTVmaze": byTVmaze, "tvmazeOn": g.tvmazeOn()}
+		"numbering": nsug, "byTVmaze": byTVmaze, "tvmazeOn": g.tvmazeOn(), "tvmaze": statuses}
 }
 
 // ---------- double episodes on the tab (episodes.go) ----------
@@ -471,20 +487,21 @@ func (g *guiServer) renSeasonRowsLocked(k string) []int {
 // TMDB's disagree (and no choice was made for that season yet), suggests it.
 func (g *guiServer) renCompareTVmaze(ctx context.Context, key string, tmdbID int, show, k string, season int, eps []tmdbEpisode, files map[int]float64, chosen string) {
 	tid, err := tvmazeShow(ctx, key, tmdbID, show)
-	if err != nil || tid == 0 {
+	switch {
+	case err != nil:
+		g.renTVmStatus(k, season, show, "offline", "TVmaze could not be reached; TMDB alone is used")
+		return
+	case tid == 0:
+		g.renTVmStatus(k, season, show, "notfound", "TVmaze does not have this show; TMDB alone is used")
 		return
 	}
 	tvm, err := tvmazeSeason(ctx, tid, season)
-	if err != nil || len(tvm) == 0 {
+	switch {
+	case err != nil:
+		g.renTVmStatus(k, season, show, "offline", "TVmaze could not be reached; TMDB alone is used")
 		return
-	}
-	g.ren.mu.Lock()
-	defer g.ren.mu.Unlock()
-	if g.ren.tvmEps == nil {
-		g.ren.tvmEps = map[string][]tvmazeEp{}
-	}
-	g.ren.tvmEps[k] = tvm
-	if chosen != "" {
+	case len(tvm) == 0:
+		g.renTVmStatus(k, season, show, "notfound", fmt.Sprintf("TVmaze has the show but no season %d; TMDB alone is used", season))
 		return
 	}
 	have := map[int]bool{}
@@ -492,7 +509,23 @@ func (g *guiServer) renCompareTVmaze(ctx context.Context, key string, tmdbID int
 		have[n] = true
 	}
 	differ, rows := compareNumbering(eps, tvm, have)
-	if !differ {
+	switch {
+	case chosen == "tvmaze":
+		g.renTVmStatus(k, season, show, "chosen", "TVmaze's numbering is used for this season")
+	case !differ:
+		g.renTVmStatus(k, season, show, "agree", fmt.Sprintf("agrees with TMDB (%d episodes)", len(eps)))
+	case chosen == "tmdb":
+		g.renTVmStatus(k, season, show, "chosen", "numbers it differently; TMDB's numbering is kept, as you chose")
+	default:
+		g.renTVmStatus(k, season, show, "differ", "numbers it differently (see below)")
+	}
+	g.ren.mu.Lock()
+	defer g.ren.mu.Unlock()
+	if g.ren.tvmEps == nil {
+		g.ren.tvmEps = map[string][]tvmazeEp{}
+	}
+	g.ren.tvmEps[k] = tvm
+	if chosen != "" || !differ {
 		return
 	}
 	for _, x := range g.ren.numSug {
@@ -513,6 +546,42 @@ func (g *guiServer) renCompareTVmaze(ctx context.Context, key string, tmdbID int
 	g.ren.numSug = append(g.ren.numSug, numberingSuggestion{Key: k, Season: season, Show: show, TMDB: len(eps), TVmaze: len(tvm), Summary: sum, Rows: rows})
 }
 
+// tvmStatus is what TVmaze said about one season on the list.
+type tvmStatus struct {
+	Key    string `json:"key"`
+	Season int    `json:"season"`
+	Show   string `json:"show"`
+	Kind   string `json:"kind"` // agree | differ | chosen | alone | notfound | offline
+	Text   string `json:"text"`
+}
+
+func (g *guiServer) renTVmStatus(k string, season int, show, kind, text string) {
+	g.ren.mu.Lock()
+	defer g.ren.mu.Unlock()
+	if g.ren.tvmStatus == nil {
+		g.ren.tvmStatus = map[string]tvmStatus{}
+	}
+	g.ren.tvmStatus[k] = tvmStatus{Key: k, Season: season, Show: show, Kind: kind, Text: text}
+}
+
+// renTVmazeAlone: a season TMDB has nothing for; TVmaze's answer is shown.
+func (g *guiServer) renTVmazeAlone(ctx context.Context, k string, season int, show string) {
+	id, err := tvmazeShow(ctx, "", 0, show)
+	switch {
+	case err != nil:
+		g.renTVmStatus(k, season, show, "offline", "TMDB has nothing for it, and TVmaze could not be reached")
+	case id == 0:
+		g.renTVmStatus(k, season, show, "notfound", "neither TMDB nor TVmaze has this show (use Edit to search)")
+	default:
+		eps, err := tvmazeSeason(ctx, id, season)
+		if err != nil || len(eps) == 0 {
+			g.renTVmStatus(k, season, show, "notfound", fmt.Sprintf("TMDB has nothing for it; TVmaze has the show but no season %d", season))
+			return
+		}
+		g.renTVmStatus(k, season, show, "alone", fmt.Sprintf("TMDB has nothing for it; filled in from TVmaze (%d episodes)", len(eps)))
+	}
+}
+
 // renNumbering sets how a season is numbered: "tvmaze" (titles from TVmaze, by
 // the files' own numbers; double / split marks for it are dropped) or "tmdb"
 // (as before). The season's files are looked up again.
@@ -522,6 +591,11 @@ func (g *guiServer) renNumbering(k, source string) map[string]any {
 	}
 	g.setTVNumbering(k, source)
 	g.ren.mu.Lock()
+	for sig := range g.ren.spotted { // look at the season again (what TVmaze says is shown for the new choice)
+		if strings.HasPrefix(sig, k+"|map[") {
+			delete(g.ren.spotted, sig)
+		}
+	}
 	var sug []numberingSuggestion
 	for _, x := range g.ren.numSug {
 		if x.Key != k {
@@ -603,7 +677,7 @@ func (g *guiServer) renSpot() {
 	seasons := map[string]*season{}
 	for _, r := range g.ren.rows {
 		k := r.shiftKey()
-		if k == "" || r.FileEp == 0 || r.FileEp2 > 0 || r.Minutes <= 0 {
+		if k == "" || r.FileEp == 0 {
 			continue
 		}
 		s := seasons[k]
@@ -611,7 +685,15 @@ func (g *guiServer) renSpot() {
 			s = &season{key: k, input: r.Path, season: r.Season, files: map[int]float64{}, names: map[int]string{}}
 			seasons[k] = s
 		}
-		s.files[r.FileEp], s.names[r.FileEp] = r.Minutes, r.Name
+		if r.FileEp2 > 0 { // a double already named so: both numbers are files' (not a candidate for spotting)
+			for n := r.FileEp; n <= r.FileEp2; n++ {
+				if _, ok := s.files[n]; !ok {
+					s.files[n] = -1
+				}
+			}
+		} else {
+			s.files[r.FileEp], s.names[r.FileEp] = r.Minutes, r.Name
+		}
 		if r.tvID != 0 {
 			s.tvID = r.tvID
 		}
@@ -622,7 +704,7 @@ func (g *guiServer) renSpot() {
 		if g.ren.spotted == nil {
 			g.ren.spotted = map[string]bool{}
 		}
-		if !g.ren.spotted[sig] && len(s.files) >= 3 {
+		if !g.ren.spotted[sig] {
 			g.ren.spotted[sig] = true
 			todo = append(todo, s)
 		}
@@ -641,17 +723,23 @@ func (g *guiServer) renSpot() {
 				id, show = hit.ID, hit.Title
 			}
 		}
-		if id == 0 {
+		if show == "" {
+			show = guessSearch(s.input, "").Query
+		}
+		if id == 0 { // TMDB has no such show (or it was matched on TVmaze): what TVmaze says
+			if g.tvmazeOn() {
+				g.renTVmazeAlone(ctx, s.key, s.season, show)
+			}
 			cancel()
 			continue
 		}
 		eps, err := tmdbSeason(ctx, key, id, s.season)
 		if err != nil {
+			if g.tvmazeOn() {
+				g.renTVmazeAlone(ctx, s.key, s.season, show)
+			}
 			cancel()
 			continue
-		}
-		if show == "" {
-			show = guessSearch(s.input, "").Query
 		}
 		numbering := g.tvNumbering()[s.key]
 		if g.tvmazeOn() || numbering == "tvmaze" {
@@ -660,6 +748,14 @@ func (g *guiServer) renSpot() {
 		cancel()
 		if numbering == "tvmaze" {
 			continue // the files keep their own numbers, TVmaze's way: no double episodes to look for
+		}
+		for n, m := range s.files { // spotting a double needs lengths, and single-episode files
+			if m <= 0 {
+				delete(s.files, n)
+			}
+		}
+		if len(s.files) < 3 {
+			continue
 		}
 		byNum := map[int]tmdbEpisode{}
 		for _, e := range eps {
@@ -773,7 +869,7 @@ func (g *guiServer) renLookupAgain(ids []int, extra map[string]tmdbPick, again b
 			for k, v := range extra {
 				picks[k] = v
 			}
-			lk := &tmdbLookup{key: key, coverDir: dir, picks: picks, found: map[string]*tmdbFound{}, shifts: g.renShifts(), numbering: g.tvNumbering()}
+			lk := &tmdbLookup{key: key, coverDir: dir, picks: picks, found: map[string]*tmdbFound{}, shifts: g.renShifts(), numbering: g.tvNumbering(), tvmaze: g.tvmazeOn()}
 			for _, r := range mine {
 				g.ren.mu.Lock()
 				path := r.Path

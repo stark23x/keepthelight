@@ -456,6 +456,14 @@ func (g *guiServer) tmdbCall(ctx context.Context, name string, body []byte) map[
 		return map[string]any{"ok": true, "guess": guessSearch(b.Path, b.Tag), "hasKey": g.tmdbKey() != ""}
 	case "tmdbSearch":
 		res, err := tmdbSearch(ctx, g.tmdbKey(), b.Kind, b.Query, b.Year)
+		if b.Kind == "tv" && g.tvmazeOn() { // TVmaze's shows too, after TMDB's (marked "TVmaze")
+			if more, e2 := tvmazeSearch(ctx, b.Query); e2 == nil {
+				res = append(res, more...)
+				if len(more) > 0 {
+					err = nil
+				}
+			}
+		}
 		if err != nil {
 			return failResult(err.Error())
 		}
@@ -463,7 +471,13 @@ func (g *guiServer) tmdbCall(ctx context.Context, name string, body []byte) map[
 	case "tmdbDetails":
 		dir := filepath.Join(appDataDir(), "covers")
 		cleanCovers(dir)
-		f, err := tmdbDetails(ctx, g.tmdbKey(), b.Kind, b.ID, b.Season, b.Episode, dir)
+		var f *tmdbFill
+		var err error
+		if b.Kind == "tvmaze" {
+			f, err = tvmazeDetails(ctx, b.ID, b.Season, tmdbEp{First: b.Episode}, dir)
+		} else {
+			f, err = tmdbDetails(ctx, g.tmdbKey(), b.Kind, b.ID, b.Season, b.Episode, dir)
+		}
 		if err != nil {
 			return failResult(err.Error())
 		}
@@ -490,7 +504,7 @@ func (g *guiServer) tmdbCall(ctx context.Context, name string, body []byte) map[
 		}
 		_ = json.Unmarshal(body, &p)
 		key := tmdbPickKey(guessSearch(p.Path, b.Tag))
-		if key == "" || p.ID <= 0 || (p.Kind != "movie" && p.Kind != "tv") {
+		if key == "" || p.ID <= 0 || (p.Kind != "movie" && p.Kind != "tv" && p.Kind != "tvmaze") {
 			return failResult("nothing to remember")
 		}
 		g.rememberTMDB(key, tmdbPick{Kind: p.Kind, ID: p.ID, Title: p.Title})
@@ -634,7 +648,7 @@ func (g *guiServer) tmdbUnsettled() []tmdbAsk {
 // tmdbChoose settles a title: the choice is remembered, and every waiting file
 // with that title is filled in from it (each episode with its own season and episode).
 func (g *guiServer) tmdbChoose(key string, p tmdbPick) map[string]any {
-	if p.ID <= 0 || (p.Kind != "movie" && p.Kind != "tv") {
+	if p.ID <= 0 || (p.Kind != "movie" && p.Kind != "tv" && p.Kind != "tvmaze") {
 		return failResult("nothing chosen")
 	}
 	var ids, rows []int
@@ -764,7 +778,7 @@ func (g *guiServer) queueTMDBAgain(ids []int, again bool) map[string]any {
 		}
 		g.oneOff = nil
 		g.mu.Unlock()
-		lk := &tmdbLookup{key: key, coverDir: dir, picks: picks, found: map[string]*tmdbFound{}, shifts: g.renShifts(), numbering: g.tvNumbering()}
+		lk := &tmdbLookup{key: key, coverDir: dir, picks: picks, found: map[string]*tmdbFound{}, shifts: g.renShifts(), numbering: g.tvNumbering(), tvmaze: g.tvmazeOn()}
 		for _, id := range todo {
 			g.mu.Lock()
 			it := g.findItemLocked(id)
@@ -823,13 +837,15 @@ type tmdbLookup struct {
 	found         map[string]*tmdbFound
 	shifts        map[string][]epShift // double / split episodes marked on the Plex names tab (episodes.go)
 	numbering     map[string]string    // seasons (shiftKey) numbered TVmaze's way: "tvmaze" (tvmaze.go)
+	tvmaze        bool                 // TVmaze may be asked when TMDB has nothing (the setting)
 }
 
 type tmdbFound struct {
-	hit        *tmdbResult
-	n          int  // results, when there was no clear match
-	remembered bool // the match was chosen by hand before
-	err        error
+	tvmazeTried bool // TMDB found nothing, and TVmaze was asked
+	hit         *tmdbResult
+	n           int  // results, when there was no clear match
+	remembered  bool // the match was chosen by hand before
+	err         error
 }
 
 // tmdbLookupFile finds one file on TMDB without asking (see tmdbLookup.file).
@@ -888,6 +904,13 @@ func (lk *tmdbLookup) file(input string) (string, *MetaEdit) {
 			lk.found[pk] = fd
 		}
 	}
+	if fd.hit == nil && fd.n == 0 && gs.Kind == "tv" && lk.tvmaze && gs.Query != "" && fd.tvmazeTried == false {
+		// TMDB has no such show: TVmaze may
+		fd.tvmazeTried = true
+		if id, err := tvmazeShow(ctx, "", 0, gs.Query); err == nil && id != 0 {
+			fd.hit, fd.err = &tmdbResult{ID: id, Kind: "tvmaze", Title: gs.Query}, nil
+		}
+	}
 	if fd.err != nil {
 		return "TMDB: " + fd.err.Error(), nil
 	}
@@ -914,14 +937,29 @@ func (lk *tmdbLookup) file(input string) (string, *MetaEdit) {
 			byTVmaze = false
 		}
 	}
-	if byTVmaze {
+	fromTVmaze := hit.Kind == "tvmaze"
+	switch {
+	case byTVmaze:
 		// filled in from TVmaze
-	} else if ep.Last > ep.First || ep.Part > 0 {
+	case fromTVmaze: // a show only TVmaze has (found there, or chosen there)
+		ep = tmdbEp{First: gs.Episode, Last: gs.Episode2}
+		f, err = tvmazeDetails(ctx, hit.ID, gs.Season, ep, coverDir)
+	case ep.Last > ep.First || ep.Part > 0:
 		f, err = tmdbEpisodes(ctx, key, hit.ID, gs.Season, ep, coverDir)
-	} else {
+	default:
 		f, err = tmdbDetails(ctx, key, hit.Kind, hit.ID, gs.Season, ep.First, coverDir)
 	}
+	if err != nil && !fromTVmaze && hit.Kind == "tv" && gs.Kind == "tv" && lk.tvmaze && gs.Season > 0 {
+		// TMDB has the show but not this season or episode: TVmaze may, by the file's own numbers
+		if f2, _ := tvmazeFill(ctx, key, hit, gs.Season, tmdbEp{First: gs.Episode, Last: gs.Episode2}, coverDir); f2 != nil {
+			f, err, ep, byTVmaze = f2, nil, tmdbEp{First: gs.Episode, Last: gs.Episode2}, true
+			tvmNote = "TMDB does not have this episode"
+		}
+	}
 	if err != nil {
+		if fromTVmaze {
+			return "TMDB: nothing found for \"" + gs.Query + "\", and TVmaze: " + err.Error(), nil
+		}
 		return "TMDB: " + err.Error(), nil
 	}
 	m := &MetaEdit{Tags: map[string]string{}, Cover: f.Cover}
@@ -942,9 +980,14 @@ func (lk *tmdbLookup) file(input string) (string, *MetaEdit) {
 	if gs.Kind == "tv" && (ep.First != gs.Episode || ep.Last != gs.Episode2 || ep.Part > 0) {
 		what += " (" + ep.String() + " on TMDB)"
 	}
-	if byTVmaze {
+	switch {
+	case fromTVmaze:
+		what += " (from TVmaze: TMDB does not have this show)"
+	case byTVmaze && tvmNote != "":
+		what += " (episode from TVmaze: " + tvmNote + ")"
+	case byTVmaze:
 		what += " (episode title from TVmaze: this season uses TVmaze's numbering)"
-	} else if tvmNote != "" {
+	case tvmNote != "":
 		what += " (" + tvmNote + ")"
 	}
 	if fd.remembered {

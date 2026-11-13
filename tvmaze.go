@@ -2,12 +2,15 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -395,4 +398,127 @@ func tvmazeLengthFactor(eps []tvmazeEp, n int) float64 {
 		return 2
 	}
 	return 0
+}
+
+// ---------- TVmaze on its own: search, details, and the fallback ----------
+//
+// When TMDB does not have a show (or has nothing that fits), TVmaze can fill
+// a file in by itself: its results are offered beside TMDB's in the searches
+// (kind "tvmaze"), and a file whose show TMDB cannot find is looked up there.
+
+type tvmazeShowInfo struct {
+	ID        int    `json:"id"`
+	Name      string `json:"name"`
+	Premiered string `json:"premiered"`
+	Summary   string `json:"summary"`
+	URL       string `json:"url"`
+	Image     *struct {
+		Medium   string `json:"medium"`
+		Original string `json:"original"`
+	} `json:"image"`
+}
+
+// tvmazeSearch lists shows TVmaze has by a name (at most 8).
+func tvmazeSearch(ctx context.Context, query string) ([]tmdbResult, error) {
+	var hits []struct {
+		Show tvmazeShowInfo `json:"show"`
+	}
+	if _, err := tvmazeGet(ctx, "/search/shows?q="+url.QueryEscape(query), &hits); err != nil {
+		return nil, err
+	}
+	var out []tmdbResult
+	for _, h := range hits {
+		if len(out) == 8 {
+			break
+		}
+		it := tmdbResult{ID: h.Show.ID, Kind: "tvmaze", Title: h.Show.Name, Year: yearOf(h.Show.Premiered), Overview: plainText(h.Show.Summary)}
+		if h.Show.Image != nil && h.Show.Image.Medium != "" {
+			if b, mime, err := tvmazeImage(ctx, h.Show.Image.Medium, 1<<20); err == nil {
+				it.Thumb = "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(b)
+			}
+		}
+		out = append(out, it)
+	}
+	return out, nil
+}
+
+// tvmazeImage downloads a poster from TVmaze.
+func tvmazeImage(ctx context.Context, u string, limit int64) ([]byte, string, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	resp, err := tvmazeClient.Do(req)
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("%s", resp.Status)
+	}
+	b, err := io.ReadAll(io.LimitReader(resp.Body, limit))
+	mime := resp.Header.Get("Content-Type")
+	if mime == "" {
+		mime = "image/jpeg"
+	}
+	return b, mime, err
+}
+
+// tvmazeDetails fills a file in from TVmaze alone: the show, or one episode
+// (or two, for a double) of it, with the show's poster saved to coverDir.
+func tvmazeDetails(ctx context.Context, show, season int, ep tmdbEp, coverDir string) (*tmdbFill, error) {
+	var s tvmazeShowInfo
+	found, err := tvmazeGet(ctx, fmt.Sprintf("/shows/%d", show), &s)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, fmt.Errorf("TVmaze has no such show")
+	}
+	f := &tmdbFill{Title: s.Name, Date: s.Premiered, Description: plainText(s.Summary), Link: s.URL}
+	if season > 0 && ep.First > 0 {
+		eps, err := tvmazeSeason(ctx, show, season)
+		if err != nil {
+			return nil, err
+		}
+		title, air, summary, ok := tvmazeTitle(eps, ep.First, ep.Last)
+		if !ok {
+			return nil, fmt.Errorf("TVmaze has no %s in season %d of %s", ep, season, s.Name)
+		}
+		nums := fmt.Sprintf("S%02dE%02d", season, ep.First)
+		if ep.Last > ep.First {
+			nums += fmt.Sprintf("-E%02d", ep.Last)
+		}
+		f.Title = s.Name + " – " + nums
+		if title != "" {
+			f.Title += " – " + title
+		}
+		f.Date, f.Description = air, summary
+		plexTitle := title
+		if ep.Last > ep.First && strings.Contains(title, " (Parts ") {
+			plexTitle = baseTitle(title)
+		}
+		f.PlexName = plexEpisodeRangeName(s.Name, yearOf(s.Premiered), season, ep, plexTitle)
+	}
+	if s.Image != nil && s.Image.Original != "" && coverDir != "" {
+		if b, mime, err := tvmazeImage(ctx, s.Image.Original, 15<<20); err == nil {
+			ext := ".jpg"
+			if strings.Contains(mime, "png") {
+				ext = ".png"
+			}
+			name := filepath.Join(coverDir, fmt.Sprintf("tmdb-tvmaze-%d%s", show, ext)) // "tmdb-": cleaned up with the others
+			if err = os.MkdirAll(coverDir, 0o755); err == nil {
+				err = os.WriteFile(name, b, 0o644)
+			}
+			if err == nil {
+				f.Cover = name
+			}
+		}
+		if s.Image.Medium != "" {
+			if b, mime, err := tvmazeImage(ctx, s.Image.Medium, 1<<20); err == nil {
+				f.Thumb = "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(b)
+			}
+		}
+	}
+	return f, nil
 }

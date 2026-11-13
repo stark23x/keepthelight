@@ -26,6 +26,7 @@ type Config struct {
 	AudioLangs, SubLangs                         []string   // rules: languages to keep (empty = all)
 	DropCommentary                               bool       // rule: leave out commentary audio tracks
 	AddCompatAudio                               bool       // rule: add an E-AC-3 copy when no track plays everywhere
+	ConvertCompatible                            bool       // rule off: tracks already AC-3/E-AC-3/AAC are converted too (by default they are copied)
 	AudioChannels                                string     // converted audio: "" keeps the channels, "5.1" or "stereo" mixes down
 	Meta                                         *MetaEdit  // metadata changes (nil = none)
 	ExtSubs                                      []ExtSub   // subtitle files of the user's own, added as tracks
