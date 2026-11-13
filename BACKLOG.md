@@ -6,7 +6,18 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing at the moment.
+- **TVmaze as a second opinion for TV episode numbers** (2026-11-13). TMDB stays the main source. TVmaze's public
+  API is free with no key (at least 20 calls per 10 s per IP; HTTP 429 means back off), licensed CC BY-SA: credit
+  TVmaze with a link (About box). Show lookup by TVDB id (`/lookup/shows?thetvdb=`), IMDb id, or name;
+  `/shows/:id/episodes` for the episode list.
+  - In the Plex names tab (and TMDB lookups for TV in the queue), fetch the season from TVmaze too and compare:
+    episode count, order, titles and runtimes. When they disagree (a double episode, a split, a different order),
+    show both numberings side by side, like the double-episode banner, and let the owner pick; never rename without
+    it being shown first.
+  - TVmaze usually follows broadcast order, often (not always) the same as TVDB; say so in the UI ("TVmaze's
+    numbering, often the same as TVDB's"), since Plex can number a show either TMDB's or TVDB's way.
+  - Works without TVmaze (offline, rate-limited, show not found): TMDB alone, as now. A setting to turn the second
+    opinion off.
 
 ## Ideas raised, not yet requested
 
