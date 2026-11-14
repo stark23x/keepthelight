@@ -6,7 +6,19 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing at the moment.
+Dolby Vision in MP4, and checking copied video (2026-11-13).
+
+- **Keep the Dolby Vision label in MP4 files.** FFmpeg's MP4 writer leaves out the `dvcC`/`dvvC` box unless it is
+  given `-strict unofficial` (libavformat/movenc.c: "Not writing 'dvcC'/'dvvC' box. Requires -strict unofficial").
+  Keep the Light does not pass it, so an MP4 keeps the Dolby Vision data in the picture but players are not told it
+  is there. Pass `-strict unofficial` (and the `dvh1` tag where the codec tag is not already one) whenever an MP4
+  output's video carries Dolby Vision: the [5/5] mux of Dolby Vision jobs, "Copy video untouched", "Metadata only",
+  and the interleave remux (`remuxInterleaved`). MKV is not affected. Test that an MP4 from each path shows the
+  Dolby Vision configuration record in ffprobe.
+- **Check copied files too.** `verify()` returns early for "Copy video untouched" (and Metadata only), so a lost
+  label is never reported. Check the new file against the original: the same HDR type (HDR10 / HLG / SDR), the
+  mastering display and MaxCLL when the original had them, HDR10+ when it had it, and the Dolby Vision profile when
+  it had one; say "HDR kept: …" or warn what was lost.
 
 ## Ideas raised, not yet requested
 
