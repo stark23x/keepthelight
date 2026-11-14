@@ -18,6 +18,22 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.40.0 - 2026-11-14
+
+- **Library scan: "Sort by".** The list could only be read biggest saving first (it still is, to begin with); now
+  it can also be sorted by **biggest file**, **highest bitrate**, **name**, **folder** or **Plex trouble spots
+  first**. The choice is remembered, and "Add selected to queue" adds the files in the order shown. Files that
+  could not be read, or are no longer there, go last.
+- **Fixed: your own subtitle files did not show in a 30-second test.** A test is cut from the middle of the film
+  and its clock starts at 0, but the added SRT or ASS file kept the film's times, so its lines fell long after the
+  test ended. The file is now cut to the test's stretch as well, so the test shows the same lines as the film at
+  that point. Full conversions were not affected.
+- **Fixed: MP4 files lost their Dolby Vision label.** FFmpeg leaves the Dolby Vision box out of an MP4 unless it is
+  told otherwise, so players were not told the Dolby Vision data was there. Keep the Light now keeps it for Dolby
+  Vision conversions, "Copy video untouched", "Metadata only" and the picture-and-sound remux. MKV was not affected.
+- **Copied video is checked too.** After "Copy video untouched" or "Metadata only", the new file is compared with the
+  original: "HDR kept: HDR10 (mastering display, MaxCLL) + Dolby Vision 8.1", or a warning naming what was lost.
+
 ## 1.39.0 - 2026-11-13
 
 - **TVmaze now helps when TMDB has nothing,** on the Convert, Queue and Plex names tabs (it used to be only a second

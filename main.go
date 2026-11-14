@@ -889,7 +889,12 @@ func runSimple(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 		args = append(args, meta.Args...)
 		args = append(args, vargs...)
 		if mp4 {
-			args = append(args, "-tag:v", "hvc1", "-movflags", "+faststart+use_metadata_tags") // keeps the "already converted" tag
+			tag := "hvc1"
+			if cfg.CopyVideo && p.DV != nil { // the copied video keeps Dolby Vision: its MP4 box is written only with -strict unofficial
+				tag = "dvh1"
+				args = append(args, "-strict", "unofficial")
+			}
+			args = append(args, "-tag:v", tag, "-movflags", "+faststart+use_metadata_tags") // keeps the "already converted" tag
 		} else {
 			args = append(args, mkvIndexArgs(cfg, p.Duration)...)
 		}
@@ -1063,7 +1068,7 @@ func runDV(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 	margs = append(margs, meta.Args...)
 	margs = append(margs, "-c:v", "copy", "-max_interleave_delta", "0") // picture and sound stored together (see interleave.go)
 	if mp4 {
-		margs = append(margs, "-tag:v", "dvh1", "-movflags", "+faststart+use_metadata_tags")
+		margs = append(margs, "-tag:v", "dvh1", "-movflags", "+faststart+use_metadata_tags", "-strict", "unofficial") // FFmpeg writes MP4's Dolby Vision box only so
 	} else {
 		margs = append(margs, mkvIndexArgs(cfg, p.Duration)...)
 	}
@@ -1074,6 +1079,7 @@ func runDV(r *runner, cfg *Config, p *Probe, plan *Plan, tmp string) error {
 // verify re-probes the output and reports whether the HDR signalling survived.
 func verify(ctx context.Context, cfg *Config, plan *Plan) {
 	if cfg.CopyVideo {
+		verifyCopied(ctx, cfg, plan)
 		return
 	}
 	o, err := probeFile(ctx, cfg.Ffprobe, cfg.Output)
@@ -1101,8 +1107,85 @@ func verify(ctx context.Context, cfg *Config, plan *Plan) {
 	}
 	if plan.UseDV && o.DV == nil {
 		fmt.Println("WARNING: ffprobe did not report a Dolby Vision configuration in the output. " +
-			"Check with MediaInfo; if it is missing, try the .mp4 output, which is the most reliable container for DV.")
+			"Check with MediaInfo; if it is missing, Dolby Vision players may play only the HDR10 picture.")
 	}
+}
+
+// verifyCopied checks a file whose video was copied (Copy video untouched,
+// Metadata only): every kind of HDR information the original had must still be
+// there, since nothing was meant to change.
+func verifyCopied(ctx context.Context, cfg *Config, plan *Plan) {
+	src := plan.probe
+	if src == nil {
+		return
+	}
+	o, err := probeFile(ctx, cfg.Ffprobe, cfg.Output)
+	if err != nil {
+		fmt.Println("WARNING: could not check the new file:", err)
+		return
+	}
+	lost := hdrLost(src, o)
+	if len(lost) > 0 {
+		fmt.Println("\nWARNING: the video was copied, but the new file has lost " + strings.Join(lost, ", ") +
+			". Players may show the picture without it.")
+		return
+	}
+	fmt.Println("\nHDR kept: " + hdrKinds(o))
+}
+
+// hdrKinds names the kinds of HDR information a file has ("HDR10 (mastering display, MaxCLL) + HDR10+ + Dolby Vision 8.1").
+func hdrKinds(p *Probe) string {
+	var parts []string
+	if p.DV != nil && p.DV.Profile == 5 { // Dolby's own colours: no HDR10 or SDR picture underneath
+		return fmt.Sprintf("Dolby Vision %d.%d", p.DV.Profile, p.DV.Compat)
+	}
+	switch p.Kind() {
+	case "hdr10":
+		h := "HDR10"
+		var extra []string
+		if p.Mastering != nil {
+			extra = append(extra, "mastering display")
+		}
+		if p.CLL != nil {
+			extra = append(extra, "MaxCLL")
+		}
+		if len(extra) > 0 {
+			h += " (" + strings.Join(extra, ", ") + ")"
+		}
+		parts = append(parts, h)
+	case "hlg":
+		parts = append(parts, "HLG")
+	default:
+		parts = append(parts, "SDR (no HDR)")
+	}
+	if p.HDR10Plus {
+		parts = append(parts, "HDR10+")
+	}
+	if p.DV != nil {
+		parts = append(parts, fmt.Sprintf("Dolby Vision %d.%d", p.DV.Profile, p.DV.Compat))
+	}
+	return strings.Join(parts, " + ")
+}
+
+// hdrLost lists what the original had and the copy does not.
+func hdrLost(src, o *Probe) []string {
+	var lost []string
+	if src.Kind() != o.Kind() {
+		lost = append(lost, fmt.Sprintf("its %s colour tags (it is now marked %s)", strings.ToUpper(src.Kind()), strings.ToUpper(o.Kind())))
+	}
+	if src.Mastering != nil && o.Mastering == nil {
+		lost = append(lost, "the HDR10 mastering-display information")
+	}
+	if src.CLL != nil && o.CLL == nil {
+		lost = append(lost, "MaxCLL/MaxFALL")
+	}
+	if src.HDR10Plus && !o.HDR10Plus {
+		lost = append(lost, "HDR10+")
+	}
+	if src.DV != nil && o.DV == nil {
+		lost = append(lost, fmt.Sprintf("the Dolby Vision %d.%d label", src.DV.Profile, src.DV.Compat))
+	}
+	return lost
 }
 
 func describeMode(cfg *Config, plan *Plan) string {

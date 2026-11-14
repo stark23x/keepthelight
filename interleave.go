@@ -142,7 +142,7 @@ func remuxInterleaved(ctx context.Context, ffmpeg, ffprobe, in, out, work string
 		}
 		args = append(args, "-default_mode", "passthrough")
 	} else {
-		args = append(args, "-movflags", "+faststart+use_metadata_tags")
+		args = append(args, "-movflags", "+faststart+use_metadata_tags", "-strict", "unofficial") // keeps a Dolby Vision box
 		if tag := videoTag(ctx, ffprobe, in); tag == "dvh1" || tag == "hvc1" || tag == "dvhe" || tag == "hev1" {
 			args = append(args, "-tag:v", tag)
 		}

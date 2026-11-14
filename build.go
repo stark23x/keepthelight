@@ -57,6 +57,7 @@ type Config struct {
 	vulkanDev                                    string         // which one (its Vulkan number; "": FFmpeg's choice); see reshape.go
 	p5OnGPU                                      bool           // profile 5 frames are decoded and converted on the graphics card
 	stripDV                                      bool           // remove Dolby Vision from the encoded video (the source has it, the plan drops it)
+	testStart                                    float64        // a test: where it starts in the film (added subtitle files are read from there)
 	hqDenoise                                    *denoiseChoice // "high quality" noise reduction as chosen at start-up
 	gpu                                          *gpuPath       // the full-GPU path, when it works for this file
 	cleanup                                      []string       // files to remove when the job ends (a test's sample)
@@ -156,7 +157,7 @@ func makePlan(cfg *Config, p *Probe) (*Plan, error) {
 				plan.UseDV, plan.DVProfile, plan.RPUMode = true, "8.1", 3
 				plan.Notes = append(plan.Notes, "Dolby Vision profile 5: the colours are converted to HDR10 (with libplacebo, on the graphics card), and the Dolby Vision data becomes profile 8.1, so the new file plays as HDR10 everywhere and as Dolby Vision on Dolby Vision players")
 			}
-		} else if plan.Kind == "sdr" {
+		} else if plan.Kind == "sdr" && p.DV.Profile != 5 { // (profile 5 copied: Dolby's own colours, nothing to assume)
 			switch p.DV.Compat {
 			case 4:
 				plan.Kind = "hlg"

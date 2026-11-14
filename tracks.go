@@ -89,6 +89,7 @@ type outSub struct {
 	External        bool    // a subtitle file of the user's own, added (extsubs.go)
 	ExtPath         string  // ... the file
 	Offset          float64 // ... moved by this many seconds
+	seek            float64 // ... a test: read from here (its start), so the test's clock and the file's agree
 }
 
 // ---------- probing ----------

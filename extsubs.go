@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -184,7 +185,7 @@ func addExtSubs(cfg *Config, subs []outSub, mp4 bool) ([]outSub, []string) {
 		}
 		disp := map[string]bool{"default": e.Default, "forced": e.Forced, "hearing_impaired": e.SDH}
 		o := outSub{Src: srcTrack{N: 1000 + i, Codec: codec, Lang: e.Lang, Title: e.Title, Disp: disp},
-			Default: e.Default, Forced: e.Forced, Codec: "copy", External: true, ExtPath: e.Path, Offset: e.Offset}
+			Default: e.Default, Forced: e.Forced, Codec: "copy", External: true, ExtPath: e.Path, Offset: e.Offset, seek: cfg.testStart}
 		if mp4 {
 			o.Codec = "mov_text"
 		}
@@ -211,6 +212,9 @@ func prepareExtSubs(cfg *Config, plan *Plan, tmp string) error {
 		}
 		if note != "" {
 			fmt.Printf("Note: %s is %s\n", filepath.Base(s.ExtPath), note)
+		}
+		if s.seek > 0 { // a test from the middle of the film: its stretch of the file, on the test's clock
+			text = cutSubText(text, extSubCodec(s.ExtPath), s.seek) // its own Offset is added after, as for the film
 		}
 		f := filepath.Join(tmp, fmt.Sprintf("added%d%s", i, strings.ToLower(filepath.Ext(s.ExtPath))))
 		if err := os.WriteFile(f, text, 0o644); err != nil {
@@ -243,3 +247,63 @@ func (plan *Plan) hasExtSubs() bool {
 func (s outSub) fromFile() bool { return (s.needsOCR() || s.External) && s.SRTFile != "" }
 
 func offsetArg(o float64) string { return strconv.FormatFloat(o, 'f', 3, 64) }
+
+var (
+	reSRTTimes = regexp.MustCompile(`(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})(\s*-->\s*)(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})`)
+	reASSTimes = regexp.MustCompile(`^(Dialogue:\s*[^,]*,)(\d+):(\d{2}):(\d{2})[.](\d{1,2}),(\d+):(\d{2}):(\d{2})[.](\d{1,2}),`)
+)
+
+// cutSubText moves a subtitle file's times back by secs (a test that starts
+// secs into the film), leaving out the lines that are over by then.
+func cutSubText(text []byte, codec string, secs float64) []byte {
+	clock := func(h, m, s, frac string) float64 {
+		hv, _ := strconv.Atoi(h)
+		mv, _ := strconv.Atoi(m)
+		sv, _ := strconv.Atoi(s)
+		f, _ := strconv.ParseFloat("0."+frac, 64)
+		return float64(hv*3600+mv*60+sv) + f
+	}
+	if codec != "subrip" {
+		var out []string
+		for _, l := range strings.Split(string(text), "\n") {
+			m := reASSTimes.FindStringSubmatch(l)
+			if m == nil {
+				out = append(out, l)
+				continue
+			}
+			a, b := clock(m[2], m[3], m[4], m[5])-secs, clock(m[6], m[7], m[8], m[9])-secs
+			if b <= 0 {
+				continue
+			}
+			cs := func(t float64) string {
+				t = math.Max(0, t)
+				c := int(math.Round(t * 100))
+				return fmt.Sprintf("%d:%02d:%02d.%02d", c/360000, c/6000%60, c/100%60, c%100)
+			}
+			out = append(out, m[1]+cs(a)+","+cs(b)+","+l[len(m[0]):])
+		}
+		return []byte(strings.Join(out, "\n"))
+	}
+	ms := func(t float64) string {
+		t = math.Max(0, t)
+		v := int(math.Round(t * 1000))
+		return fmt.Sprintf("%02d:%02d:%02d,%03d", v/3600000, v/60000%60, v/1000%60, v%1000)
+	}
+	var out []string
+	n := 0
+	for _, block := range regexp.MustCompile(`\r?\n\s*\r?\n`).Split(strings.TrimSpace(string(text)), -1) {
+		m := reSRTTimes.FindStringSubmatchIndex(block)
+		if m == nil {
+			continue
+		}
+		g := func(i int) string { return block[m[2*i]:m[2*i+1]] }
+		a, b := clock(g(1), g(2), g(3), g(4))-secs, clock(g(6), g(7), g(8), g(9))-secs
+		if b <= 0 {
+			continue
+		}
+		n++
+		rest := strings.TrimLeft(block[m[1]:], "\r\n")
+		out = append(out, fmt.Sprintf("%d\n%s --> %s\n%s", n, ms(a), ms(b), rest))
+	}
+	return []byte(strings.Join(out, "\n\n") + "\n")
+}

@@ -132,7 +132,8 @@ quality.
   Most problems have a one-click **Fix** button.
 - **Library scan.** Point it at a folder, for example your whole Movies folder. It shows how much space converting
   each file would save, and which files are likely to cause problems in Plex. Plex extras like trailers and
-  featurettes can be skipped. The results are kept until the next scan, even after closing Keep the Light: they come
+  featurettes can be skipped. **Sort by** biggest saving (the start), biggest file, highest bitrate, name, folder or
+  Plex trouble spots first; the queue follows the order shown. The results are kept until the next scan, even after closing Keep the Light: they come
   back with the date of the scan, and files that have gone or changed since are marked.
 - **Finished files are checked again,** to confirm they are clean, including that picture and sound are stored
   together in the file (if not, streaming players can show a black picture; Keep the Light fixes that on the spot).

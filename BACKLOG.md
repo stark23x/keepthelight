@@ -6,37 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Dolby Vision in MP4, and checking copied video (2026-11-13).
-
-- **Keep the Dolby Vision label in MP4 files.** FFmpeg's MP4 writer leaves out the `dvcC`/`dvvC` box unless it is
-  given `-strict unofficial` (libavformat/movenc.c: "Not writing 'dvcC'/'dvvC' box. Requires -strict unofficial").
-  Keep the Light does not pass it, so an MP4 keeps the Dolby Vision data in the picture but players are not told it
-  is there. Pass `-strict unofficial` (and the `dvh1` tag where the codec tag is not already one) whenever an MP4
-  output's video carries Dolby Vision: the [5/5] mux of Dolby Vision jobs, "Copy video untouched", "Metadata only",
-  and the interleave remux (`remuxInterleaved`). MKV is not affected. Test that an MP4 from each path shows the
-  Dolby Vision configuration record in ffprobe.
-- **Check copied files too.** `verify()` returns early for "Copy video untouched" (and Metadata only), so a lost
-  label is never reported. Check the new file against the original: the same HDR type (HDR10 / HLG / SDR), the
-  mastering display and MaxCLL when the original had them, HDR10+ when it had it, and the Dolby Vision profile when
-  it had one; say "HDR kept: …" or warn what was lost.
-
-Library scan: a "Sort by" choice (2026-11-13). The list is already sorted by predicted saving (biggest first,
-`renderScan`), but there is no way to see that or to choose another order.
-
-- A **Sort by** menu next to "Show": **biggest saving** (the default, as now), **biggest file**, **highest bitrate**,
-  **name**, **folder**, **Plex trouble first**. Remembered (a per-viewer pref). Files with no estimate (errors,
-  already converted) go last under "biggest saving".
-- "Add to queue" keeps adding in the order shown.
-
-Fix: added subtitle files are out of step in a 30-second test (2026-11-14; Lily C.A.T (1987).480p.mkv with its own
-.srt). The test is cut from the middle of the film (`cutSample`, `-ss start`), so its clock starts at 0, but the
-added SRT/ASS keeps the film's times: its subtitles fall long after the test ends, and none show. The full
-conversion is not affected.
-
-- In `runSample`, after cutting, move each added subtitle file by -start (on top of its own Offset), so the test
-  shows the same lines as the film at that point. Subtitles read by OCR are not affected (they come from the
-  sample itself).
-- Test: a test from 0:46:00 of a file with an added SRT shows the lines of 0:46:00–0:46:30 at 0:00–0:30.
+Nothing at the moment.
 
 ## Ideas raised, not yet requested
 
@@ -44,6 +14,7 @@ None at the moment.
 
 ## Done
 
+- 1.40.0: Library scan "Sort by"; added subtitle files cut to a 30-second test's stretch; Dolby Vision box kept in MP4 (`-strict unofficial`, `dvh1`); copied video checked ("HDR kept" / what was lost).
 - 1.39.0: TVmaze as a fallback when TMDB has nothing (show or episode), TVmaze results in the searches, a visible per-season TVmaze status; audio rule "Copy tracks that are already compatible" (on); best + the file's own compatible track kept together.
 - 1.38.0: TVmaze as a second opinion for TV episode numbers (compare, choose per show and season, titles from TVmaze, remembered; setting to turn off; credited in About).
 - 1.37.1: red "Clear the queue" button; MP4Box `:dvp=` when GPAC knows it (else `:dv-profile=`); dovi_tool's "Reordering metadata" lines hidden.

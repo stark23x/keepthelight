@@ -763,6 +763,10 @@
       <div class="row" style="flex-wrap:wrap; gap:8px; margin-bottom:8px">
         <div><label for="scanShow">Show</label>
           <select id="scanShow"><option value="all">all files</option><option value="worth">worth converting</option><option value="trouble">Plex trouble spots</option><option value="done">already converted</option></select></div>
+        <div><label for="scanSort">Sort by</label>
+          <select id="scanSort" title="The order of the list (Add to queue adds the chosen files in this order too)">
+            <option value="saving">biggest saving</option><option value="size">biggest file</option><option value="kbps">highest bitrate</option>
+            <option value="name">name</option><option value="folder">folder</option><option value="trouble">Plex trouble spots first</option></select></div>
         <div style="align-self:flex-end" class="row"><button id="scanSelWorth">Select worth converting</button><button id="scanSelNone">Select none</button></div>
       </div>
       <div id="scanList"></div>
@@ -1931,6 +1935,7 @@ async function restorePrefs() {
   $('plexURL').value = r.plexURL || ''; $('plexToken').value = ''; $('plexToken').placeholder = r.plexToken ? 'saved (type to change)' : 'not set';
   tmdbPicksUI(r.tmdbPicks || 0);
   if (typeof r.prefs.scanTMDB === 'boolean') $('scanTMDB').checked = r.prefs.scanTMDB;
+  if (typeof r.prefs.scanSort === 'string' && $('scanSort').querySelector('option[value="' + r.prefs.scanSort + '"]')) { $('scanSort').value = r.prefs.scanSort; renderScan(); }
   $('tvmazeOn').checked = r.prefs.tvmazeOff !== true;
   tmdbKeyUI();
   if (typeof r.prefs.scanDir === 'string') $('scanDir').value = r.prefs.scanDir;
@@ -2745,10 +2750,26 @@ function scanVisible() {
   const show = $('scanShow').value;
   return scanItems.filter(it => show === 'all' || (show === 'worth' ? it.worth : show === 'done' ? !!it.done : (it.issues || []).length));
 }
+// The order chosen in "Sort by"; files without the figure (errors, already converted, gone) go last.
+function scanOrder(a, b) {
+  const by = $('scanSort').value;
+  const name = (x, y) => (x.name || '').localeCompare(y.name || '', undefined, { numeric: true, sensitivity: 'base' });
+  const num = f => (f(b) || 0) - (f(a) || 0) || name(a, b);
+  const last = x => (x.err || x.gone) ? 1 : 0;
+  if (last(a) !== last(b)) return last(a) - last(b);
+  switch (by) {
+    case 'size': return num(x => x.size);
+    case 'kbps': return num(x => x.kbps);
+    case 'name': return name(a, b);
+    case 'folder': return (a.folder || '').localeCompare(b.folder || '', undefined, { numeric: true, sensitivity: 'base' }) || name(a, b);
+    case 'trouble': return ((b.issues || []).length - (a.issues || []).length) || num(x => x.saving);
+    default: return num(x => x.saving);
+  }
+}
 function renderScan() {
   const list = $('scanList');
   list.innerHTML = '';
-  const rows = scanVisible().sort((a, b) => (b.saving || 0) - (a.saving || 0));
+  const rows = scanVisible().sort(scanOrder);
   rows.slice(0, 2000).forEach(it => {
     const r = el('div', 'srow' + (it.worth && !it.gone ? ' worth' : '') + (it.gone ? ' gone' : ''));
     const cb = el('input'); cb.type = 'checkbox'; cb.checked = scanSel.has(it.path) && !it.gone; cb.disabled = !!it.err || !!it.gone;
@@ -2872,12 +2893,13 @@ $('scanClear').onclick = async () => {
   $('scanResult').classList.add('hidden'); $('scanProg').classList.add('hidden'); $('sumScan').textContent = '';
 };
 $('scanShow').onchange = renderScan;
+$('scanSort').onchange = () => { api('setPref', { name: 'scanSort', value: $('scanSort').value }); renderScan(); };
 $('scanSelWorth').onclick = () => { scanItems.forEach(it => { if (it.worth && !it.gone) scanSel.add(it.path); }); renderScan(); scanButtons(); };
 $('scanSelNone').onclick = () => { scanSel = new Set(); renderScan(); scanButtons(); };
 $('scanAdd').onclick = async () => {
   if (!batchOutReady()) return;
   const p = profiles.find(x => x.name === $('scanWith').value) || null;
-  const paths = scanItems.filter(it => scanSel.has(it.path)).sort((a, b) => (b.saving || 0) - (a.saving || 0)).map(it => it.path);
+  const paths = scanItems.filter(it => scanSel.has(it.path)).sort(scanOrder).map(it => it.path);
   const r = await addToQueue(paths.map(x => scanSettings(x, p)));
   if (r && r.ids && r.ids.length && $('scanTMDB').checked) {
     if (!$('tmdbKey').value.trim()) notify('The files were added, but looking up their metadata needs your TMDB API key (Settings, ⚙).');

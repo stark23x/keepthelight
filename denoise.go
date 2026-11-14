@@ -273,6 +273,7 @@ func prepareSample(ctx context.Context, cfg *Config) error {
 		return err
 	}
 	cfg.cleanup = append(cfg.cleanup, sample)
+	cfg.testStart = start // the test's clock starts at 0: added subtitle files are read from its start
 	cfg.sample = sample
 	cfg.fullInput = cfg.Input
 	cfg.Input = sample
