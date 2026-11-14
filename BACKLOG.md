@@ -20,6 +20,14 @@ Dolby Vision in MP4, and checking copied video (2026-11-13).
   mastering display and MaxCLL when the original had them, HDR10+ when it had it, and the Dolby Vision profile when
   it had one; say "HDR kept: …" or warn what was lost.
 
+Library scan: a "Sort by" choice (2026-11-13). The list is already sorted by predicted saving (biggest first,
+`renderScan`), but there is no way to see that or to choose another order.
+
+- A **Sort by** menu next to "Show": **biggest saving** (the default, as now), **biggest file**, **highest bitrate**,
+  **name**, **folder**, **Plex trouble first**. Remembered (a per-viewer pref). Files with no estimate (errors,
+  already converted) go last under "biggest saving".
+- "Add to queue" keeps adding in the order shown.
+
 ## Ideas raised, not yet requested
 
 None at the moment.
