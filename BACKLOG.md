@@ -28,6 +28,16 @@ Library scan: a "Sort by" choice (2026-11-13). The list is already sorted by pre
   already converted) go last under "biggest saving".
 - "Add to queue" keeps adding in the order shown.
 
+Fix: added subtitle files are out of step in a 30-second test (2026-11-14; Lily C.A.T (1987).480p.mkv with its own
+.srt). The test is cut from the middle of the film (`cutSample`, `-ss start`), so its clock starts at 0, but the
+added SRT/ASS keeps the film's times: its subtitles fall long after the test ends, and none show. The full
+conversion is not affected.
+
+- In `runSample`, after cutting, move each added subtitle file by -start (on top of its own Offset), so the test
+  shows the same lines as the film at that point. Subtitles read by OCR are not affected (they come from the
+  sample itself).
+- Test: a test from 0:46:00 of a file with an added SRT shows the lines of 0:46:00–0:46:30 at 0:00–0:30.
+
 ## Ideas raised, not yet requested
 
 None at the moment.
