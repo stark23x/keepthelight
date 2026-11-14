@@ -23,6 +23,10 @@ which is not in the repository.
   does and why it matters; no jargon without a gloss. Follow the existing wording style (British spellings such
   as "licence" and "recognisable" are used throughout).
 - **Never** publish a GitHub release, delete the owner's files, or change files on PlexRaid without being asked.
+- **Model advice:** the owner asked to be told when a switch to a higher-tier model (such as Fable) would be worth
+  it. Say so in one line before starting a build that is large, spans many files, or is hard to reason about (new
+  video pipelines, colour or HDR handling, matching logic), or after a fix has failed twice. Do not suggest it for
+  routine builds, small fixes, backlog edits or questions.
 
 ## Decisions to keep (do not undo without asking)
 
