@@ -6,7 +6,16 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing at the moment.
+- **Dolby Vision profile 8.6 (and other HDR10-based compatibility ids)** (2026-11-15; Talk To Me (2023), "Talk To Me
+  2023 UHD 2160p DoVi HDR TrueHD 7.1 Atmos H.265.mkv" failed with "unsupported Dolby Vision profile 8 compatibility id
+  6"). Compatibility id 6 is the UHD Blu-ray form of an HDR10 base layer; 8.6 files usually come from a disc's 7.6
+  converted by a tool that kept the 6. `makePlan` (build.go) accepts only 8.1, 8.2 and 8.4.
+  - Treat profile 8 with compatibility id 6 like profile 7: HDR10 base layer, RPU converted with dovi_tool mode 2,
+    output as 8.1 (which every Dolby Vision player knows; some do not know 8.6). A note says so.
+  - Any other unknown compatibility id with a PQ (HDR10) base layer: the same. Unknown ids without a recognisable
+    base layer keep a clear error that suggests "Dolby Vision: Drop" or "Copy video untouched".
+  - Test with a profile 8.6 stand-in (a profile 8.1 sample with its config record's compatibility id changed), and
+    check the output is 8.1 with an RPU on every frame. Ask the owner to try Talk To Me (2023) afterwards.
 
 ## Ideas raised, not yet requested
 
