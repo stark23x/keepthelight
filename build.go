@@ -161,7 +161,7 @@ func makePlan(cfg *Config, p *Probe) (*Plan, error) {
 			switch p.DV.Compat {
 			case 4:
 				plan.Kind = "hlg"
-			case 1, 0:
+			case 1, 0, 6: // 6: the UHD Blu-ray form of an HDR10 base layer
 				plan.Kind = "hdr10"
 			}
 			if plan.Kind != "sdr" {
@@ -176,10 +176,19 @@ func makePlan(cfg *Config, p *Probe) (*Plan, error) {
 					warn("profile 7 enhancement layer is discarded; RPU is converted to profile 8.1 (same approach as most 'P7 to P8' tools)")
 				}
 			case 8:
-				if p.DV.Compat != 1 && p.DV.Compat != 2 && p.DV.Compat != 4 {
-					return nil, fmt.Errorf("unsupported Dolby Vision profile 8 compatibility id %d", p.DV.Compat)
+				switch {
+				case p.DV.Compat == 1 || p.DV.Compat == 2 || p.DV.Compat == 4:
+					plan.UseDV, plan.DVProfile = true, fmt.Sprintf("8.%d", p.DV.Compat)
+				case p.DV.Compat == 6 || plan.Kind == "hdr10":
+					// an HDR10 picture underneath, labelled another way (8.6: the UHD Blu-ray form, usually a disc's
+					// 7.6 converted by a tool that kept the 6): the data becomes the standard 8.1, as for profile 7
+					plan.UseDV, plan.DVProfile, plan.RPUMode = true, "8.1", 2
+					plan.Notes = append(plan.Notes, fmt.Sprintf("Dolby Vision profile 8.%d (an HDR10 picture underneath, labelled the UHD Blu-ray way): "+
+						"the Dolby Vision data becomes the standard profile 8.1, which every Dolby Vision player knows", p.DV.Compat))
+				default:
+					return nil, fmt.Errorf("Dolby Vision profile 8.%d is not one Keep the Light knows (its picture underneath is neither HDR10, SDR nor HLG). "+
+						"Choose \"Dolby Vision: Drop (plain HDR10)\" or \"Copy video untouched\"", p.DV.Compat)
 				}
-				plan.UseDV, plan.DVProfile = true, fmt.Sprintf("8.%d", p.DV.Compat)
 			default:
 				return nil, fmt.Errorf("Dolby Vision profile %d is not supported (supported: 7, 8.x; use -copy-video or -dv drop)", p.DV.Profile)
 			}

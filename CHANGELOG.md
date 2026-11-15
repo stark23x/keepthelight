@@ -18,6 +18,15 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.40.1 - 2026-11-15
+
+- **Fixed: "unsupported Dolby Vision profile 8 compatibility id 6".** Profile 8.6 files have an ordinary HDR10 picture
+  underneath, labelled the way UHD Blu-ray discs do it; they usually come from a disc's profile 7.6 converted by a
+  tool that kept the disc's label. Keep the Light now converts them like a disc's profile 7: the HDR10 picture is
+  encoded as usual and the Dolby Vision data becomes the standard profile 8.1, which every Dolby Vision player knows
+  (some do not know 8.6). The same goes for any other profile 8 label on an HDR10 picture; one Keep the Light cannot
+  make sense of now says so plainly and suggests "Dolby Vision: Drop" or "Copy video untouched".
+
 ## 1.40.0 - 2026-11-14
 
 - **Library scan: "Sort by".** The list could only be read biggest saving first (it still is, to begin with); now

@@ -467,6 +467,8 @@ command-line options when run from a command prompt, but its output appears afte
 - **HDR10+**: dynamic metadata extracted and re-injected (x265 only).
 - **Dolby Vision 8.x**: RPU extracted, base layer re-encoded, RPU injected, packaged with the DV config record.
 - **Dolby Vision 7**: converted to 8.1 (enhancement layer discarded).
+- **Dolby Vision 8.6** (an HDR10 picture labelled the UHD Blu-ray way, usually a disc's 7.6 converted by another tool):
+  converted to 8.1 the same way, since some players do not know 8.6.
 - **Resizing**: the picture is scaled in 10-bit with its colour space unchanged, so HDR10 / HDR10+ / HLG metadata
   stays valid as is. Dolby Vision's only size-dependent data, the active area (black-bar sizes, level 5), is
   scaled with the picture scene by scene using dovi_tool; everything else in the RPU is kept unchanged.
