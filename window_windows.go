@@ -19,6 +19,8 @@ import (
 	"time"
 	"unsafe"
 
+	"golang.org/x/sys/windows/registry"
+
 	webview2 "github.com/jchv/go-webview2"
 	"github.com/jchv/go-webview2/webviewloader"
 )
@@ -117,6 +119,9 @@ func runWindow(g *guiServer) error {
 	dialogParent.Store(hwnd)
 	g.notify = func(msg string) { messageBox(hwnd, msg, true) }
 	g.ask = func(msg string) bool { return askYesNo(hwnd, msg) }
+	g.titleBar = func(dark bool) { darkTitleBar(hwnd, dark) }
+	// the title bar's colour before the page has said so
+	darkTitleBar(hwnd, g.startsDark())
 	g.raise = func() { // another start of Keep the Light: come to the front and fetch its files now
 		w.Dispatch(func() {
 			if iconic, _, _ := procIsIconic.Call(hwnd); iconic != 0 {
@@ -350,4 +355,40 @@ func startBrowserFallback(initial []string, reason string) {
 		}
 	}
 	messageBox(0, "The Keep the Light window could not be opened ("+reason+").\n\nTry starting it with:  \"Keep the Light.exe\" -server", true)
+}
+
+var procDwmSetWindowAttribute = syscall.NewLazyDLL("dwmapi.dll").NewProc("DwmSetWindowAttribute")
+
+// darkTitleBar makes the window's title bar dark or light (Windows 10 2004+ and 11:
+// DWMWA_USE_IMMERSIVE_DARK_MODE is 20; earlier Windows 10 builds used 19).
+func darkTitleBar(hwnd uintptr, dark bool) {
+	if procDwmSetWindowAttribute.Find() != nil {
+		return
+	}
+	v := int32(0)
+	if dark {
+		v = 1
+	}
+	if r, _, _ := procDwmSetWindowAttribute.Call(hwnd, 20, uintptr(unsafe.Pointer(&v)), 4); r != 0 {
+		_, _, _ = procDwmSetWindowAttribute.Call(hwnd, 19, uintptr(unsafe.Pointer(&v)), 4)
+	}
+}
+
+// startsDark: the Appearance setting, with System read from Windows' own choice for apps.
+func (g *guiServer) startsDark() bool {
+	var theme string
+	_ = json.Unmarshal(g.loadPrefs()["theme"], &theme)
+	switch theme {
+	case "dark":
+		return true
+	case "light":
+		return false
+	}
+	k, err := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`, registry.QUERY_VALUE)
+	if err != nil {
+		return true
+	}
+	defer k.Close()
+	light, _, err := k.GetIntegerValue("AppsUseLightTheme")
+	return err != nil || light == 0
 }

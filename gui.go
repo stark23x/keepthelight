@@ -70,6 +70,7 @@ type guiServer struct {
 	job      *job
 	notify   func(msg string)      // shows a message from the page (window mode)
 	ask      func(msg string) bool // asks a yes/no question (window mode)
+	titleBar func(dark bool)       // the window's title bar, light or dark (window mode; Appearance)
 	now      func() time.Time      // clock for the time estimate (nil = time.Now)
 
 	q          batch    // the queue; guarded by mu
@@ -1139,6 +1140,13 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 			res["batchOutMissing"] = missing
 		}
 		return res
+	case "titleBar":
+		var b struct{ Dark bool }
+		_ = json.Unmarshal(body, &b)
+		if g.titleBar != nil {
+			g.titleBar(b.Dark)
+		}
+		return okResult()
 	case "setPref":
 		var pr struct {
 			Name  string

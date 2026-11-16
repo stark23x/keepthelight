@@ -18,6 +18,17 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.41.0 - 2026-11-16
+
+- **Appearance: Light, Dark or System, and an accent colour.** In ⚙ Settings → Window:
+  - **System** (the start) follows Windows' own light or dark setting, and changes when Windows does; **Dark** is
+    Keep the Light's usual look; **Light** is a light grey background with white cards.
+  - **Accent colour:** Blue (as before), Teal, Purple, Pink or Red, for buttons, the chosen tab, links and
+    highlights. Each is a shade that stays easy to read on both backgrounds.
+  - Warnings, errors and the "all good" ticks keep their own colours whatever the accent, so they always mean the
+    same thing. The window's title bar turns light or dark with the rest.
+  - Changes show at once and are remembered for this PC (they are not part of profiles).
+
 ## 1.40.1 - 2026-11-15
 
 - **Fixed: "unsupported Dolby Vision profile 8 compatibility id 6".** Profile 8.6 files have an ordinary HDR10 picture

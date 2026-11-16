@@ -43,7 +43,8 @@ which is not in the repository.
 - **Space saved:** shown per file and per run, plus one running total (no history).
 - **Layout:** Convert / Queue / Library scan / Plex names tabs, Start bar always at the bottom (at every window width), PC
   settings in the ⚙ Settings dialog. Wide windows: the Convert tab in two columns (owner chose this over one wide
-  column); narrow windows: one column. Text size zooms the whole page.
+  column); narrow windows: one column. Text size zooms the whole page. Appearance: System / Dark / Light and five
+  accents (Blue, Teal, Purple, Pink, Red; the owner dropped Green and Orange); every colour is a CSS variable.
 - **TMDB:** English is the default language (a setting). The key lives in Windows Credential Manager. TVmaze is only a
   second opinion on episode numbers (no key; CC BY-SA, credited in About); TVDB is not used (paid / per-user PIN).
 - **Plex-style names** are optional and never applied without being shown first. The Plex names tab renames

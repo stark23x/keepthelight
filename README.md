@@ -241,6 +241,9 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   width. **Text size** (⚙ Settings → Window, 90%–150%) makes everything bigger or smaller on top of Windows' own
   display scaling, so the window looks right on a 1080p or a 4K screen; Ctrl +, Ctrl − and Ctrl + mouse wheel do the
   same, and Ctrl 0 goes back to 100%. The window opens where it was last time, at the same size (or maximised).
+  **Appearance** (⚙ Settings → Window): **System** (follows Windows' own light or dark setting), **Dark** or
+  **Light**, and an **accent colour** (Blue, Teal, Purple, Pink or Red) for buttons, the chosen tab and links. The
+  window's title bar follows. Warnings and errors keep their own colours whatever the accent.
   What the input file is (its name, HDR10, Dolby Vision, resolution, "HEVC 10-bit") shows right under it, with a
   short **Checks** list: problems first (⚠), then what is fine (✓; more of them open with a click). Hints that only
   explain a setting open from a small **?** next to its label. With no file chosen, a large box shows how to start.
