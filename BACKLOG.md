@@ -8,12 +8,18 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 - **Themes: Light / Dark / System, and an accent colour** (2026-11-16).
   - In ⚙ Settings, under "Window" (beside Text size): **Appearance** System (follows Windows; the default) / Dark
-    (as now) / Light, and **Accent colour** as swatches: Blue (as now), Teal, Green, Purple, Pink, Orange. Changes
+    (as now) / Light, and **Accent colour** as swatches: Blue (as now), Teal, Purple, Pink, Red (the owner dropped Green and Orange,
+    too close to the "all good" and warning colours, and added Red; mockups approved 2026-11-16). Changes
     show at once and are remembered (a PC setting, not in profiles).
   - The page already uses colour variables for most things (`--bg`, `--panel`, `--text`, `--accent`…), but about 30
     colours are written in directly (badges, notes, warnings, the queue's states, the Plex names tab); turn those into
     variables too, then define a light set and an accent set. Status colours (ok / warning / error) stay
     recognisable in every theme and do not follow the accent.
+  - Shades from the mockups (dark: text accent / button; light: both): Blue #5b9dff/#2f6fd0, #1f63c4; Teal #3fd0cf/#16807f,
+    #0d7377; Purple #b38dff/#6d45d6, #6a3fd0; Pink #ff7ab6/#b8336f, #b8306c; Red #ff7a85/#c22f42, #b02338. Light set:
+    bg #f3f4f6, panel #fff, panel2 #eef0f3, line #d3d8e0, text #1b1f27, muted #566070, ok #1e8150, warn #8f5c00,
+    bad #c42b2b, with pale badge/note backgrounds as in the mockup. With Red, error messages keep their own red and
+    their ⚠/✕ marks, so they still stand out from the accent.
   - Every accent must stay readable on both backgrounds (text and buttons at least 4.5:1 contrast); adjust the shade
     per theme where needed.
   - System follows Windows' light/dark choice live (`prefers-color-scheme`), and the window's title bar follows
