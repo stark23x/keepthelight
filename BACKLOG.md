@@ -6,7 +6,20 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing at the moment.
+- **Themes: Light / Dark / System, and an accent colour** (2026-11-16).
+  - In ⚙ Settings, under "Window" (beside Text size): **Appearance** System (follows Windows; the default) / Dark
+    (as now) / Light, and **Accent colour** as swatches: Blue (as now), Teal, Green, Purple, Pink, Orange. Changes
+    show at once and are remembered (a PC setting, not in profiles).
+  - The page already uses colour variables for most things (`--bg`, `--panel`, `--text`, `--accent`…), but about 30
+    colours are written in directly (badges, notes, warnings, the queue's states, the Plex names tab); turn those into
+    variables too, then define a light set and an accent set. Status colours (ok / warning / error) stay
+    recognisable in every theme and do not follow the accent.
+  - Every accent must stay readable on both backgrounds (text and buttons at least 4.5:1 contrast); adjust the shade
+    per theme where needed.
+  - System follows Windows' light/dark choice live (`prefers-color-scheme`), and the window's title bar follows
+    the theme (DWM immersive dark mode on Windows 10/11).
+  - Check every tab, dialog and popup in both themes in the window (screenshots), including the About box and
+    the profile cards.
 
 ## Ideas raised, not yet requested
 
