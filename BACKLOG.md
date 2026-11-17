@@ -13,7 +13,10 @@ next build". Shipped features move to "Done" with their version number. Nothing 
   paired with an unmarked video of the same length (within 2 s); the name match stays as the first choice. When
   a folder has two unmarked videos of the same length, leave it alone and list it as "not sure which is the
   original". Also: when nothing is found, say how many folders were looked through and that "Include subfolders"
-  must be ticked for a whole library (it may have been off). Confirm against the real file names first.
+  must be ticked for a whole library (it may have been off). Confirmed with the real names: original
+  `The.Mandela.Effect.2019.1080p.AMZN.WEB-DL.DDP5.1.H.264-NTG.mkv`, copy
+  `The Mandela Effect (2019).1080p.HEVC.{tmdb-491037}.mkv` (Plex-style name, no `_KTL` ending): name matching can
+  never pair these. Test with exactly these names.
 
 ## Ideas raised, not yet requested
 
