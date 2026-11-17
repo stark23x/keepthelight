@@ -3129,7 +3129,8 @@ function renderTidy(r) {
   const ok = tidyPairs.filter(p => p.ok);
   $('tidyState').textContent = r.running ? 'Looking… ' + r.looked + (r.looked === 1 ? ' folder' : ' folders') + ', ' + tidyPairs.length + ' found so far'
     : r.dir ? (tidyPairs.length ? ok.length + ' of ' + tidyPairs.length + (tidyPairs.length === 1 ? ' original has' : ' originals have') + ' a checked copy  ·  ' + r.regain + ' to regain'
-      : 'No original with a converted copy next to it was found.') : '';
+      : 'No original with a converted copy next to it was found in ' + r.looked + (r.looked === 1 ? ' folder.' : ' folders.') +
+        (r.looked === 1 && !$('scanSub').checked ? ' Tick “Include subfolders” to look inside each film\'s folder.' : '')) : '';
   $('sumTidy').textContent = !r.running && ok.length ? r.regain + ' to regain' : '';
   $('tidyUndo').classList.toggle('hidden', !r.undo);
   $('tidyActions').classList.toggle('hidden', !ok.length);

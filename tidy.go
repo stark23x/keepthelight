@@ -14,8 +14,10 @@ import (
 
 // ---------- tidying up originals after converting ----------
 //
-// A conversion leaves the original next to its new copy ("Film.mkv" and
-// "Film_KTL.mkv"). Tidying up lists those pairs, checks each copy (it has a
+// A conversion leaves the original next to its new copy. A pair is found by
+// name ("Film.mkv" and "Film_KTL.mkv") or, whatever the names, by content: a
+// video carrying Keep the Light's mark next to one unmarked video of the same
+// length (a copy given a Plex-style name, say). Tidying up lists those pairs, checks each copy (it has a
 // picture, it has sound if the original has, it is as long as the original)
 // and, when you say so, moves the originals to the Recycle Bin. On a drive
 // without a Recycle Bin (a network drive) the original is renamed
@@ -83,6 +85,87 @@ func tidyPairsIn(dir string, names []string, tag string) [][2]string {
 	return pairs
 }
 
+// tidyFound is a pair found in one folder; Unsure: more than one file could be
+// the original (the names, for the list), so the copy is left alone.
+type tidyFound struct {
+	Original, Copy string
+	Unsure         []string
+}
+
+// tidyVideo is what the content match needs to know about one video.
+type tidyVideo struct {
+	Name     string
+	Marked   bool // carries Keep the Light's mark
+	Duration float64
+}
+
+// sameLength: within 2 s, or 0.2% for very long files (as tidyCheck).
+func sameLength(a, b float64) bool {
+	return a > 0 && b > 0 && math.Abs(a-b) <= math.Max(2, a*0.002)
+}
+
+// setAside: names that are not originals to tidy (already set aside, or test clips).
+func setAside(name string) bool {
+	n := strings.ToLower(name)
+	return strings.Contains(n, " (original") || strings.Contains(n, " test).") || strings.Contains(n, "(original clip)")
+}
+
+func episodeCode(name string) string {
+	m := reEpisode.FindStringSubmatch(name)
+	switch {
+	case m == nil:
+		return ""
+	case m[1] != "":
+		return strings.TrimLeft(m[1], "0") + "x" + strings.TrimLeft(m[2], "0")
+	}
+	return strings.TrimLeft(m[4], "0") + "x" + strings.TrimLeft(m[5], "0")
+}
+
+// tidyByMark pairs, whatever their names, each marked video with the one
+// unmarked video of the same length. Several of the same length (episodes of
+// a season, say): the one with the same episode number, else none.
+func tidyByMark(dir string, vids []tidyVideo) []tidyFound {
+	var res []tidyFound
+	used := map[string]bool{}
+	for _, c := range vids {
+		if !c.Marked {
+			continue
+		}
+		var cands []tidyVideo
+		for _, o := range vids {
+			if !o.Marked && !used[o.Name] && !setAside(o.Name) && sameLength(o.Duration, c.Duration) {
+				cands = append(cands, o)
+			}
+		}
+		if len(cands) > 1 {
+			if code := episodeCode(c.Name); code != "" {
+				var same []tidyVideo
+				for _, o := range cands {
+					if episodeCode(o.Name) == code {
+						same = append(same, o)
+					}
+				}
+				if len(same) == 1 {
+					cands = same
+				}
+			}
+		}
+		switch len(cands) {
+		case 0:
+		case 1:
+			used[cands[0].Name] = true
+			res = append(res, tidyFound{Original: filepath.Join(dir, cands[0].Name), Copy: filepath.Join(dir, c.Name)})
+		default:
+			f := tidyFound{Copy: filepath.Join(dir, c.Name)}
+			for _, o := range cands {
+				f.Unsure = append(f.Unsure, o.Name)
+			}
+			res = append(res, f)
+		}
+	}
+	return res
+}
+
 // tidyCheck: is the copy a whole, playable version of the original?
 func tidyCheck(ctx context.Context, ffprobe, original, cp string) error {
 	a, err := probeFile(ctx, ffprobe, original)
@@ -136,7 +219,7 @@ func (g *guiServer) tidyFind(dir string, recursive bool, tag string) map[string]
 	t.mu.Unlock()
 
 	go func() {
-		var found [][2]string
+		var found []tidyFound
 		look := func(d string) {
 			ents, err := os.ReadDir(d)
 			if err != nil {
@@ -148,7 +231,29 @@ func (g *guiServer) tidyFind(dir string, recursive bool, tag string) map[string]
 					names = append(names, e.Name())
 				}
 			}
-			found = append(found, tidyPairsIn(d, names, tag)...)
+			paired := map[string]bool{}
+			for _, p := range tidyPairsIn(d, names, tag) { // by name first
+				found = append(found, tidyFound{Original: p[0], Copy: p[1]})
+				paired[filepath.Base(p[0])], paired[filepath.Base(p[1])] = true, true
+			}
+			var rest []string // then by content, among the videos left
+			for _, n := range names {
+				if videoExts[strings.ToLower(filepath.Ext(n))] && !paired[n] {
+					rest = append(rest, n)
+				}
+			}
+			if len(rest) >= 2 {
+				var vids []tidyVideo
+				for _, n := range rest {
+					if ctx.Err() != nil {
+						return
+					}
+					if pr, err := probeFile(ctx, ffprobe, filepath.Join(d, n)); err == nil {
+						vids = append(vids, tidyVideo{Name: n, Marked: pr.Converted != "", Duration: pr.Duration})
+					}
+				}
+				found = append(found, tidyByMark(d, vids)...)
+			}
 			t.mu.Lock()
 			t.looked++
 			t.mu.Unlock()
@@ -170,17 +275,25 @@ func (g *guiServer) tidyFind(dir string, recursive bool, tag string) map[string]
 			if ctx.Err() != nil {
 				break
 			}
-			p := tidyPair{Original: f[0], Copy: f[1], Name: filepath.Base(f[0]), CopyName: filepath.Base(f[1]), Bin: hasRecycleBin(f[0])}
-			if rel, err := filepath.Rel(dir, filepath.Dir(f[0])); err == nil && rel != "." {
+			p := tidyPair{Original: f.Original, Copy: f.Copy, Name: filepath.Base(f.Original), CopyName: filepath.Base(f.Copy), Bin: hasRecycleBin(f.Copy)}
+			if rel, err := filepath.Rel(dir, filepath.Dir(f.Copy)); err == nil && rel != "." {
 				p.Folder = rel
 			}
-			if st, err := os.Stat(f[0]); err == nil {
-				p.OrigSize = st.Size()
-			}
-			if st, err := os.Stat(f[1]); err == nil {
+			if st, err := os.Stat(f.Copy); err == nil {
 				p.CopySize = st.Size()
 			}
-			if err := tidyCheck(ctx, ffprobe, f[0], f[1]); err != nil {
+			if len(f.Unsure) > 0 {
+				p.Name = strings.Join(f.Unsure, " or ")
+				p.Why = "Not sure which file is the original (" + fmt.Sprint(len(f.Unsure)) + " are the same length as the copy)"
+				t.mu.Lock()
+				t.pairs = append(t.pairs, p)
+				t.mu.Unlock()
+				continue
+			}
+			if st, err := os.Stat(f.Original); err == nil {
+				p.OrigSize = st.Size()
+			}
+			if err := tidyCheck(ctx, ffprobe, f.Original, f.Copy); err != nil {
 				if ctx.Err() != nil {
 					break
 				}

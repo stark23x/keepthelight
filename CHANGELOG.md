@@ -18,6 +18,18 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.43.1 - 2026-11-17
+
+- Fixed: **Tidy up originals** found nothing when the converted copy had a different name from the original (a
+  Plex-style name such as "The Mandela Effect (2019).1080p.HEVC.{tmdb-491037}.mkv" next to
+  "The.Mandela.Effect.2019.1080p.AMZN.WEB-DL…mkv"), which is most of a Plex library. Pairs are now also found by
+  what is in the files: a video Keep the Light converted (it marks every file it makes) is paired with the one
+  other video in its folder that has the same length, whatever the names. In a season folder, where episodes can
+  be the same length, the episode number decides. When two files could be the original, the copy is listed as
+  "not sure" and left alone.
+- When nothing is found, the message now says how many folders were looked through, and to tick "Include
+  subfolders" when only one was.
+
 ## 1.43.0 - 2026-11-17
 
 - **Keep this PC awake while converting** (⚙ Settings → While converting, on to begin with). The PC stays awake

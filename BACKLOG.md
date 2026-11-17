@@ -6,17 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **Fix: Tidy up originals finds nothing** (owner: `Y:\Movies\The Mandela Effect (2019)` holds the original and
-  the re-encode, but Tidy does nothing). 1.42.0 pairs files only by name (`Film.mkv` + `Film_KTL.mkv` with the
-  current ending), so a copy with a Plex-style name, a profile's ending or a renamed original is never found.
-  Pair by content instead: in each folder, a video carrying Keep the Light's mark (`KEEP_THE_LIGHT` tag) is
-  paired with an unmarked video of the same length (within 2 s); the name match stays as the first choice. When
-  a folder has two unmarked videos of the same length, leave it alone and list it as "not sure which is the
-  original". Also: when nothing is found, say how many folders were looked through and that "Include subfolders"
-  must be ticked for a whole library (it may have been off). Confirmed with the real names: original
-  `The.Mandela.Effect.2019.1080p.AMZN.WEB-DL.DDP5.1.H.264-NTG.mkv`, copy
-  `The Mandela Effect (2019).1080p.HEVC.{tmdb-491037}.mkv` (Plex-style name, no `_KTL` ending): name matching can
-  never pair these. Test with exactly these names.
+Nothing at the moment.
 
 ## Ideas raised, not yet requested
 
@@ -24,6 +14,7 @@ None at the moment.
 
 ## Done
 
+- 1.43.1: Tidy up originals pairs files by Keep the Light's mark and length when the names differ (Plex-style names); episode number decides in season folders; "not sure" pairs left alone; clearer "nothing found" message.
 - 1.43.0: Keep this PC awake for the whole queue run (network copies, gaps, Plex), released while paused; "and keep the screen on", on to begin with on Modern Standby PCs such as the laptop.
 - 1.42.0: Aim for quality (VMAF search per film) and "Find the right setting" advice (Convert tab and Library scan); Tidy up originals (Recycle Bin, or "(original)" with undo); optional thorough check of new files (a PC setting); a report after every queue run; Plex told after Rename now and Undo.
 - 1.41.0: Appearance: System / Dark / Light and accent colours (Blue, Teal, Purple, Pink, Red); every page colour a variable; title bar follows (DWM).

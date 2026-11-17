@@ -147,7 +147,7 @@ quality.
 - **Thorough check (optional).** A setting that reads each new file through once: every frame decodes, picture and
   sound run to the end, the length matches the original, and Dolby Vision data is there for every frame.
 - **Tidy up originals.** After converting, the Library scan tab finds originals that have a checked copy next to
-  them and moves them to the Recycle Bin (on a network drive they are renamed "(original)" instead, with Undo).
+  them (matched by name, or by Keep the Light's mark and the same length when the names differ) and moves them to the Recycle Bin (on a network drive they are renamed "(original)" instead, with Undo).
   Nothing is deleted outright.
 - **Tells Plex** when new files are ready or renamed, so they appear straight away (set up once with your Plex server and token).
 - **Marks converted files,** so you are warned before converting a file twice, and the Library scan shows what is done.
