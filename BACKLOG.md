@@ -6,23 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **Keep the PC awake while a job runs (a setting in ⚙ Settings).** The owner's PC goes to sleep during jobs.
-  Each job already asks Windows not to sleep, but only once the conversion itself starts (`preventSleep` in
-  `transcode()`), so it does not cover: copying a network file to this PC first (Work locally), probing and the
-  quality search before that point, the gaps between files in the queue, copying the result back, the Plex
-  rescan and the report. Plan:
-  - Hold the request in the window for the whole queue run, from Start until the run (and its Plex rescan) ends;
-    release it while paused, and before "Sleep / Shut down when finished".
-  - A setting, on by default: **Keep this PC awake while converting**, with a second choice **and keep the
-    screen on**. Laptops with "Modern Standby" go to sleep when the screen turns off whatever a program asks, so
-    there only keeping the screen on works (say so in the hint). Use `ES_CONTINUOUS | ES_SYSTEM_REQUIRED`
-    (plus `ES_DISPLAY_REQUIRED` for the screen).
-  - It is mainly the laptop (the Dell runs 24/7). Confirmed: the laptop has Modern Standby only (`powercfg /a`:
-    "Standby (S0 Low Power Idle) Network Connected"; S3 not available). In Modern Standby Windows freezes desktop
-    programs, so the conversion stops when the screen turns off. Detect Modern Standby
-    (`CallNtPowerInformation(SystemPowerCapabilities)`, the AoAc flag) and turn "keep the screen on" on by default
-    there; off on PCs with ordinary sleep (the Dell). Check with `powercfg /requests` while a job runs; closing the lid or pressing the
-    power button still sleeps (Windows does not let a program stop that); say so in the hint.
+Nothing at the moment.
 
 ## Ideas raised, not yet requested
 
@@ -30,6 +14,7 @@ None at the moment.
 
 ## Done
 
+- 1.43.0: Keep this PC awake for the whole queue run (network copies, gaps, Plex), released while paused; "and keep the screen on", on to begin with on Modern Standby PCs such as the laptop.
 - 1.42.0: Aim for quality (VMAF search per film) and "Find the right setting" advice (Convert tab and Library scan); Tidy up originals (Recycle Bin, or "(original)" with undo); optional thorough check of new files (a PC setting); a report after every queue run; Plex told after Rename now and Undo.
 - 1.41.0: Appearance: System / Dark / Light and accent colours (Blue, Teal, Purple, Pink, Red); every page colour a variable; title bar follows (DWM).
 - 1.40.1: Dolby Vision profile 8.6 (and other profile 8 labels on an HDR10 picture) converted to 8.1 with dovi_tool mode 2; a clear message for labels that cannot be handled.

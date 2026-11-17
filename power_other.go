@@ -9,3 +9,7 @@ func preventSleep() (release func()) { return func() {} }
 func powerAction(action string) error {
 	return errors.New("sleep and shut down are only available on Windows")
 }
+
+func holdAwakeOS(screen bool) (release func(), err error) { return func() {}, nil }
+
+func modernStandby() bool { return false }

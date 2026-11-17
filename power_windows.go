@@ -82,3 +82,64 @@ func enableShutdownPrivilege() error {
 	tp.Privileges[0] = windows.LUIDAndAttributes{Luid: luid, Attributes: windows.SE_PRIVILEGE_ENABLED}
 	return windows.AdjustTokenPrivileges(tok, false, &tp, uint32(unsafe.Sizeof(tp)), nil, nil)
 }
+
+// ---- keeping the PC awake for a whole queue run ----
+
+var (
+	procPowerCreateRequest     = kernel32.NewProc("PowerCreateRequest")
+	procPowerSetRequest        = kernel32.NewProc("PowerSetRequest")
+	procCallNtPowerInformation = powrprof.NewProc("CallNtPowerInformation")
+)
+
+// Windows' kinds of power request.
+const (
+	powerRequestDisplayRequired   = 0
+	powerRequestSystemRequired    = 1
+	powerRequestExecutionRequired = 3
+)
+
+// reasonContext is Windows' REASON_CONTEXT with a plain reason (it shows in
+// "powercfg /requests"). The union after Flags is 24 bytes in its larger form.
+type reasonContext struct {
+	Version uint32
+	Flags   uint32
+	Reason  *uint16
+	_       [2]uintptr
+}
+
+// holdAwakeOS asks Windows to keep the PC awake (and the screen on, when
+// screen is true) until release is called. Unlike preventSleep it is held by
+// a handle, not by a thread, so it lasts for the whole queue run.
+func holdAwakeOS(screen bool) (release func(), err error) {
+	reason, _ := windows.UTF16PtrFromString("Keep the Light is converting")
+	ctx := reasonContext{Version: 0, Flags: 1 /* POWER_REQUEST_CONTEXT_SIMPLE_STRING */, Reason: reason}
+	h, _, e := procPowerCreateRequest.Call(uintptr(unsafe.Pointer(&ctx)))
+	if windows.Handle(h) == windows.InvalidHandle || h == 0 {
+		return nil, e
+	}
+	kinds := []uintptr{powerRequestSystemRequired, powerRequestExecutionRequired}
+	if screen {
+		kinds = append(kinds, powerRequestDisplayRequired)
+	}
+	set := 0
+	for _, k := range kinds {
+		if r, _, _ := procPowerSetRequest.Call(h, k); r != 0 {
+			set++
+		}
+	}
+	if set == 0 {
+		_ = windows.CloseHandle(windows.Handle(h))
+		return nil, errors.New("Windows did not take the request")
+	}
+	// Closing the handle ends every request made with it.
+	return func() { _ = windows.CloseHandle(windows.Handle(h)) }, nil
+}
+
+// modernStandby: the PC uses Modern Standby ("S0 Low Power Idle"), where
+// Windows freezes desktop programs when the screen turns off. Only keeping the
+// screen on keeps a conversion going there.
+func modernStandby() bool {
+	var caps [76]byte // SYSTEM_POWER_CAPABILITIES
+	r, _, _ := procCallNtPowerInformation.Call(4 /* SystemPowerCapabilities */, 0, 0, uintptr(unsafe.Pointer(&caps[0])), uintptr(len(caps)))
+	return r == 0 && caps[20] != 0 // AoAc ("always on, always connected")
+}

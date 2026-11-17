@@ -974,6 +974,11 @@
     </div>
       <label class="check" style="margin-top:12px"><input type="checkbox" id="lowPrio"> <span><b>Low priority</b> – other programs come first, so the PC
         stays responsive; still full speed when the PC is idle. Takes effect at once.</span></label>
+      <label class="check" style="margin-top:10px"><input type="checkbox" id="keepAwake"> <span><b>Keep this PC awake while converting</b> – from
+        Start until the whole queue is done, including copying files over the network and telling Plex. Pausing lets it sleep again.</span></label>
+      <label class="check" style="margin:6px 0 0 26px"><input type="checkbox" id="keepScreen"> <span><b>and keep the screen on</b> – needed on
+        laptops with “Modern Standby”, which stop programs when the screen goes dark. <span id="msNote"></span> Turn the brightness down if
+        you like: it only has to stay on. Closing the lid or pressing the power button still puts the PC to sleep.</span></label>
       <label class="check" style="margin-top:10px"><input type="checkbox" id="hwDec"> <span><b>Decode on the GPU</b> – the graphics chip reads the
         source, so the CPU only encodes. Speeds up x265, most with 4K. Files the GPU cannot decode use the CPU as before.</span></label>
       <label class="check" style="margin-top:10px"><input type="checkbox" id="deepCheck"> <span><b>Thorough check of every new file</b> – reads the
@@ -2091,6 +2096,10 @@ async function restorePrefs() {
   $('findSubs').checked = r.prefs.findSubs !== false;
   $('hwDec').checked = r.prefs.hwDecode === true;
   $('deepCheck').checked = r.prefs.deepCheck === true;
+  $('keepAwake').checked = r.keepAwake !== false;
+  $('keepScreen').checked = !!r.keepScreen;
+  $('keepScreen').disabled = !$('keepAwake').checked;
+  $('msNote').textContent = r.modernStandby ? 'This PC has it, so this is on to begin with.' : 'This PC does not, so it is off to begin with.';
   $('workLocal').checked = r.prefs.workLocal === true;
   if (typeof r.prefs.nameTag === 'string') $('nameTag').value = r.prefs.nameTag;
   $('nameTag').dataset.own = $('nameTag').value;
@@ -2303,6 +2312,12 @@ $('lowPrio').addEventListener('change', () => { api('priority', { low: $('lowPri
 // GPU decoding is remembered too, and applies to every file from the next one on.
 $('hwDec').addEventListener('change', () => { api('hwdecode', { on: $('hwDec').checked }); updateSummaries(); });
 $('deepCheck').addEventListener('change', () => { api('deepcheck', { on: $('deepCheck').checked }); });
+function sendAwake() {
+  $('keepScreen').disabled = !$('keepAwake').checked;
+  api('keepawake', { on: $('keepAwake').checked, screen: $('keepScreen').checked });
+}
+$('keepAwake').addEventListener('change', sendAwake);
+$('keepScreen').addEventListener('change', sendAwake);
 $('aimSel').addEventListener('change', () => { updateVisibility(); updateSummaries(); profileUI(); if ($('aimSel').value === 'other') $('aimNum').focus(); });
 $('aimNum').addEventListener('input', () => { updateSummaries(); profileUI(); });
 $('workLocal').addEventListener('change', () => { api('worklocal', { on: $('workLocal').checked }); updateSummaries(); });

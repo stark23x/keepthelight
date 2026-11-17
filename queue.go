@@ -861,7 +861,11 @@ func (g *guiServer) startQueue() error {
 			it.inRun = false
 		}
 	}
-	go g.runQueue()
+	go func() {
+		g.syncAwake()
+		g.runQueue()
+		g.syncAwake()
+	}()
 	return nil
 }
 
@@ -1035,7 +1039,16 @@ func (g *guiServer) runQueue() {
 		}
 	}
 	if len(ready) > 0 && !closing {
+		g.mu.Lock()
+		g.awakeExtra++ // awake until Plex has been told
+		g.mu.Unlock()
 		go func() { // tell Plex, so the files show up now (never an error for the conversions)
+			defer func() {
+				g.mu.Lock()
+				g.awakeExtra--
+				g.mu.Unlock()
+				g.syncAwake()
+			}()
 			if note := g.plexRefresh(context.Background(), ready); note != "" {
 				g.mu.Lock()
 				g.q.notice, g.q.noticeSeq = note, g.q.noticeSeq+1
@@ -1095,7 +1108,8 @@ func (g *guiServer) launchJob(cfg *Config, duration float64) (*job, error) {
 	g.mu.Lock()
 	run.LowPriority, run.HWDecode = g.lowPrio, g.hwDec
 	run.DeepCheck = g.deepCheck && !run.QualityAdvice
-	if g.workLocal { // the temp folder, if it is on this PC; else Windows' own temp folder
+	run.AllowSleep = !g.keepAwake // the window holds the request for the whole run; off means off
+	if g.workLocal {              // the temp folder, if it is on this PC; else Windows' own temp folder
 		run.WorkLocal = os.TempDir()
 		if run.Tmp != "" && !isNetworkPath(run.Tmp) {
 			run.WorkLocal = run.Tmp
@@ -1449,6 +1463,18 @@ func (g *guiServer) restoreQueue() {
 		g.savedTotal = total
 		g.mu.Unlock()
 	}
+	// keeping the PC awake: on to begin with; the screen too on PCs with Modern Standby
+	ms := modernStandby()
+	awake, screen := true, ms
+	if b, ok := g.loadPrefs()["keepAwake"]; ok {
+		_ = json.Unmarshal(b, &awake)
+	}
+	if b, ok := g.loadPrefs()["keepScreen"]; ok {
+		_ = json.Unmarshal(b, &screen)
+	}
+	g.mu.Lock()
+	g.keepAwake, g.keepScreen, g.modernStandby = awake, screen, ms
+	g.mu.Unlock()
 	var hw bool
 	if b, ok := g.loadPrefs()["hwDecode"]; ok && json.Unmarshal(b, &hw) == nil {
 		g.mu.Lock()

@@ -110,6 +110,8 @@ Choosing tracks (numbers as the window shows them: audio 1, 2, ...; subtitles 1,
                        converted there, and the result copied back
   -hw-decode           decode the source on the GPU, so the CPU only encodes (falls back to
                        the CPU if the GPU cannot decode the file)
+  -allow-sleep         let the PC go to sleep during the job (normally it is kept awake while it
+                       converts)
   -copy-video          do not re-encode video at all (keeps any HDR/DV exactly)
   -metadata-only       copy every kept stream unchanged and change only the metadata (a new
                        file is written: FFmpeg cannot change a file in place)
@@ -206,6 +208,7 @@ func parseArgs() (*Config, bool) {
 	fs.BoolVar(&cfg.Sound, "sound", false, "")
 	fs.BoolVar(&cfg.LowPriority, "low-priority", false, "")
 	fs.BoolVar(&cfg.HWDecode, "hw-decode", false, "")
+	fs.BoolVar(&cfg.AllowSleep, "allow-sleep", false, "")
 	fs.StringVar(&cfg.WorkLocal, "work-local", "", "")
 	fs.StringVar(&cfg.Scale, "scale", "", "")
 	fs.StringVar(&cfg.Denoise, "denoise", "", "")
@@ -708,7 +711,7 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 	} else if cfg.Denoise != "" && !cfg.CopyVideo {
 		fmt.Println("Noise reduction:", denoiseNames[cfg.Denoise])
 	}
-	if !cfg.DryRun {
+	if !cfg.DryRun && !cfg.AllowSleep {
 		defer preventSleep()() // a long encode must not be stopped by the PC going to sleep
 	}
 	markOK := func() {}

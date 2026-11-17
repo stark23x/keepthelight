@@ -73,11 +73,15 @@ type guiServer struct {
 	titleBar func(dark bool)       // the window's title bar, light or dark (window mode; Appearance)
 	now      func() time.Time      // clock for the time estimate (nil = time.Now)
 
-	q          batch    // the queue; guarded by mu
-	closing    bool     // the window is closing
-	lowPrio    bool     // run transcodes at low priority (a remembered setting)
-	hwDec      bool     // decode on the GPU (a remembered setting, used from the next file on)
-	deepCheck  bool     // read every new file through once (a remembered setting, off to begin with)
+	q             batch // the queue; guarded by mu
+	closing       bool  // the window is closing
+	lowPrio       bool  // run transcodes at low priority (a remembered setting)
+	hwDec         bool  // decode on the GPU (a remembered setting, used from the next file on)
+	deepCheck     bool  // read every new file through once (a remembered setting, off to begin with)
+	keepAwake     bool  // keep the PC awake while the queue runs (a remembered setting, on to begin with)
+	keepScreen    bool  // and the screen on (on to begin with on PCs with Modern Standby)
+	modernStandby bool  // this PC freezes programs when its screen turns off
+	awakeState
 	workLocal  bool     // copy network files to this PC to convert them (a remembered setting)
 	savedTotal int64    // space saved by Keep the Light so far, on this PC (bytes)
 	inbox      []string // files sent by a later start of Keep the Light, for the page
@@ -355,6 +359,9 @@ func (cfg *Config) cliArgs() []string {
 	if len(cfg.ExtSubs) > 0 {
 		b, _ := json.Marshal(cfg.ExtSubs)
 		a = append(a, "-ext-subs", string(b))
+	}
+	if cfg.AllowSleep {
+		a = append(a, "-allow-sleep")
 	}
 	if cfg.HWDecode {
 		a = append(a, "-hw-decode")
@@ -991,7 +998,9 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		g.cancel()
 		return okResult()
 	case "pause", "resume":
-		if err := g.pauseJob(name == "pause"); err != nil {
+		err := g.pauseJob(name == "pause")
+		g.syncAwake() // paused: the PC may sleep as usual
+		if err != nil {
 			return failResult(err.Error())
 		}
 		return okResult()
@@ -1161,6 +1170,18 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		raw, _ := json.Marshal(b.On)
 		_ = g.savePref("hwDecode", raw)
 		return okResult()
+	case "keepawake": // keep the PC awake (and the screen on) while the queue runs; takes effect at once
+		var b struct{ On, Screen bool }
+		_ = json.Unmarshal(body, &b)
+		g.mu.Lock()
+		g.keepAwake, g.keepScreen = b.On, b.Screen
+		g.mu.Unlock()
+		raw, _ := json.Marshal(b.On)
+		_ = g.savePref("keepAwake", raw)
+		raw, _ = json.Marshal(b.Screen)
+		_ = g.savePref("keepScreen", raw)
+		g.syncAwake()
+		return okResult()
 	case "tidyFind":
 		var b struct {
 			Dir, Tag  string
@@ -1198,6 +1219,9 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		return okResult()
 	case "prefs":
 		res := map[string]any{"ok": true, "prefs": g.loadPrefs(), "tmdbKey": g.tmdbKey(), "tmdbLang": tmdbLanguage(), "tmdbPicks": len(g.tmdbPicks())}
+		g.mu.Lock()
+		res["keepAwake"], res["keepScreen"], res["modernStandby"] = g.keepAwake, g.keepScreen, g.modernStandby
+		g.mu.Unlock()
 		if u, tok := g.plexServer(); u != "" {
 			res["plexURL"], res["plexToken"] = u, tok != ""
 		}

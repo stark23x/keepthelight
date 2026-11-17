@@ -9,6 +9,7 @@ import (
 type Config struct {
 	LowPriority                                  bool    // run (and start the tools) at below-normal priority
 	HWDecode                                     bool    // decode the source on the GPU (falls back to the CPU)
+	AllowSleep                                   bool    // do not keep the PC awake during the job
 	Scale                                        string  // "" keeps the size; "1080p" etc. shrinks to fit that frame
 	Denoise                                      string  // noise reduction: "" off, light, medium, strong, hq
 	Deinterlace                                  string  // "" or smooth, standard, off (see deinterlace.go)

@@ -176,7 +176,8 @@ quality.
   instead of failing.
 - **Checks free space** before starting.
 - **Saves the log of every failed file,** so problems can be looked into later.
-- **Runs in the background politely.** "Low priority" keeps your PC responsive while it works.
+- **Runs in the background politely.** "Low priority" keeps your PC responsive while it works, and the PC is kept
+  awake until the queue is done (with the screen on, for laptops that would otherwise stop the work).
 - **Profiles.** Save your favourite settings under a name, such as "4K movies" or "Old TV shows", and use them with
   one click. Profiles can be exported and imported.
 - **Command-line version** for scripts and automation, with the same features as the window.
@@ -292,6 +293,10 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   long it took once it is done.
 - **Low priority** (⚙ Settings): other programs come first, so the PC stays responsive while encoding; it
   still runs at full speed when the PC is otherwise idle. Remembered, and takes effect at once.
+- **Keep this PC awake while converting** (⚙ Settings, on to begin with): the PC does not go to sleep from Start until
+  the whole queue is done, including network copies and telling Plex; pausing lets it sleep. **…and keep the screen
+  on** is needed on laptops with "Modern Standby", which stop programs when the screen goes dark; Keep the Light
+  turns it on to begin with on those PCs. Closing the lid or pressing the power button still puts the PC to sleep.
 - **Crop black bars** (under Resolution, only for 576p and 480p): black bars around the picture (a 4:3 show stored in
   a 1920×1080 frame, say) are found by looking at five points of the film, cut, and the picture is then shrunk to
   fit (that show becomes about 640×480, with no bars). Nothing is cut if any part of the film fills more of the

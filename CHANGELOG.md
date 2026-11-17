@@ -18,6 +18,19 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.43.0 - 2026-11-17
+
+- **Keep this PC awake while converting** (⚙ Settings → While converting, on to begin with). The PC stays awake
+  from Start until the whole queue is done. Before, it was only kept awake while each file was actually being
+  converted, so it could go to sleep while a file was copied over the network, during the quality search,
+  between files, or while the result was copied back and Plex was told. Pausing the queue lets the PC sleep
+  again. Turned off, nothing keeps the PC awake (not even during a conversion).
+- **…and keep the screen on.** Most newer laptops use "Modern Standby": when the screen goes dark, Windows stops
+  programs, so a conversion stopped even though the PC looked awake. Keeping the screen on is the only way to
+  prevent that. Keep the Light finds out whether the PC works this way and turns this on to begin with there (and
+  off elsewhere). The brightness can be turned right down. Closing the lid or pressing the power button still puts
+  the PC to sleep: Windows does not let a program stop that.
+
 ## 1.42.0 - 2026-11-16
 
 - **Aim for quality (VMAF).** A fourth way to choose quality, next to Constant quality, Target bitrate and Target

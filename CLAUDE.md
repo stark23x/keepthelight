@@ -44,6 +44,8 @@ which is not in the repository.
 - **Quality aim:** the search moves the constant-quality number (12–30) for all three encoders; a file is never made
   bigger than the original; a film that cannot reach the score gets the setting within a point of its best, not the
   lowest one. The thorough check is a PC setting, off by default. Tidying up never deletes outright.
+- **Keeping awake:** the window holds one Windows power request for the whole queue run (released while paused);
+  on by default, with "keep the screen on" by default only on Modern Standby PCs (the owner's laptop is one).
 - **Layout:** Convert / Queue / Library scan / Plex names tabs, Start bar always at the bottom (at every window width), PC
   settings in the ⚙ Settings dialog. Wide windows: the Convert tab in two columns (owner chose this over one wide
   column); narrow windows: one column. Text size zooms the whole page. Appearance: System / Dark / Light and five
@@ -80,6 +82,8 @@ which is not in the repository.
   - `deepcheck.go` – the optional thorough check of a finished file.
   - `report.go` – the page written after each queue run; `tidy.go` – tidying up originals (Library scan tab).
   - `gpupath.go` – the full-GPU path and the encoder check.
+  - `awake.go`, `power_*.go` – keeping the PC awake for a queue run (and the screen on with Modern Standby); sleep /
+    shut down when finished.
   - `scale.go` – resizing (including Dolby Vision active area).
   - `reshape.go` – Dolby Vision profile 5: colours to HDR10 with libplacebo, HDR10 information from the RPU.
   - `interleave.go` – picture and sound stored together: the check of each new file, the remux, the scan's Fix.
