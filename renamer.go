@@ -1024,6 +1024,7 @@ func (g *guiServer) renApply(ids []int) map[string]any {
 	if len(moves) > 0 {
 		g.renSaveUndo(moves)
 		renLog(moves, "renamed")
+		g.plexTell(movedVideos(moves))
 	}
 	return map[string]any{"ok": true, "renamed": renamed, "skipped": skipped}
 }
@@ -1177,6 +1178,7 @@ func (g *guiServer) renUndo() map[string]any {
 	g.renSaveUndo(nil)
 	if len(back) > 0 {
 		renLog(back, "undone")
+		g.plexTell(movedVideos(back))
 	}
 	return map[string]any{"ok": true, "restored": n, "skipped": skipped}
 }
@@ -1202,3 +1204,31 @@ func renLog(moves []renMove, what string) {
 
 // renLogPath is shown by "Rename log".
 func renLogPath() string { return filepath.Join(appDataDir(), "rename-log.txt") }
+
+// movedVideos lists the videos under their new names (temporary names left out).
+func movedVideos(moves []renMove) []string {
+	var files []string
+	for _, m := range moves {
+		if videoExts[strings.ToLower(filepath.Ext(m.To))] && fileExists(m.To) {
+			files = append(files, m.To)
+		}
+	}
+	return files
+}
+
+// plexTell asks Plex, in the background, to look at the folders of renamed
+// files again, so the new names show up now. Without a Plex server set up it
+// does nothing; a failure is only a note in the window, never an error.
+func (g *guiServer) plexTell(files []string) {
+	if len(files) == 0 {
+		return
+	}
+	go func() {
+		if note := g.plexRefresh(context.Background(), files); note != "" {
+			note = strings.Replace(note, "the new files (", "the renamed files (", 1)
+			g.mu.Lock()
+			g.q.notice, g.q.noticeSeq = note, g.q.noticeSeq+1
+			g.mu.Unlock()
+		}
+	}()
+}

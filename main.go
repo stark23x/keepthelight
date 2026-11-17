@@ -51,6 +51,13 @@ Options:
                        as Windows shows it). x265 uses two passes; hardware encoders
                        re-encode with a corrected bitrate if the first try misses.
   -size-retries <n>    extra attempts for hardware encoders to hit the size (default 2)
+  -quality-target <n>  aim for a quality instead: a VMAF score (97 excellent, 95 very good,
+                       93 good). Three short stretches are tried at different settings and
+                       the smallest one that reaches the score is used. Needs libvmaf.
+  -quality-advice      only find the settings for those three qualities and their
+                       estimated sizes; nothing is converted
+  -thorough-check      after the job, read the whole new file through once (every frame
+                       decodes, Dolby Vision data on every frame, the length matches)
   -codec <x265|nvenc|qsv>  encoder (default x265; nvenc = NVIDIA GPU, qsv = Intel QuickSync;
                        GPU encoders cannot keep HDR10+ and use a different quality scale)
   -audio <codec>       audio: copy (default), aac, eac3, ac3, flac, opus ...
@@ -204,6 +211,9 @@ func parseArgs() (*Config, bool) {
 	fs.StringVar(&cfg.Denoise, "denoise", "", "")
 	fs.StringVar(&cfg.Deinterlace, "deinterlace", "", "")
 	fs.BoolVar(&cfg.Crop, "crop", false, "")
+	fs.Float64Var(&cfg.QualityTarget, "quality-target", 0, "")
+	fs.BoolVar(&cfg.QualityAdvice, "quality-advice", false, "")
+	fs.BoolVar(&cfg.DeepCheck, "thorough-check", false, "")
 	fs.IntVar(&cfg.SampleSecs, "sample", 0, "")
 	fs.StringVar(&cfg.SampleOriginal, "sample-original", "", "")
 	sampleStartArg := fs.String("sample-start", "", "")
@@ -711,7 +721,8 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 	if !cfg.DryRun {
 		cleanLeftovers(tmpBase) // what earlier jobs could not delete
 	}
-	needTmp := plan.UseDV || plan.Reshape || plan.UseHDR10Plus || plan.Size != nil || metaNeedsFiles(cfg, plan) || plan.needsOCR() || plan.hasExtSubs()
+	aiming := (cfg.QualityTarget > 0 || cfg.QualityAdvice) && !cfg.CopyVideo
+	needTmp := aiming || plan.UseDV || plan.Reshape || plan.UseHDR10Plus || plan.Size != nil || metaNeedsFiles(cfg, plan) || plan.needsOCR() || plan.hasExtSubs()
 	tmp := filepath.Join(tmpBase, ".keepthelight-tmp")
 	if needTmp && !cfg.DryRun {
 		d, err := os.MkdirTemp(tmpBase, ".keepthelight-")
@@ -735,6 +746,22 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 		markOK = func() { succeeded = true }
 	}
 
+	if aiming && cfg.DryRun {
+		r.show("(the quality setting is found by trying three short stretches of the film)")
+	} else if aiming {
+		if cfg.QualityAdvice {
+			if err := adviseQuality(ctx, cfg, p, plan, tmp); err != nil {
+				return err
+			}
+			markOK()
+			return nil // advice only: nothing is converted
+		}
+		best, err := aimQuality(ctx, cfg, p, plan, tmp)
+		if err != nil {
+			return err
+		}
+		cfg.CRF = best.Q
+	}
 	if err := prepareExtSubs(cfg, plan, tmp); err != nil {
 		return err
 	}
@@ -825,6 +852,18 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 		}
 	}
 	keepOriginalClip(cfg)
+	if cfg.DeepCheck && cfg.sample == "" { // optional: the whole new file is read through once
+		fmt.Println("\nThorough check: reading the whole new file through (this takes a few minutes for a film)")
+		res := deepCheck(ctx, cfg, plan, p, cfg.Output, work)
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if len(res.Problems) > 0 {
+			fmt.Println("WARNING: " + res.line() + ". The new file is kept: play it before relying on it.")
+		} else {
+			fmt.Println(res.line())
+		}
+	}
 	if cfg.sample == "" { // the same Plex check as the library scan, on the new file
 		fmt.Println()
 		for _, l := range plexCheckFile(ctx, cfg.Ffprobe, cfg.Ffmpeg, cfg.Output, plan.Deint != "") {

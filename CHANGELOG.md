@@ -18,6 +18,52 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.42.0 - 2026-11-16
+
+- **Aim for quality (VMAF).** A fourth way to choose quality, next to Constant quality, Target bitrate and Target
+  file size: say how good the picture should look, and Keep the Light finds the setting for each film.
+  - **VMAF** is a 0–100 score of how close a converted picture looks to the original, made to match what viewers
+    see. The choices are **Excellent** (97: hard to tell from the original), **Very good** (95: looks the same in
+    normal viewing), **Good** (93: small losses if you look closely), or your own number.
+  - **How it works:** before a film is converted, three 10-second stretches (at 20%, 50% and 80% of the film) are
+    converted at a few different settings with your encoder, and each is scored against the original. The film is
+    judged by its hardest stretch. The lowest setting that reaches your score is used, usually after 3 or 4 tries,
+    which adds a few minutes. An easy film comes out small; a grainy one gets the space it needs.
+  - **It never makes the file bigger than the original:** if the setting would, a smaller one is used and the log
+    says so.
+  - **Films that cannot reach the score:** grain and noise limit how high a film can score. Then the setting that
+    comes within a point of the best possible is used, instead of a huge file for no visible gain.
+  - Works with x265, NVENC and QuickSync, with resizing, cropping, deinterlacing, noise reduction and Dolby Vision
+    profile 5. Saved in profiles; on the command line it is `-quality-target 95`.
+  - It needs an FFmpeg with VMAF (libvmaf; the "full" builds have it). Without it, Keep the Light says so.
+  - For HDR, VMAF is a guide rather than an exact measure: it was made for ordinary (SDR) video.
+- **Find the right setting (advice).** A button under the quality setting on the Convert tab. It runs the same
+  search without converting anything and shows a small table: Excellent, Very good (the suggestion) and Good, each
+  with its setting, the measured score, the estimated size of the new file and the space saved. **Use** sets
+  Constant quality to that row's setting. In the Library scan, **Find the right setting for selected** does it for
+  several files in the queue; each file's table is in its queue row, with **Add to queue** per row. Sizes are
+  estimates from the short stretches. (`-quality-advice` on the command line.)
+- **Tidy up originals.** A new part of the Library scan tab. After converting, the original still sits next to its
+  new copy and the space is not yet saved. **Find originals with a converted copy** lists those pairs in the folder
+  and checks each copy: it has a picture, it has sound if the original has, and it is as long as the original.
+  The originals you select then go to the **Recycle Bin**. A network drive has no Recycle Bin, so there the original
+  is renamed "… (original)" for you to delete yourself, and **Undo renames** puts those back. Nothing is deleted
+  outright; a copy that fails its check is left alone, and so are files in the queue. Subtitle files beside the
+  original take the copy's name.
+- **Thorough check of every new file (a setting, off to begin with).** In ⚙ Settings → While converting. The whole
+  new file is read through once: every frame must decode, picture and sound must run to the end, the length must
+  match the original, Dolby Vision data must be there for every frame, and HDR10+ data must be present. It adds a
+  few minutes per film. The result is in the log and the report; a problem is a warning and the file is kept.
+  (`-thorough-check` on the command line.)
+- **A report after every queue run.** A page listing each file: its size before and after, the space saved, the
+  time taken, the settings, its warnings, and anything that had to be done another way than planned (for example
+  decoding on the processor after the graphics card could not). Totals are at the top. **Open the last run's
+  report** on the Queue tab shows it; the newest 20 are kept in the logs folder.
+- **Plex is told about renames.** After **Rename now** and **Undo last rename** on the Plex names tab, Plex is
+  asked to look at those folders again, as it already is after every queue run (which includes a single file
+  converted from the Convert tab). Needs your Plex server set up in Settings; a failure is only a note.
+- Fixed: a 30-second test's row in the queue did not show its settings.
+
 ## 1.41.0 - 2026-11-16
 
 - **Appearance: Light, Dark or System, and an accent colour.** In ⚙ Settings → Window:

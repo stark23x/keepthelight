@@ -242,6 +242,13 @@
   .qchips .chip.ok { color: var(--ok); }
   .qchips .chip.prof { color: var(--accent); }
   .qplex { font-size: 12px; margin-top: 2px; } .qplex:empty { display: none; }
+  .qadvice:empty, .qrow:not([data-open="1"]) .qadvice { display: none; } .qadvice { margin-top: 6px; }
+  .advtable { border-collapse: collapse; font-size: 13px; width: 100%; max-width: 760px; }
+  .advtable th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12px; padding: 3px 12px 3px 0; }
+  .advtable td { padding: 4px 12px 4px 0; border-top: 1px solid var(--line); white-space: nowrap; }
+  .advtable tr.sugg td:first-child { font-weight: 600; } .advtable button { padding: 3px 10px; }
+  .tidyrow { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; border-top: 1px solid var(--line); cursor: pointer; }
+  .tidyrow.off { cursor: default; opacity: .75; } .tidyrow .tname { overflow-wrap: anywhere; } .tidyrow input { margin-top: 3px; }
   .qplex .pbad { color: var(--warn); } .qplex .pok { color: var(--ok); } .qplex .phow { color: var(--muted); }
   .qplexsum { font-size: 12.5px; margin: 0 0 10px; color: var(--muted); } .qplexsum.bad { color: var(--warn); }
   .qstat { font-size: 12.5px; font-weight: 600; white-space: nowrap; color: var(--muted); text-align: right; }
@@ -599,11 +606,25 @@
           <label><input type="radio" name="quality" value="crf" checked><span>Constant quality</span></label>
           <label><input type="radio" name="quality" value="bitrate"><span>Target bitrate</span></label>
           <label><input type="radio" name="quality" value="size"><span>Target file size</span></label>
+          <label title="Keep the Light finds the setting itself, for each film, by trying short stretches and measuring them"><input type="radio" name="quality" value="vmaf"><span>Aim for quality</span></label>
         </div>
         <div id="crfBox" style="margin-top:10px">
           <label for="crf">Quality (CRF): <b id="crfVal">18</b></label>
           <input type="range" id="crf" min="12" max="30" value="18">
           <div class="hint">Lower = better quality, bigger file. 16–20 is visually transparent for most 4K HDR.</div>
+        </div>
+        <div id="vmafBox" class="hidden" style="margin-top:10px">
+          <label for="aimSel">How good the picture should look</label>
+          <div class="row" style="max-width:420px">
+            <div class="grow"><select id="aimSel"><option value="97">Excellent – hard to tell from the original (VMAF 97)</option>
+              <option value="95" selected>Very good – looks the same in normal viewing (VMAF 95)</option>
+              <option value="93">Good – small losses if you look closely (VMAF 93)</option><option value="other">Other…</option></select></div>
+            <div id="aimNumWrap" class="hidden" style="width:90px"><input type="text" id="aimNum" inputmode="decimal" value="95" spellcheck="false" aria-label="VMAF to aim for (70 to 99)"></div>
+          </div>
+          <div class="hint">Before each film is converted, a few 10-second stretches are tried at different settings and scored with VMAF (a 0–100
+            measure of how close a picture looks to the original, as a viewer would judge it). The lowest setting that reaches your score is used,
+            so an easy film comes out small and a grainy one gets the space it needs. This adds a few minutes per film. For HDR the score is a
+            guide rather than an exact measure.</div>
         </div>
         <div id="brBox" class="hidden" style="margin-top:10px; max-width:240px">
           <label for="bitrate">Video bitrate</label><input type="text" id="bitrate" value="20M">
@@ -621,6 +642,11 @@
             <select id="retries"><option value="0">0 more times</option><option value="1">1 more time</option><option value="2" selected>2 more times</option><option value="3">3 more times</option></select>
           </div>
         </div>
+      </div>
+      <div id="adviceWrap" style="margin-top:10px">
+        <button id="adviceBtn" title="Try short stretches of this film at different settings and show which setting gives which quality and size. Nothing is converted.">Find the right setting</button>
+        <span class="hint" id="adviceState" style="margin-left:8px"></span>
+        <div id="adviceBox" class="hidden" style="margin-top:8px"></div>
       </div>
       <div id="qualGuide" class="qguide hidden"></div>
       <div class="nrrow"><label for="denoise">Noise reduction</label>
@@ -781,6 +807,7 @@
       <select id="qProfile" class="hidden" style="width:auto" title="Give every file that has not started the settings of a profile"><option value="">Apply a profile to waiting files…</option></select>
       <button id="qTMDB" class="hidden" title="Find each waiting file on TMDB: a clear match fills in its title, date, description and cover; others are marked to choose with Edit">Look up metadata on TMDB</button>
       <button id="qClear" class="hidden">Clear finished</button>
+      <button id="qReport" class="hidden" title="What happened to each file of the last run: sizes before and after, time taken, settings, warnings">Open the last run's report</button>
       <button id="qPlexReview" class="hidden" title="See the Plex-style names offered after TMDB matches, and choose which to use">Review names</button>
       <button id="qClearAll" class="danger hidden" title="Remove every file from the queue (a file being transcoded goes on)">Clear the queue</button>
     </div>
@@ -823,7 +850,27 @@
         <div><label for="scanWith">Settings for the queue</label><select id="scanWith" style="width:auto"></select></div>
         <button id="scanAdd" class="primary" disabled style="align-self:flex-end">Add selected to queue</button>
         <label class="check" style="align-self:flex-end; margin-bottom:8px"><input type="checkbox" id="scanTMDB"> <span>and look up their metadata on TMDB</span></label>
+        <button id="scanAdvise" disabled style="align-self:flex-end" title="For each selected file, try short stretches at different settings and show which setting gives which quality and size. They run in the queue; nothing is converted.">Find the right setting for selected</button>
       </div>
+    </div>
+  </div>
+<div class="card" id="secTidy">
+    <div class="tabhead"><h2>Tidy up originals</h2><span class="sum" id="sumTidy"></span></div>
+    <div class="hint" style="margin:0 0 10px">After converting, the original still sits next to its new copy (“Film.mkv” and “Film_KTL.mkv”). This finds
+      those pairs in the folder above, checks each copy, and moves the originals out of the way when you say so.
+      <details class="help"><summary>More</summary>A copy passes when it has a picture, has sound if the original has, and is as long as the original.
+      Originals go to the <b>Recycle Bin</b>. A network drive has no Recycle Bin, so there the original is renamed <b>“… (original)”</b> instead and
+      takes no space back until you delete it yourself; <b>Undo</b> gives those their names back. Nothing is ever deleted outright. Subtitle files
+      beside the original (“Film.en.srt”) take the copy's name, so players still find them.</details></div>
+    <div class="row" style="flex-wrap:wrap; gap:8px; align-items:center">
+      <button id="tidyFind">Find originals with a converted copy</button>
+      <button id="tidyUndo" class="hidden" title="Give the originals renamed “… (original)” (and their subtitle files) their names back">Undo renames</button>
+      <span class="hint" id="tidyState"></span>
+    </div>
+    <div id="tidyList" style="margin-top:10px"></div>
+    <div class="actions hidden" id="tidyActions" style="margin-top:10px">
+      <button id="tidyAll">Select all checked copies</button><button id="tidyNone">Select none</button>
+      <button id="tidyApply" class="danger" disabled>Move the selected originals away</button>
     </div>
   </div>
       </section>
@@ -929,6 +976,9 @@
         stays responsive; still full speed when the PC is idle. Takes effect at once.</span></label>
       <label class="check" style="margin-top:10px"><input type="checkbox" id="hwDec"> <span><b>Decode on the GPU</b> – the graphics chip reads the
         source, so the CPU only encodes. Speeds up x265, most with 4K. Files the GPU cannot decode use the CPU as before.</span></label>
+      <label class="check" style="margin-top:10px"><input type="checkbox" id="deepCheck"> <span><b>Thorough check of every new file</b> – reads the
+        whole new file through once: every frame must decode, picture and sound must run to the end, the length must match the original, and
+        Dolby Vision data must be there for every frame. Adds a few minutes per film. A problem is shown as a warning; the file is kept.</span></label>
       <label class="check" style="margin-top:10px"><input type="checkbox" id="workLocal"> <span><b>Work locally with network files</b> – network files (your RAID shares)
         are copied to this PC, converted here, and the result copied back, so a network hiccup cannot break a long conversion. Uses the temp folder
         above if it is on this PC, otherwise Windows' temp folder. Not used for tests or metadata-only jobs.</span></label>
@@ -1099,7 +1149,7 @@ function notify(msg) {
 function settings() {
   return {
     input: $('input').value.trim(), output: $('output').value.trim(), format: $('container').value, mode: radio('mode'),
-    codec: $('codec').value, quality: radio('quality'), crf: +$('crf').value, bitrate: $('bitrate').value.trim(),
+    codec: $('codec').value, quality: radio('quality'), qualityTarget: aimTarget(), crf: +$('crf').value, bitrate: $('bitrate').value.trim(),
     preset: $('preset').value, audio: $('audio').value, audioBitrate: $('abitrate').value.trim(),
     dv: $('dv').value, masterDisplay: $('master').value.trim(), maxCLL: $('cll').value.trim(), tmp: $('tmp').value.trim(),
     targetSize: $('targetNum').value.trim().replace(',', '.') + $('targetUnit').value, retries: +$('retries').value,
@@ -1112,6 +1162,17 @@ function settings() {
   };
 }
 
+// "Aim for quality": the VMAF score to reach.
+function aimTarget() {
+  const v = $('aimSel').value === 'other' ? parseFloat($('aimNum').value.replace(',', '.')) : +$('aimSel').value;
+  return isFinite(v) ? v : 0;
+}
+function aimWords(t) { return ({ 97: 'excellent', 95: 'very good', 93: 'good' }[t] || 'VMAF ' + t); }
+// the quality part of a settings summary
+function qualText(st) {
+  return st.quality === 'bitrate' ? st.bitrate : st.quality === 'size' ? 'target ' + String(st.targetSize).replace(/G$/, ' GB').replace(/M$/, ' MB')
+    : st.quality === 'vmaf' ? 'aim for ' + aimWords(st.qualityTarget) + ' (VMAF ' + st.qualityTarget + ')' : 'CRF ' + st.crf;
+}
 function baseName(p) { return p.replace(/^.*[\\\/]/, ''); }
 function stem(p) { const b = baseName(p); const i = b.lastIndexOf('.'); return i > 0 ? b.slice(0, i) : b; }
 function dirOf(p) { const i = Math.max(p.lastIndexOf('\\'), p.lastIndexOf('/')); return i >= 0 ? p.slice(0, i + 1) : ''; }
@@ -1158,6 +1219,8 @@ function updateVisibility() {
   $('brBox').classList.toggle('hidden', q !== 'bitrate');
   $('crfBox').classList.toggle('hidden', q !== 'crf');
   $('sizeBox').classList.toggle('hidden', q !== 'size');
+  $('vmafBox').classList.toggle('hidden', q !== 'vmaf');
+  $('aimNumWrap').classList.toggle('hidden', $('aimSel').value !== 'other');
   $('retryWrap').classList.toggle('hidden', !(q === 'size' && hw));
   $('sizeHint').textContent = hw
     ? 'GB here means what Windows Explorer shows. Hardware encoders miss their bitrate, so the video may be re-encoded with a corrected bitrate to land on the size.'
@@ -1588,7 +1651,7 @@ async function confirmNewFiles(form) {
 // ---------- profiles ----------
 // A profile is a named set of the settings below the Files section. It can
 // name converted files after itself ("Film_Plex 4K.mkv").
-const PROFILE_KEYS = ['mode', 'codec', 'preset', 'scale', 'crop', 'denoise', 'deinterlace', 'dv', 'quality', 'crf', 'bitrate', 'targetSize', 'retries',
+const PROFILE_KEYS = ['mode', 'codec', 'preset', 'scale', 'crop', 'denoise', 'deinterlace', 'dv', 'quality', 'qualityTarget', 'crf', 'bitrate', 'targetSize', 'retries',
   'audio', 'audioBitrate', 'audioChannels', 'audioLang', 'dropCommentary', 'addCompatAudio', 'copyCompatible', 'subLang', 'subMode', 'subToSRT', 'audioOnePerLang', 'subNameMode', 'subNameWords', 'nameTracks', 'fillFromNames', 'masterDisplay', 'maxCLL', 'format'];
 let profiles = []; // [{ name, useNameTag, settings }]
 function activeProfile() { const n = $('profile').value; return n ? profiles.find(p => p.name === n) || null : null; }
@@ -1639,6 +1702,10 @@ function applyFields(st, keys) {
   if (has('dv')) $('dv').value = st.dv;
   if (has('quality')) setRadio('quality', st.quality);
   if (has('crf')) $('crf').value = st.crf;
+  if (has('qualityTarget') && +st.qualityTarget >= 70) {
+    const t = String(+st.qualityTarget), known = ['97', '95', '93'].includes(t);
+    $('aimSel').value = known ? t : 'other'; $('aimNum').value = t;
+  }
   if (has('bitrate')) $('bitrate').value = st.bitrate;
   if (has('targetSize')) { const m = /^([\d.]+)\s*([GM])$/i.exec(String(st.targetSize)); if (m) { $('targetNum').value = m[1]; $('targetUnit').value = m[2].toUpperCase(); } }
   if (has('retries')) $('retries').value = String(st.retries);
@@ -1664,7 +1731,7 @@ function applyFields(st, keys) {
 // a profile's format (MKV or MP4) for an output name
 function withFormat(out, p) { return p && p.settings && ['.mkv', '.mp4'].includes(p.settings.format) ? out.replace(/\.[A-Za-z0-9]+$/, '') + p.settings.format : out; }
 // settings added after a profile was saved: their defaults, so older profiles still apply cleanly
-const PROFILE_DEFAULTS = { crop: true, denoise: '', deinterlace: '', addCompatAudio: false, copyCompatible: true, subToSRT: '', audioOnePerLang: '', subNameMode: '', subNameWords: '', nameTracks: false, fillFromNames: true };
+const PROFILE_DEFAULTS = { qualityTarget: 95, crop: true, denoise: '', deinterlace: '', addCompatAudio: false, copyCompatible: true, subToSRT: '', audioOnePerLang: '', subNameMode: '', subNameWords: '', nameTracks: false, fillFromNames: true };
 function withDefaults(st) { return Object.assign({}, PROFILE_DEFAULTS, st); }
 function applyProfile(p) {
   if (p) applyFields(withDefaults(p.settings), PROFILE_KEYS);
@@ -1940,6 +2007,7 @@ function updateSummaries() {
     const q = radio('quality');
     const quality = q === 'crf' ? 'CRF ' + $('crf').value
       : q === 'bitrate' ? $('bitrate').value.trim()
+      : q === 'vmaf' ? 'aim for ' + aimWords(aimTarget()) + ' (VMAF ' + aimTarget() + ')'
       : 'target ' + $('targetNum').value.trim() + ' ' + ($('targetUnit').value === 'G' ? 'GB' : 'MB');
     v = [{ x265: 'x265', nvenc: 'NVENC', qsv: 'QuickSync' }[$('codec').value], quality, $('preset').value].join('  ·  ');
     if ($('scale').value) v += '  ·  ' + (info && info.scaledTo ? info.scaledTo : $('scale').value);
@@ -2022,6 +2090,7 @@ async function restorePrefs() {
   $('lowPrio').checked = r.prefs.lowPriority === true;
   $('findSubs').checked = r.prefs.findSubs !== false;
   $('hwDec').checked = r.prefs.hwDecode === true;
+  $('deepCheck').checked = r.prefs.deepCheck === true;
   $('workLocal').checked = r.prefs.workLocal === true;
   if (typeof r.prefs.nameTag === 'string') $('nameTag').value = r.prefs.nameTag;
   $('nameTag').dataset.own = $('nameTag').value;
@@ -2233,6 +2302,9 @@ $('findSubs').addEventListener('change', () => api('setPref', { name: 'findSubs'
 $('lowPrio').addEventListener('change', () => { api('priority', { low: $('lowPrio').checked }); updateSummaries(); });
 // GPU decoding is remembered too, and applies to every file from the next one on.
 $('hwDec').addEventListener('change', () => { api('hwdecode', { on: $('hwDec').checked }); updateSummaries(); });
+$('deepCheck').addEventListener('change', () => { api('deepcheck', { on: $('deepCheck').checked }); });
+$('aimSel').addEventListener('change', () => { updateVisibility(); updateSummaries(); profileUI(); if ($('aimSel').value === 'other') $('aimNum').focus(); });
+$('aimNum').addEventListener('input', () => { updateSummaries(); profileUI(); });
 $('workLocal').addEventListener('change', () => { api('worklocal', { on: $('workLocal').checked }); updateSummaries(); });
 // The temp folder is remembered between runs (an empty field means "next to the output file").
 $('tmp').addEventListener('change', () => api('setPref', { name: 'tmpDir', value: $('tmp').value.trim() }));
@@ -2871,6 +2943,7 @@ function renderScan() {
 function scanButtons() {
   $('scanAdd').disabled = !scanSel.size;
   $('scanAdd').textContent = scanSel.size ? 'Add ' + scanSel.size + ' selected to queue' : 'Add selected to queue';
+  $('scanAdvise').disabled = !scanSel.size;
 }
 // Fixing files whose picture and sound are stored far apart (a remux, in the background).
 let scanFixTimer = null;
@@ -2958,6 +3031,154 @@ $('scanShow').onchange = renderScan;
 $('scanSort').onchange = () => { api('setPref', { name: 'scanSort', value: $('scanSort').value }); renderScan(); };
 $('scanSelWorth').onclick = () => { scanItems.forEach(it => { if (it.worth && !it.gone) scanSel.add(it.path); }); renderScan(); scanButtons(); };
 $('scanSelNone').onclick = () => { scanSel = new Set(); renderScan(); scanButtons(); };
+// ---------- "Find the right setting" (quality advice) ----------
+// An advice is a queue item that converts nothing: it tries short stretches and comes back with a table.
+$('adviceBtn').onclick = async () => {
+  jobBoxDismissed = false;
+  const r = await api('advice', settings());
+  if (!r.ok) { showError(r.error || 'Could not start'); return; }
+  $('adviceState').textContent = 'Trying short stretches of the film… this takes a few minutes.';
+  poll();
+};
+// adviceTable draws an advice; use(row) is called by a row's button (label: what the button says).
+function adviceTable(box, adv, label, title, use) {
+  box.innerHTML = '';
+  const t = el('table', 'advtable');
+  t.innerHTML = '<thead><tr><th>Quality</th><th>Setting</th><th>Measured</th><th>New file (about)</th><th>Saves (about)</th><th></th></tr></thead>';
+  const body = document.createElement('tbody');
+  (adv.rows || []).forEach(r => {
+    const tr = document.createElement('tr');
+    if (r.suggested) tr.className = 'sugg';
+    const cells = [r.label + (r.suggested ? '  ★' : ''), 'CRF ' + r.q, 'VMAF ' + r.score.toFixed(1) + (r.reached ? '' : ' (near the best possible)'),
+      r.bytes > 0 ? fmtSize(r.bytes) : '', r.saved > 0 ? fmtSize(r.saved) + (adv.srcBytes ? ' (' + Math.round(r.saved * 100 / adv.srcBytes) + '%)' : '') : 'nothing'];
+    cells.forEach(c => tr.append(el('td', '', c)));
+    const td = document.createElement('td');
+    td.append(rowButton(label, title, b => use(r, b)));
+    tr.append(td); body.append(tr);
+  });
+  t.append(body); box.append(t);
+  box.append(el('div', 'hint', (adv.note ? adv.note + ' ' : '') + '★ = suggested. Sizes are estimates from short stretches of the film (' +
+    ({ x265: 'x265', nvenc: 'NVENC', qsv: 'QuickSync' }[adv.codec] || adv.codec) + ', ' + adv.preset + '); the real file can differ by a tenth or so. ' +
+    'For HDR, VMAF is a guide rather than an exact measure.'));
+}
+// the Convert tab shows the newest advice for the file in the form
+function renderAdvice(q) {
+  const inp = $('input').value.trim().toLowerCase();
+  const mine = q.items.filter(it => it.settings && it.settings.advice && (it.input || '').toLowerCase() === inp && inp);
+  const it = mine[mine.length - 1], box = $('adviceBox');
+  const busy = it && ['running', 'waiting', 'checking'].includes(it.status);
+  $('adviceBtn').disabled = q.running || !inp || !!editing;
+  if (!it) { box.classList.add('hidden'); box.dataset.key = ''; if (!/Trying/.test($('adviceState').textContent) || !q.running) $('adviceState').textContent = ''; return; }
+  $('adviceState').textContent = busy ? 'Trying short stretches of the film… (a few minutes; the log on the Queue tab shows each try)'
+    : it.status === 'failed' ? 'Could not find it: ' + (it.note || 'see the Queue tab') : it.status === 'canceled' ? 'Canceled.' : '';
+  const key = it.id + ':' + it.status + ':' + (it.advice ? it.advice.tries : '');
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  box.classList.toggle('hidden', !(it.status === 'done' && it.advice));
+  if (it.status === 'done' && it.advice) adviceTable(box, it.advice, 'Use', 'Set Constant quality to this setting', r => {
+    setRadio('quality', 'crf'); $('crf').value = r.q; $('crfVal').textContent = r.q;
+    updateVisibility(); updateSummaries(); scheduleProbe(100);
+    notify('Constant quality set to CRF ' + r.q + ' (' + r.label.toLowerCase() + ').');
+  });
+}
+// in the queue, an advice's table sits in its row, with a button to queue the film at a setting
+function renderAdviceRow(box, it) {
+  const show = it.status === 'done' && it.advice && it.settings && it.settings.advice;
+  const key = show ? it.id + ':' + it.advice.tries : '';
+  if (box.dataset.key === key) return;
+  box.dataset.key = key; box.innerHTML = '';
+  if (!show) return;
+  adviceTable(box, it.advice, 'Add to queue', 'Add this film to the queue with Constant quality at this setting (its other settings as they were)', async (r, b) => {
+    const st = Object.assign({}, it.settings, { advice: false, quality: 'crf', crf: r.q, overwrite: false });
+    b.disabled = true;
+    const res = await addToQueue([st]);
+    if (res && res.added) b.textContent = 'Added'; else b.disabled = false;
+  });
+}
+$('scanAdvise').onclick = async () => {
+  const p = profiles.find(x => x.name === $('scanWith').value) || null;
+  const paths = scanItems.filter(it => scanSel.has(it.path)).sort(scanOrder).map(it => it.path);
+  const items = paths.map(x => Object.assign(scanSettings(x, p), { advice: true, replaceOriginal: false }));
+  const bad = items.find(st => st.mode !== 'encode');
+  if (bad) { showError('The right setting can only be found when the video is re-encoded: choose settings that convert the video.'); return; }
+  const r = await addToQueue(items);
+  if (r && r.added) notify(r.added + (r.added === 1 ? ' file is' : ' files are') + ' in the queue for advice. Start the queue; each file\'s table appears in its row (click the row).');
+};
+$('qReport').onclick = async () => { const r = await api('openReport', {}); if (!r.ok) showError(r.error); };
+
+// ---------- tidying up originals ----------
+let tidyPairs = [], tidySel = new Set(), tidyTimer = null;
+function renderTidy(r) {
+  tidyPairs = r.pairs || [];
+  tidySel = new Set([...tidySel].filter(o => tidyPairs.some(p => p.original === o && p.ok)));
+  const ok = tidyPairs.filter(p => p.ok);
+  $('tidyState').textContent = r.running ? 'Looking… ' + r.looked + (r.looked === 1 ? ' folder' : ' folders') + ', ' + tidyPairs.length + ' found so far'
+    : r.dir ? (tidyPairs.length ? ok.length + ' of ' + tidyPairs.length + (tidyPairs.length === 1 ? ' original has' : ' originals have') + ' a checked copy  ·  ' + r.regain + ' to regain'
+      : 'No original with a converted copy next to it was found.') : '';
+  $('sumTidy').textContent = !r.running && ok.length ? r.regain + ' to regain' : '';
+  $('tidyUndo').classList.toggle('hidden', !r.undo);
+  $('tidyActions').classList.toggle('hidden', !ok.length);
+  const list = $('tidyList'); list.innerHTML = '';
+  tidyPairs.forEach(p => {
+    const row = el('label', 'tidyrow' + (p.ok ? '' : ' off'));
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.disabled = !p.ok; cb.checked = tidySel.has(p.original);
+    cb.onchange = () => { if (cb.checked) tidySel.add(p.original); else tidySel.delete(p.original); tidyButtons(); };
+    const txt = el('div', 'grow');
+    txt.append(el('div', 'tname', (p.folder ? p.folder + '\\' : '') + p.name));
+    txt.append(el('div', 'hint', fmtSize(p.origSize) + '  →  ' + p.copyName + ' (' + fmtSize(p.copySize) + ')  ·  ' +
+      (p.ok ? '✓ copy checked  ·  ' + (p.bin ? 'goes to the Recycle Bin' : 'no Recycle Bin on this drive: renamed “(original)”') : '⚠ ' + p.why + ' – left alone')));
+    row.append(cb, txt); list.append(row);
+  });
+  tidyButtons();
+}
+function tidyButtons() {
+  const sel = tidyPairs.filter(p => tidySel.has(p.original));
+  $('tidyApply').disabled = !sel.length;
+  $('tidyApply').textContent = sel.length ? 'Move ' + sel.length + (sel.length === 1 ? ' original' : ' originals') + ' away (' + fmtSize(sel.reduce((n, p) => n + p.origSize, 0)) + ')' : 'Move the selected originals away';
+}
+async function tidyPoll() {
+  clearTimeout(tidyTimer);
+  const r = await api('tidyStatus');
+  if (!r.ok) return;
+  renderTidy(r);
+  if (r.running) tidyTimer = setTimeout(tidyPoll, 800);
+}
+$('tidyFind').onclick = async () => {
+  const dir = $('scanDir').value.trim();
+  if (!dir) { showError('Choose the folder first (the Folder box at the top of this tab).'); return; }
+  tidySel = new Set();
+  const r = await api('tidyFind', { dir, recursive: $('scanSub').checked, tag: nameTag() });
+  if (!r.ok) { showError(r.error); return; }
+  tidyPoll();
+};
+$('tidyAll').onclick = () => { tidySel = new Set(tidyPairs.filter(p => p.ok).map(p => p.original)); document.querySelectorAll('#tidyList input:not(:disabled)').forEach(c => { c.checked = true; }); tidyButtons(); };
+$('tidyNone').onclick = () => { tidySel = new Set(); document.querySelectorAll('#tidyList input').forEach(c => { c.checked = false; }); tidyButtons(); };
+$('tidyApply').onclick = async () => {
+  const sel = tidyPairs.filter(p => tidySel.has(p.original));
+  if (!sel.length) return;
+  const bin = sel.filter(p => p.bin).length, ren = sel.length - bin;
+  if (!await askUser('Move ' + sel.length + (sel.length === 1 ? ' original' : ' originals') + ' away?\n\n' +
+    (bin ? bin + (bin === 1 ? ' goes' : ' go') + ' to the Recycle Bin.\n' : '') +
+    (ren ? ren + (ren === 1 ? ' is' : ' are') + ' on a drive without a Recycle Bin and will be renamed “… (original)” (no space is regained until you delete them yourself).\n' : '') +
+    '\nEach copy is checked once more first. The converted copies are not touched.')) return;
+  $('tidyApply').disabled = true; $('tidyState').textContent = 'Checking the copies and moving the originals…';
+  const r = await api('tidyApply', { originals: sel.map(p => p.original) });
+  if (!r.ok) { showError(r.error); tidyPoll(); return; }
+  tidySel = new Set();
+  let msg = [r.binned && r.binned + (r.binned === 1 ? ' original' : ' originals') + ' moved to the Recycle Bin', r.renamed && r.renamed + ' renamed “(original)”'].filter(Boolean).join(', ');
+  if (msg) notify(msg + (r.binned ? '  ·  ' + r.regained + ' no longer in the library.' : '.'));
+  if (r.skipped && r.skipped.length) showError('Left as they are:\n' + r.skipped.slice(0, 20).join('\n'));
+  tidyPoll();
+};
+$('tidyUndo').onclick = async () => {
+  if (!await askUser('Give the originals renamed “… (original)” (and their subtitle files) their names back?\n\nOriginals in the Recycle Bin are restored from there.')) return;
+  const r = await api('tidyUndo', {});
+  if (!r.ok) { showError(r.error); return; }
+  notify(r.restored === 1 ? '1 original has its name back.' : r.restored + ' originals have their names back.');
+  if (r.skipped && r.skipped.length) showError('Not put back:\n' + r.skipped.slice(0, 20).join('\n'));
+  tidyPoll();
+};
+
 $('scanAdd').onclick = async () => {
   if (!batchOutReady()) return;
   const p = profiles.find(x => x.name === $('scanWith').value) || null;
@@ -3374,8 +3595,7 @@ function settingsText(st) {
   const ext = (extOf(st.output || '') || '.mkv').slice(1).toUpperCase();
   if (st.mode === 'copy') return 'copy video · ' + ext;
   if (st.mode === 'meta') return (st.profile ? st.profile + ' · ' : '') + 'metadata only' + (st.meta ? ' (edited)' : '') + (st.replaceOriginal ? ' · replaces the original' : '') + ' · ' + ext;
-  const q = st.quality === 'bitrate' ? st.bitrate : st.quality === 'size'
-    ? 'target ' + String(st.targetSize).replace(/G$/, ' GB').replace(/M$/, ' MB') : 'CRF ' + st.crf;
+  const q = st.advice ? 'finding the right setting' : qualText(st);
   const parts = [{ x265: 'x265', nvenc: 'NVENC', qsv: 'QuickSync' }[st.codec] || st.codec, q, st.preset];
   if (st.profile) parts.unshift(st.profile);
   if (st.scale) parts.push(st.scale + (st.crop && ['576p', '480p'].includes(st.scale) ? ' (bars cropped)' : ''));
@@ -3450,7 +3670,8 @@ function renderChips(box, it) {
   if (st.mode === 'copy') chip('copy video'); else if (st.mode === 'meta') chip('metadata only');
   else {
     chip(({ x265: 'x265', nvenc: 'NVENC', qsv: 'QuickSync' }[st.codec] || st.codec) + ' ' +
-      (st.quality === 'bitrate' ? st.bitrate : st.quality === 'size' ? String(st.targetSize).replace(/G$/, ' GB').replace(/M$/, ' MB') : 'CRF ' + st.crf));
+      (st.advice ? '' : st.quality === 'vmaf' ? 'aim ' + st.qualityTarget : qualText(st).replace(/^target /, '')));
+    if (st.advice) chip('advice only', '', 'Finds the right setting; nothing is converted');
     if (st.scale) chip(st.scale);
     if (st.denoise) chip('NR');
   }
@@ -3513,7 +3734,7 @@ function renderQueue(q) {
     let row = list.querySelector('[data-id="' + it.id + '"]');
     if (!row) {
       row = document.createElement('div'); row.dataset.id = it.id;
-      row.innerHTML = '<div><div class="qname"></div><div class="qchips"></div><div class="qsub"></div><div class="qnote"></div><div class="qplex"></div></div><div class="qstat"><div class="qst"></div><div class="qtime"></div></div><div class="qbtns"></div><div class="qmini"><div></div></div>';
+      row.innerHTML = '<div><div class="qname"></div><div class="qchips"></div><div class="qsub"></div><div class="qnote"></div><div class="qadvice"></div><div class="qplex"></div></div><div class="qstat"><div class="qst"></div><div class="qtime"></div></div><div class="qbtns"></div><div class="qmini"><div></div></div>';
       qRowToggle(row); // UI-8
     }
     // keep the order, moving a row only when it is out of place (moving it would scroll an open log back to the top)
@@ -3524,8 +3745,9 @@ function renderQueue(q) {
     row.querySelector('.qname').title = it.input + '  →  ' + it.output;
     renderChips(row.querySelector('.qchips'), it); // UI-8
     row.querySelector('.qsub').textContent = settingsText(it.settings); // UI-8: what the file is shows in the chips line
-    row.querySelector('.qnote').textContent = [it.note, it.settings && it.settings.tmdbNote, plexOffer(it)].filter(Boolean).join('  ·  ');
+    row.querySelector('.qnote').textContent = [it.note, it.check && it.check.replace(/ \(.*$/, ''), it.settings && it.settings.tmdbNote, plexOffer(it)].filter(Boolean).join('  ·  ');
     renderPlexRow(row.querySelector('.qplex'), it);
+    renderAdviceRow(row.querySelector('.qadvice'), it);
     row.querySelector('.qst').textContent = it.status === 'running' ? Math.floor(it.percent) + '%' : STATUS_TEXT[it.status];
     // time: left for the running file, expected for a waiting one, taken for a finished one
     const fin = ['done', 'failed', 'canceled'].includes(it.status);
@@ -3616,6 +3838,8 @@ function renderQueue(q) {
   $('qApply').classList.toggle('hidden', !(waiting || c.problem));
   $('qProfile').classList.toggle('hidden', !((waiting || c.problem) && profiles.length));
   $('qClear').classList.toggle('hidden', !finished);
+  $('qReport').classList.toggle('hidden', !q.report);
+  renderAdvice(q);
   $('qTMDB').classList.toggle('hidden', !(waiting || c.problem));
   $('qClearAll').classList.toggle('hidden', !(waiting || c.problem)); // with only finished files, Clear finished does it
   const offers = q.items.filter(it => plexOffer(it)).length;

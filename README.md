@@ -66,11 +66,18 @@ quality.
   through.
 
 ### Choose the quality and size
-- **Three ways to choose quality:**
+- **Four ways to choose quality:**
+  - **Aim for quality:** say how good it should look (Excellent, Very good, Good, or a VMAF score), and Keep the
+    Light finds the setting for each film by trying short stretches and scoring them against the original. Easy
+    films come out small, grainy ones get the space they need. VMAF is a 0–100 score of how close a picture looks
+    to the original; for HDR it is a guide rather than an exact measure. Needs an FFmpeg with VMAF ("full" builds).
   - **Constant quality:** pick a number, and every scene gets the same quality.
   - **Target bitrate:** pick how much data per second.
   - **Target file size:** say "make it 8 GB", and Keep the Light works out the rest. A double episode (named
     `S05E09-E10`, or marked as one on the Plex names tab) gets twice the size by itself.
+- **Find the right setting.** Not sure which number to pick? One button tries short stretches of the film and shows
+  which setting gives Excellent, Very good and Good quality, with the estimated size and space saved for each.
+  Nothing is converted until you choose. Also for files picked in the Library scan.
 - **Quality guide.** A plain-English note under the setting tells you if your choice is too low, about right, or
   more than you need.
 - **30-second test.** Convert just 30 seconds first, and compare it with the same 30 seconds of the original before
@@ -137,7 +144,12 @@ quality.
   back with the date of the scan, and files that have gone or changed since are marked.
 - **Finished files are checked again,** to confirm they are clean, including that picture and sound are stored
   together in the file (if not, streaming players can show a black picture; Keep the Light fixes that on the spot).
-- **Tells Plex** when new files are ready, so they appear straight away (set up once with your Plex server and token).
+- **Thorough check (optional).** A setting that reads each new file through once: every frame decodes, picture and
+  sound run to the end, the length matches the original, and Dolby Vision data is there for every frame.
+- **Tidy up originals.** After converting, the Library scan tab finds originals that have a checked copy next to
+  them and moves them to the Recycle Bin (on a network drive they are renamed "(original)" instead, with Undo).
+  Nothing is deleted outright.
+- **Tells Plex** when new files are ready or renamed, so they appear straight away (set up once with your Plex server and token).
 - **Marks converted files,** so you are warned before converting a file twice, and the Library scan shows what is done.
 
 ### The queue
@@ -154,6 +166,8 @@ quality.
 - **Watch folder:** videos you copy into a chosen folder join the queue by themselves, with the profile you pick.
 - **When finished:** play a sound, or put the PC to sleep or shut it down.
 - **Space saved** is shown for each file, for each run, and as a running total.
+- **A report after every run:** each file's size before and after, time taken, settings, warnings, and anything
+  that had to be done another way. Open it from the Queue tab; the newest 20 are kept.
 
 ### Made for real-world setups
 - **Works with network drives and NAS boxes.** It can copy a file to your PC, convert it there, and copy the result
@@ -310,6 +324,14 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   terms: H.264 needs about 1.7 times the bitrate of HEVC). Very low settings get a warning, and so does a bitrate
   higher than the source needs. Target file size shows the same guide in its plan line. It is a rule of thumb;
   the 30-second test measures the real result.
+- **Aim for quality** (the fourth quality choice): choose Excellent (VMAF 97), Very good (95), Good (93) or your
+  own score. Before each film is converted, three 10-second stretches are tried at different settings and scored;
+  the lowest setting that reaches the score is used, and the log says which ("Quality aim: CRF 21 gives VMAF 95.3").
+  This adds a few minutes per film. The file is never made bigger than the original, and a film whose score tops
+  out lower (grain does that) gets the setting within a point of its best.
+- **Find the right setting** (under the quality choice): the same search, as advice. It shows a table of settings
+  with their measured score, estimated size and saving; **Use** takes a row's setting as Constant quality. Sizes
+  are estimates from short stretches and can be a tenth or so off.
 - **Test 30 s** (next to Start): encodes 30 seconds with the current settings, from a chosen time or 40% into
   the film, and saves it next to the result as "... (30 s test)". It runs on its own, even when files are waiting
   in the queue. A target file size becomes the bitrate it works out to for the whole film. The test starts on the

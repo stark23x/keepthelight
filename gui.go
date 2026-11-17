@@ -77,6 +77,7 @@ type guiServer struct {
 	closing    bool     // the window is closing
 	lowPrio    bool     // run transcodes at low priority (a remembered setting)
 	hwDec      bool     // decode on the GPU (a remembered setting, used from the next file on)
+	deepCheck  bool     // read every new file through once (a remembered setting, off to begin with)
 	workLocal  bool     // copy network files to this PC to convert them (a remembered setting)
 	savedTotal int64    // space saved by Keep the Light so far, on this PC (bytes)
 	inbox      []string // files sent by a later start of Keep the Light, for the page
@@ -85,6 +86,7 @@ type guiServer struct {
 	jobSeq     int
 	scan       scanState // the library scan (its own lock)
 	ren        renState  // the Plex names tab (its own lock; taken after mu, never before)
+	tidy       tidyState // tidying up originals (its own lock)
 
 	prefsMu   sync.Mutex
 	prefsPath string // settings file (empty = the normal place); set by tests
@@ -95,7 +97,9 @@ type settings struct {
 	Input, Output              string
 	Mode                       string // encode | copy
 	Codec                      string
-	Quality                    string // crf | bitrate | size
+	Quality                    string  // crf | bitrate | size | vmaf
+	QualityTarget              float64 // the VMAF to aim for (when Quality is "vmaf")
+	Advice                     bool    // only find the right setting (quality advice): nothing is converted
 	CRF                        int
 	Bitrate, Preset            string
 	Audio, AudioBitrate, DV    string
@@ -193,7 +197,7 @@ func (s *settings) toConfig() (*Config, error) {
 	if cfg.CRF < 0 || cfg.CRF > 51 {
 		return nil, fmt.Errorf("quality (CRF) must be between 0 and 51")
 	}
-	if s.Quality == "size" && !cfg.CopyVideo {
+	if s.Quality == "size" && !cfg.CopyVideo && !s.Advice {
 		n, err := parseTargetSize(s.TargetSize)
 		if err != nil {
 			return nil, err
@@ -201,7 +205,26 @@ func (s *settings) toConfig() (*Config, error) {
 		cfg.TargetBytes = n
 		cfg.Retries = max(0, min(5, s.Retries))
 	}
-	if s.Quality == "bitrate" {
+	if s.Quality == "vmaf" && !cfg.CopyVideo && !s.Advice {
+		if s.QualityTarget < 70 || s.QualityTarget > 99 {
+			return nil, fmt.Errorf("the quality to aim for must be between 70 and 99")
+		}
+		cfg.QualityTarget = s.QualityTarget
+	}
+	if s.Advice {
+		if cfg.CopyVideo {
+			return nil, fmt.Errorf("the right setting can only be found when the video is re-encoded")
+		}
+		if cfg.MetaOnly {
+			return nil, fmt.Errorf("the right setting can only be found when the video is re-encoded")
+		}
+		cfg.QualityAdvice, cfg.ReplaceOriginal = true, false
+		if cfg.Output != "" { // no file is made; the name only keeps it apart from a conversion of the same file
+			ext := filepath.Ext(cfg.Output)
+			cfg.Output = strings.TrimSuffix(cfg.Output, ext) + " (advice)" + ext
+		}
+	}
+	if s.Quality == "bitrate" && !s.Advice {
 		if !reBitrate.MatchString(s.Bitrate) {
 			return nil, fmt.Errorf("bitrate must look like 20M or 8000k")
 		}
@@ -350,6 +373,14 @@ func (cfg *Config) cliArgs() []string {
 	}
 	if cfg.Denoise != "" {
 		a = append(a, "-denoise", cfg.Denoise)
+	}
+	if cfg.QualityAdvice {
+		a = append(a, "-quality-advice")
+	} else if cfg.QualityTarget > 0 {
+		a = append(a, "-quality-target", strconv.FormatFloat(cfg.QualityTarget, 'f', -1, 64))
+	}
+	if cfg.DeepCheck {
+		a = append(a, "-thorough-check")
 	}
 	if cfg.SampleSecs > 0 {
 		a = append(a, "-sample", strconv.Itoa(cfg.SampleSecs))
@@ -710,6 +741,8 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		return g.start(ctx, body)
 	case "test":
 		return g.startTest(body)
+	case "advice": // "Find the right setting" for the file in the form
+		return g.startAdvice(body)
 	case "queueEditStart", "queueEditCancel":
 		var b struct{ ID int }
 		_ = json.Unmarshal(body, &b)
@@ -1127,6 +1160,41 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		g.mu.Unlock()
 		raw, _ := json.Marshal(b.On)
 		_ = g.savePref("hwDecode", raw)
+		return okResult()
+	case "tidyFind":
+		var b struct {
+			Dir, Tag  string
+			Recursive bool
+		}
+		_ = json.Unmarshal(body, &b)
+		return g.tidyFind(strings.TrimSpace(b.Dir), b.Recursive, strings.TrimSpace(b.Tag))
+	case "tidyStatus":
+		return g.tidyStatus()
+	case "tidyApply":
+		var b struct{ Originals []string }
+		_ = json.Unmarshal(body, &b)
+		return g.tidyApply(b.Originals)
+	case "tidyUndo":
+		return g.tidyUndo()
+	case "deepcheck": // the thorough check on/off; used from the next file that starts
+		var b struct{ On bool }
+		_ = json.Unmarshal(body, &b)
+		g.mu.Lock()
+		g.deepCheck = b.On
+		g.mu.Unlock()
+		raw, _ := json.Marshal(b.On)
+		_ = g.savePref("deepCheck", raw)
+		return okResult()
+	case "openReport": // the last queue run's report
+		g.mu.Lock()
+		p := g.q.report
+		g.mu.Unlock()
+		if p == "" || !fileExists(p) {
+			return failResult("There is no report yet: one is written when a queue run ends.")
+		}
+		if err := openURL(p); err != nil {
+			return failResult(err.Error())
+		}
 		return okResult()
 	case "prefs":
 		res := map[string]any{"ok": true, "prefs": g.loadPrefs(), "tmdbKey": g.tmdbKey(), "tmdbLang": tmdbLanguage(), "tmdbPicks": len(g.tmdbPicks())}

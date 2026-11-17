@@ -50,6 +50,8 @@ type queueItem struct {
 	LogFile   string          `json:"logFile,omitempty"`   // a failed job's saved log
 	Plex      []plexIssue     `json:"plex,omitempty"`      // the Plex check when the file was checked
 	PlexAfter []string        `json:"plexAfter,omitempty"` // the Plex check of the finished file
+	Advice    json.RawMessage `json:"advice,omitempty"`    // "Find the right setting": the table for the window
+	Check     string          `json:"check,omitempty"`     // the thorough check's result, when it is on
 
 	s           settings
 	cfg         *Config
@@ -59,7 +61,11 @@ type queueItem struct {
 	job         *job
 	checked     bool
 	started     time.Time
-	inRun       bool   // started in the current (or last) run: counts toward the batch's progress
+	inRun       bool  // started in the current (or last) run: counts toward the batch's progress
+	inSize      int64 // for the run's report: the sizes before and after,
+	outSize     int64 // and what the log said
+	warnings    []string
+	fallbacks   []string
 	PlexDetails string `json:"plexDetails,omitempty"` // the new file's details for a Plex-style name ("1080p.HEVC")
 }
 
@@ -81,10 +87,11 @@ type batch struct {
 	stopAfter bool   // stop once the current file is done
 	notice    string // a message for the window (Plex refresh), shown once per noticeSeq
 	noticeSeq int
-	only      int   // >0: run only this file (a test), not the rest of the queue
-	savedRun  int64 // space saved by the files finished in this run (bytes; can be negative)
-	index     int   // position of the current file in this run (1-based)
-	total     int   // files in this run
+	only      int    // >0: run only this file (a test), not the rest of the queue
+	report    string // the last run's report (a page in the logs folder)
+	savedRun  int64  // space saved by the files finished in this run (bytes; can be negative)
+	index     int    // position of the current file in this run (1-based)
+	total     int    // files in this run
 
 	after      string    // "", "sleep" or "shutdown": what to do when the queue is finished
 	powerAt    time.Time // when the countdown for "after" ends (zero = no countdown)
@@ -566,7 +573,7 @@ func (g *guiServer) queueApply(raw json.RawMessage) (n int, errs []string) {
 // files waiting in the queue are not started.
 func (g *guiServer) startTest(raw json.RawMessage) map[string]any {
 	var s settings
-	if err := json.Unmarshal(raw, &s); err != nil || s.TestSeconds <= 0 {
+	if err := json.Unmarshal(raw, &s); err != nil || (s.TestSeconds <= 0 && !s.Advice) {
 		return failResult("bad request")
 	}
 	if g.running() {
@@ -576,7 +583,7 @@ func (g *guiServer) startTest(raw json.RawMessage) map[string]any {
 	if _, err := validateSettings(s); err != nil {
 		return failResult(capitalize(err.Error()))
 	}
-	b, _ := json.Marshal(s)
+	b := withKeys(raw, map[string]any{"overwrite": true}) // the page's own names, so it can show the settings again
 	ids, errs := g.queueAdd([]json.RawMessage{b})
 	if len(errs) > 0 {
 		return failResult(errs[0])
@@ -602,6 +609,55 @@ func (g *guiServer) startTest(raw json.RawMessage) map[string]any {
 		return failResult(capitalize(err.Error()))
 	}
 	return okResult()
+}
+
+// startAdvice is "Find the right setting" for the file in the form: like a
+// test, it runs on its own; it makes no file, only the table of settings.
+func (g *guiServer) startAdvice(raw json.RawMessage) map[string]any {
+	var s settings
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return failResult("bad request")
+	}
+	return g.startTest(withKeys(raw, map[string]any{"advice": true, "testSeconds": 0, "replaceOriginal": false}))
+}
+
+// withKeys sets some of the settings in the page's JSON, leaving the rest as sent.
+func withKeys(raw json.RawMessage, set map[string]any) json.RawMessage {
+	m := map[string]json.RawMessage{}
+	if json.Unmarshal(raw, &m) != nil {
+		return raw
+	}
+	for k, v := range set {
+		for old := range m {
+			if strings.EqualFold(old, k) {
+				delete(m, old)
+			}
+		}
+		b, _ := json.Marshal(v)
+		m[k] = b
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		return raw
+	}
+	return b
+}
+
+// adviceNote is the one line of an advice shown in the queue.
+func adviceNote(raw []byte) string {
+	var a qualityAdvice
+	if json.Unmarshal(raw, &a) != nil || len(a.Rows) == 0 {
+		return "No advice came back - see the log."
+	}
+	var parts []string
+	for _, r := range a.Rows {
+		w := fmt.Sprintf("%s: CRF %d", r.Label, r.Q)
+		if r.Bytes > 0 {
+			w += " (about " + fmtSize(r.Bytes) + ")"
+		}
+		parts = append(parts, w)
+	}
+	return "Advice: " + strings.Join(parts, " · ")
 }
 
 // ownKeys are a file's own choices: its tracks and its metadata.
@@ -863,6 +919,7 @@ func (g *guiServer) runQueue() {
 			continue
 		}
 		it.Status, it.Note, it.Percent, it.Took, it.PlexAfter, it.LogFile = stRunning, "", 0, 0, nil, ""
+		it.Advice, it.Check, it.inSize, it.outSize, it.warnings, it.fallbacks = nil, "", 0, 0, nil, nil
 		it.started, it.inRun = g.clock(), true
 		cfg, duration := *it.cfg, it.Duration
 		g.mu.Unlock()
@@ -903,8 +960,17 @@ func (g *guiServer) runQueue() {
 					it.PlexAfter = append(it.PlexAfter, strings.TrimPrefix(l, "Plex check: "))
 				}
 			}
-			if cfg.SampleSecs == 0 && inSize > 0 { // space saved (not for tests)
+			it.warnings, it.fallbacks, it.Check = jobFindings(j.lines)
+			if cfg.QualityAdvice { // "Find the right setting": the table, no new file
+				it.Note = "No advice came back - see the log."
+				for _, l := range j.lines {
+					if a, ok := strings.CutPrefix(l, "QUALITY-ADVICE "); ok && json.Valid([]byte(a)) {
+						it.Advice, it.Note = json.RawMessage(a), adviceNote([]byte(a))
+					}
+				}
+			} else if cfg.SampleSecs == 0 && inSize > 0 { // space saved (not for tests)
 				if st, err := os.Stat(it.Output); err == nil {
+					it.inSize, it.outSize = inSize, st.Size()
 					saved := inSize - st.Size()
 					it.Note = savedText(inSize, st.Size())
 					g.q.savedRun += saved
@@ -914,6 +980,7 @@ func (g *guiServer) runQueue() {
 			finished++
 		default:
 			it.Status, it.Note = stFailed, lastError(j.lines)
+			it.warnings, it.fallbacks, _ = jobFindings(j.lines)
 			finished++
 			failed++
 			args := ""
@@ -936,15 +1003,37 @@ func (g *guiServer) runQueue() {
 		g.saveQueue()
 	}
 	g.mu.Lock()
+	wasTest := g.q.only > 0
 	g.q.running, g.q.only, g.q.stopAfter = false, 0, false
 	closing := g.closing
 	var ready []string // new files for Plex (tests are not)
+	var rows []reportRow
+	var first time.Time
 	for _, it := range g.q.items {
-		if it.inRun && it.Status == stDone && it.cfg != nil && it.cfg.SampleSecs == 0 {
+		if !it.inRun || it.cfg == nil || it.cfg.SampleSecs > 0 || it.cfg.QualityAdvice {
+			continue
+		}
+		if it.Status == stDone {
 			ready = append(ready, it.Output)
 		}
+		if it.finished() && !wasTest { // the run's report: every file it got to
+			rows = append(rows, reportRow{Name: it.Name, Input: it.Input, Output: it.Output, Status: it.Status, Note: it.Note,
+				Settings: settingsWords(it.cfg), InSize: it.inSize, OutSize: it.outSize, Took: it.Took,
+				Warnings: append(append([]string{}, it.warnings...), plexTrouble(it.PlexAfter)...), Fallbacks: it.fallbacks, Check: it.Check})
+			if first.IsZero() || (!it.started.IsZero() && it.started.Before(first)) {
+				first = it.started
+			}
+		}
 	}
+	now := g.clock()
 	g.mu.Unlock()
+	if len(rows) > 0 && !closing {
+		if p := writeReport(rows, first, now); p != "" {
+			g.mu.Lock()
+			g.q.report = p
+			g.mu.Unlock()
+		}
+	}
 	if len(ready) > 0 && !closing {
 		go func() { // tell Plex, so the files show up now (never an error for the conversions)
 			if note := g.plexRefresh(context.Background(), ready); note != "" {
@@ -1005,6 +1094,7 @@ func (g *guiServer) launchJob(cfg *Config, duration float64) (*job, error) {
 	run.Output = partialName(final)
 	g.mu.Lock()
 	run.LowPriority, run.HWDecode = g.lowPrio, g.hwDec
+	run.DeepCheck = g.deepCheck && !run.QualityAdvice
 	if g.workLocal { // the temp folder, if it is on this PC; else Windows' own temp folder
 		run.WorkLocal = os.TempDir()
 		if run.Tmp != "" && !isNetworkPath(run.Tmp) {
@@ -1067,6 +1157,8 @@ func (g *guiServer) launchJob(cfg *Config, duration float64) (*job, error) {
 				} else {
 					lines, finishErr = replaceOriginal(context.Background(), ffprobe, cfg.Input, j.partial, j.output)
 				}
+			} else if cfg.QualityAdvice {
+				// advice only: there is no new file
 			} else if err := renameFile(j.partial, j.output); err != nil {
 				finishErr = fmt.Errorf("could not rename the finished file to %s: %v", j.output, err)
 			} else {
@@ -1155,7 +1247,7 @@ func (g *guiServer) queueStatusLocked() map[string]any {
 	res := map[string]any{"schedule": g.sched, "plan": g.sched.text(), "plexFiles": plexFiles, "plexBad": plexBad, "stopAfter": g.q.stopAfter, "notice": g.q.notice, "noticeSeq": g.q.noticeSeq,
 		"items": items, "counts": counts, "running": g.q.running, "index": g.q.index, "batch": g.batchLocked(items),
 		"total": g.q.total, "after": g.q.after, "savedRun": g.q.savedRun, "savedRunText": signedBytes(g.q.savedRun),
-		"savedTotal": g.savedTotal, "savedTotalText": signedBytes(g.savedTotal)}
+		"savedTotal": g.savedTotal, "savedTotalText": signedBytes(g.savedTotal), "report": g.q.report != "" && fileExists(g.q.report)}
 	if !g.q.powerAt.IsZero() {
 		res["powerIn"] = int(time.Until(g.q.powerAt).Seconds() + 0.5)
 	}
@@ -1361,6 +1453,12 @@ func (g *guiServer) restoreQueue() {
 	if b, ok := g.loadPrefs()["hwDecode"]; ok && json.Unmarshal(b, &hw) == nil {
 		g.mu.Lock()
 		g.hwDec = hw
+		g.mu.Unlock()
+	}
+	var deep bool
+	if b, ok := g.loadPrefs()["deepCheck"]; ok && json.Unmarshal(b, &deep) == nil {
+		g.mu.Lock()
+		g.deepCheck = deep
 		g.mu.Unlock()
 	}
 	var lang string
@@ -1719,6 +1817,17 @@ func withFoundSubs(raws []json.RawMessage) []json.RawMessage {
 		m["extSubs"] = found
 		if b, err := json.Marshal(m); err == nil {
 			out[i] = b
+		}
+	}
+	return out
+}
+
+// plexTrouble: the Plex check's lines about the new file, without "no problems found".
+func plexTrouble(lines []string) []string {
+	var out []string
+	for _, l := range lines {
+		if !strings.HasPrefix(strings.ToLower(l), "no problems") {
+			out = append(out, "Plex: "+l)
 		}
 	}
 	return out

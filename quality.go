@@ -171,6 +171,9 @@ func qualityGuide(cfg *Config, p *Probe, plan *Plan) *QualityGuide {
 	if cfg.CopyVideo || cfg.TargetBytes > 0 {
 		return nil
 	}
+	if cfg.QualityTarget > 0 {
+		return &QualityGuide{Level: "verygood", Text: fmt.Sprintf("the setting is found for this film by trying three short stretches, so it reaches VMAF %g%s where it is hardest", cfg.QualityTarget, labelNote(cfg.QualityTarget))}
+	}
 	if cfg.Bitrate != "" {
 		bps, ok := parseBitrateBps(cfg.Bitrate)
 		if !ok {

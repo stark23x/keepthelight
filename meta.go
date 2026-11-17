@@ -325,20 +325,27 @@ func replaceOriginal(ctx context.Context, ffprobe, original, newFile, final stri
 // disposeOriginal moves the original to the Recycle Bin when its drive has
 // one; otherwise (network drives, USB sticks) it is renamed, never deleted.
 func disposeOriginal(path string) (string, error) {
+	where, _, err := disposeOriginalTo(path)
+	return where, err
+}
+
+// disposeOriginalTo also says what the original is now called when it was
+// renamed ("" when it went to the Recycle Bin).
+func disposeOriginalTo(path string) (where, kept string, err error) {
 	if hasRecycleBin(path) {
 		if err := recycle(path); err == nil {
-			return "moved to the Recycle Bin", nil
+			return "moved to the Recycle Bin", "", nil
 		}
 	}
 	ext := filepath.Ext(path)
-	kept := strings.TrimSuffix(path, ext) + " (original)" + ext
+	kept = strings.TrimSuffix(path, ext) + " (original)" + ext
 	for i := 2; fileExists(kept); i++ {
 		kept = fmt.Sprintf("%s (original %d)%s", strings.TrimSuffix(path, ext), i, ext)
 	}
 	if err := renameFile(path, kept); err != nil {
-		return "", err
+		return "", "", err
 	}
-	return "renamed to " + filepath.Base(kept) + " (this drive has no Recycle Bin, so it was not deleted)", nil
+	return "renamed to " + filepath.Base(kept) + " (this drive has no Recycle Bin, so it was not deleted)", kept, nil
 }
 
 func samePath(a, b string) bool {

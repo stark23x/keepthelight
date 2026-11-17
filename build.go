@@ -47,6 +47,9 @@ type Config struct {
 	Tmp                                          string
 	DryRun, Keep, Verbose, Pause, Sound          bool
 	TargetBytes                                  int64          // >0: aim for this output file size
+	QualityTarget                                float64        // >0: aim for this VMAF; the quality setting is found by trying stretches (qualityaim.go)
+	QualityAdvice                                bool           // only find the settings for Excellent / Very good / Good and print them
+	DeepCheck                                    bool           // read the whole new file through after the job (deepcheck.go)
 	SizeFactor                                   float64        // >0: the file holds this many episodes (from the window's marks)
 	Retries                                      int            // hardware encoders: extra attempts to land on the target
 	Pass                                         int            // x265 two-pass: 0 off, 1 or 2
@@ -140,6 +143,16 @@ func makePlan(cfg *Config, p *Probe) (*Plan, error) {
 	}
 	if cfg.TargetBytes > 0 && cfg.Bitrate != "" {
 		return nil, fmt.Errorf("use either a target file size or a video bitrate, not both")
+	}
+	if cfg.QualityTarget > 0 || cfg.QualityAdvice {
+		switch {
+		case cfg.CopyVideo:
+			return nil, fmt.Errorf("a quality can only be aimed for when the video is re-encoded")
+		case cfg.TargetBytes > 0 || cfg.Bitrate != "":
+			return nil, fmt.Errorf("use either a quality to aim for, a video bitrate or a target file size, not two of them")
+		case cfg.QualityTarget != 0 && (cfg.QualityTarget < 70 || cfg.QualityTarget > 99):
+			return nil, fmt.Errorf("the quality to aim for (VMAF) must be between 70 and 99")
+		}
 	}
 	warn := func(f string, a ...any) { plan.Warnings = append(plan.Warnings, fmt.Sprintf(f, a...)) }
 

@@ -41,6 +41,9 @@ which is not in the repository.
 - **Replace the original** is optional and only for "Metadata only". The original goes to the Recycle Bin, or is
   renamed "(original)" on drives without one, and only after the new file is checked.
 - **Space saved:** shown per file and per run, plus one running total (no history).
+- **Quality aim:** the search moves the constant-quality number (12–30) for all three encoders; a file is never made
+  bigger than the original; a film that cannot reach the score gets the setting within a point of its best, not the
+  lowest one. The thorough check is a PC setting, off by default. Tidying up never deletes outright.
 - **Layout:** Convert / Queue / Library scan / Plex names tabs, Start bar always at the bottom (at every window width), PC
   settings in the ⚙ Settings dialog. Wide windows: the Convert tab in two columns (owner chose this over one wide
   column); narrow windows: one column. Text size zooms the whole page. Appearance: System / Dark / Light and five
@@ -72,6 +75,10 @@ which is not in the repository.
     and double / split episodes (renumbering a season; the target size of a double).
   - `denoise.go` – noise reduction and the 30-second test.
   - `quality.go` – the quality guide and the test's score.
+  - `qualityaim.go` – "Aim for quality" and "Find the right setting": the search for the setting that reaches a VMAF
+    score (short stretches, shared tries, the knee when a film's score tops out).
+  - `deepcheck.go` – the optional thorough check of a finished file.
+  - `report.go` – the page written after each queue run; `tidy.go` – tidying up originals (Library scan tab).
   - `gpupath.go` – the full-GPU path and the encoder check.
   - `scale.go` – resizing (including Dolby Vision active area).
   - `reshape.go` – Dolby Vision profile 5: colours to HDR10 with libplacebo, HDR10 information from the RPU.
