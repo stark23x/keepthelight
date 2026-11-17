@@ -24,6 +24,25 @@ From the owner's "what's missing?" (2026-11-16):
   with a link in the window): each file's size before and after, space saved, time taken, encoder and settings,
   warnings, and anything that fell back (CPU decoding, the full-GPU path, a remux, TVmaze, a slower profile 5 way);
   totals at the top. The newest 20 are kept.
+- **Choose a quality instead of a number (VMAF), as advice and automatically.** Owner chose "both" (2026-11-16).
+  - **The search:** cut three short stretches from different parts of the film (e.g. 20 s each at about 20%, 50%,
+    80%, avoiding the first and last minutes), encode them with the job's encoder and settings, measure VMAF
+    against the original (same scaling, deinterlacing, cropping and profile 5 conversion as the 30-second test),
+    and judge each try by the worst stretch. Move CRF (x265) or the bitrate (NVENC/QuickSync) up or down: usually
+    3–4 tries. Estimate the full size from the stretches' bitrates. Without libvmaf, say so and fall back to the
+    test's SSIM-based score, or refuse plainly.
+  - **Advice:** a "Find the right setting" button on the Convert tab, and as a choice for files in the Library
+    scan: a small table, Excellent (VMAF 97) / Very good (95, suggested) / Good (93), each with the setting, the
+    estimated size and the space saved; clicking a row uses that setting (a one-off, like editing the CRF). Say so
+    when even "Good" looks excellent for that film. Nothing changes until a row is chosen.
+  - **Automatic:** a Video setting "Aim for quality" with the target (97 / 95 / 93 or a number), as an alternative to
+    CRF / bitrate / target size; saved in profiles. In the queue, each file gets its own setting by the search
+    before it is converted; the log says what was chosen ("CRF 21 → VMAF 95.4 at its worst stretch"). A limit:
+    never bigger than the original (or than a given bitrate). Works on the laptop (NVENC) and the Dell (QuickSync)
+    alike.
+  - HDR note in the UI/README: VMAF was made for SDR; on HDR it compares well but the exact number means a little
+    less.
+  - A large, careful build: suggest a higher-tier model before starting it.
 - **Tell Plex about renames and single jobs too.** Keep the Light already asks Plex to rescan after a queue run
   (`plexrefresh.go`, set up in Settings). Do the same after "Rename now" on the Plex names tab (the folders of the
   renamed files, and again after Undo) and after a single job from the Convert tab, with the same quiet note when
