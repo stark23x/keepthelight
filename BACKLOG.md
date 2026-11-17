@@ -6,7 +6,19 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing at the moment.
+- **Keep the PC awake while a job runs (a setting in ⚙ Settings).** The owner's PC goes to sleep during jobs.
+  Each job already asks Windows not to sleep, but only once the conversion itself starts (`preventSleep` in
+  `transcode()`), so it does not cover: copying a network file to this PC first (Work locally), probing and the
+  quality search before that point, the gaps between files in the queue, copying the result back, the Plex
+  rescan and the report. Plan:
+  - Hold the request in the window for the whole queue run, from Start until the run (and its Plex rescan) ends;
+    release it while paused, and before "Sleep / Shut down when finished".
+  - A setting, on by default: **Keep this PC awake while converting**, with a second choice **and keep the
+    screen on**. Laptops with "Modern Standby" go to sleep when the screen turns off whatever a program asks, so
+    there only keeping the screen on works (say so in the hint). Use `ES_CONTINUOUS | ES_SYSTEM_REQUIRED`
+    (plus `ES_DISPLAY_REQUIRED` for the screen).
+  - Check on the laptop and the Dell with `powercfg /requests` while a job runs; closing the lid or pressing the
+    power button still sleeps (Windows does not let a program stop that); say so in the hint.
 
 ## Ideas raised, not yet requested
 
