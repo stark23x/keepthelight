@@ -6,7 +6,14 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing at the moment.
+- **Fix: Tidy up originals finds nothing** (owner: `Y:\Movies\The Mandela Effect (2019)` holds the original and
+  the re-encode, but Tidy does nothing). 1.42.0 pairs files only by name (`Film.mkv` + `Film_KTL.mkv` with the
+  current ending), so a copy with a Plex-style name, a profile's ending or a renamed original is never found.
+  Pair by content instead: in each folder, a video carrying Keep the Light's mark (`KEEP_THE_LIGHT` tag) is
+  paired with an unmarked video of the same length (within 2 s); the name match stays as the first choice. When
+  a folder has two unmarked videos of the same length, leave it alone and list it as "not sure which is the
+  original". Also: when nothing is found, say how many folders were looked through and that "Include subfolders"
+  must be ticked for a whole library (it may have been off). Confirm against the real file names first.
 
 ## Ideas raised, not yet requested
 
