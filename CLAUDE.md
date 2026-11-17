@@ -22,7 +22,8 @@ which is not in the repository.
 - **Writing:** UI text, README and CHANGELOG are in plain, short English for a non-programmer. Say what something
   does and why it matters; no jargon without a gloss. Follow the existing wording style (British spellings such
   as "licence" and "recognisable" are used throughout).
-- **Never** publish a GitHub release, delete the owner's files, or change files on PlexRaid without being asked.
+- **Never** delete the owner's files or change files on PlexRaid without being asked. Releases are published
+  automatically by the release workflow, but only when every step passes (see Releases).
 - **Model advice:** the owner asked to be told when a switch to a higher-tier model (such as Fable) would be worth
   it. Say so in one line before starting a build that is large, spans many files, or is hard to reason about (new
   video pipelines, colour or HDR handling, matching logic), or after a fix has failed twice. Do not suggest it for
@@ -119,10 +120,14 @@ summary.
    - runs the tests and `govulncheck`;
    - builds with the current Go;
    - adds dovi_tool and hdr10plus_tool (checksum-verified);
-   - creates a **draft** GitHub release (and its tag) with the program zip, the source zip and
-     `SHA256SUMS-<version>.txt`.
-3. When it succeeds, download those files, copy them where `CLAUDE.local.md` says, and tell the owner the draft is
-   ready to publish. The owner publishes releases themselves.
+   - creates a draft GitHub release (and its tag) with the program zip, the source zip and
+     `SHA256SUMS-<version>.txt`;
+   - **publishes** it once all three files are attached (the owner asked for this, 17 November 2026). If any step
+     fails, nothing is published; a draft may be left behind. A release already published is never changed by a
+     later run.
+3. When it succeeds, download those files, copy them where `CLAUDE.local.md` says, and tell the owner the release is
+   published. If it failed, tell the owner what failed and that the release was not published; fix it and push again
+   (a rerun replaces the draft's files and then publishes).
 4. Move the shipped items to "Done" in `BACKLOG.md`.
 
 The owner sometimes edits `README.md` on GitHub: always pull before committing.

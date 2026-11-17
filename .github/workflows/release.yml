@@ -2,10 +2,12 @@
 # vulnerability check, both programs, the bundled tools (downloaded from their
 # author's releases and checked against their published SHA-256), the program
 # and source zips, and SHA-256 checksums. A push to main that changes VERSION
-# creates a draft release (and its tag) with these files; publish it on GitHub
-# when ready. Run by hand (Actions tab), it builds the files without a release.
-# A push that changes only this file rebuilds the current VERSION (for example
-# after a failed run), replacing that draft release's files.
+# creates a release (and its tag) with these files: it is made as a draft, and
+# published once every file is attached. If any step fails, nothing is
+# published (a draft may be left behind). Run by hand (Actions tab), it builds
+# the files without a release. A push that changes only this file rebuilds the
+# current VERSION (for example after a failed run), replacing the files of a
+# draft release; a release already published is never changed.
 name: release
 
 on:
@@ -97,12 +99,34 @@ jobs:
         run: |
           V=${{ steps.v.outputs.version }}
           if gh release view "$V" >/dev/null 2>&1; then
-            echo "A release $V exists already: its files are replaced"
+            if [ "$(gh release view "$V" --json isDraft -q .isDraft)" != "true" ]; then
+              echo "Release $V is already published: it is left as it is"
+              exit 0
+            fi
+            echo "A draft release $V exists already: its files are replaced"
             gh release upload "$V" --clobber "KeepTheLight-$V-win64.zip" "keepthelight-src-$V.zip" "SHA256SUMS-$V.txt"
           else
             gh release create "$V" --draft --target "$GITHUB_SHA" --title "$V" --notes-file notes.md \
               "KeepTheLight-$V-win64.zip" "keepthelight-src-$V.zip" "SHA256SUMS-$V.txt"
           fi
+
+      - name: Publish release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=${{ steps.v.outputs.version }}
+          if [ "$(gh release view "$V" --json isDraft -q .isDraft)" != "true" ]; then
+            echo "Release $V is already published"
+            exit 0
+          fi
+          have=$(gh release view "$V" --json assets -q '.assets[].name' | sort | tr '\n' ' ')
+          want=$(printf '%s\n' "KeepTheLight-$V-win64.zip" "keepthelight-src-$V.zip" "SHA256SUMS-$V.txt" | sort | tr '\n' ' ')
+          if [ "$have" != "$want" ]; then
+            echo "Release $V does not have exactly the expected files (has: $have): it stays a draft"
+            exit 1
+          fi
+          gh release edit "$V" --draft=false --latest
 
       - uses: actions/upload-artifact@v4
         with:
