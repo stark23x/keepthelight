@@ -17,8 +17,11 @@ next build". Shipped features move to "Done" with their version number. Nothing 
     screen on**. Laptops with "Modern Standby" go to sleep when the screen turns off whatever a program asks, so
     there only keeping the screen on works (say so in the hint). Use `ES_CONTINUOUS | ES_SYSTEM_REQUIRED`
     (plus `ES_DISPLAY_REQUIRED` for the screen).
-  - It is mainly the laptop (the Dell runs 24/7). Check there with `powercfg /a` ("Standby (S0 Low Power Idle)" =
-    Modern Standby) and `powercfg /requests` while a job runs; closing the lid or pressing the
+  - It is mainly the laptop (the Dell runs 24/7). Confirmed: the laptop has Modern Standby only (`powercfg /a`:
+    "Standby (S0 Low Power Idle) Network Connected"; S3 not available). In Modern Standby Windows freezes desktop
+    programs, so the conversion stops when the screen turns off. Detect Modern Standby
+    (`CallNtPowerInformation(SystemPowerCapabilities)`, the AoAc flag) and turn "keep the screen on" on by default
+    there; off on PCs with ordinary sleep (the Dell). Check with `powercfg /requests` while a job runs; closing the lid or pressing the
     power button still sleeps (Windows does not let a program stop that); say so in the hint.
 
 ## Ideas raised, not yet requested
