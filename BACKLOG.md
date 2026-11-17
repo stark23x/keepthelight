@@ -6,7 +6,28 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing at the moment.
+From the owner's "what's missing?" (2026-11-16):
+
+- **Tidy up originals after a conversion.** After a full re-encode the original and the `_KTL` copy both stay (Plex
+  may list two versions, and the space is only saved once the original is deleted by hand). In the Library scan,
+  list pairs where the converted copy exists and passed its checks (the KTL tag, plus a quick look: same length
+  within a second or two, video and audio present), with "Move the originals to the Recycle Bin" for the chosen
+  ones (renamed "(original)" on drives without one, like Replace the original; never deleted outright). Show the
+  space this gets back. Their subtitle files stay with the copy (rename them to the copy's name if they were named
+  after the original). Undo for the "(original)" renames.
+- **A thorough check of the finished file (optional, off to begin with).** A setting (and a per-job choice in the
+  queue): after the job, read the whole new file through once (decode every frame, null output): every frame
+  decodes without errors, the Dolby Vision data runs from start to end (an RPU on every frame, counted by dovi_tool),
+  HDR10+ likewise, sound and picture cover the whole length, and the length matches the original. Reports "Thorough
+  check: passed" or what failed. It takes a few minutes per film; the GPU can decode where it is used anyway.
+- **A report after a queue run.** At the end of a run, a summary kept as a file (HTML or text in the logs folder,
+  with a link in the window): each file's size before and after, space saved, time taken, encoder and settings,
+  warnings, and anything that fell back (CPU decoding, the full-GPU path, a remux, TVmaze, a slower profile 5 way);
+  totals at the top. The newest 20 are kept.
+- **Tell Plex about renames and single jobs too.** Keep the Light already asks Plex to rescan after a queue run
+  (`plexrefresh.go`, set up in Settings). Do the same after "Rename now" on the Plex names tab (the folders of the
+  renamed files, and again after Undo) and after a single job from the Convert tab, with the same quiet note when
+  it fails.
 
 ## Ideas raised, not yet requested
 
