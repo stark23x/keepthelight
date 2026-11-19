@@ -6,7 +6,16 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing at the moment.
+- **Settings for anime and animated shows** (requested 19 November 2026), to save more space on them:
+  - A "This is animation" tick box. Profiles can hold it, so an "Anime" profile can switch it on.
+  - With x265 it adds `-tune animation`: fewer bits for fine texture, more for clean lines and flat colour.
+  - With every encoder it lets more frames be reused, because anime holds drawings and has still shots. x265 gets
+    more B-frames (about 8); NVENC gets B-frames as references, a longer look-ahead and temporal AQ; QuickSync gets
+    more B-frames. The Dell (QuickSync) must get the same as the laptop where its hardware allows.
+  - When TMDB lists a title as Animation, offer to tick the box. Never tick it silently.
+  - Aim for quality works on top of this as it does now.
+  - Not included: dropping duplicate frames (`mpdecimate`, which gives a variable frame rate that can upset Plex,
+    sync and Dolby Vision) and debanding (no space saved).
 
 ## Ideas raised, not yet requested
 
