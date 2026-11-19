@@ -12,8 +12,8 @@ next build". Shipped features move to "Done" with their version number. Nothing 
     `keepthelight.ico` (16–256 px; 16 and 20 px have no sprocket holes and 24 px has three, so they stay clean).
     Copy them over the files of the same name in `res/` and run `go generate`. `keepthelight-original.png` and
     `mkicon.py` belong to the old bulb logo: `mkicon.py` is not needed for the new one.
-  - `github-header.png` (3200×960, shown at 1600×480): put it at the top of `README.md` (for example
-    `.github/header.png`). `github-header.svg` is its source and needs the Inter font, so use the PNG on GitHub.
+  - The GitHub header (`github-header.png`, also at `.github/header.png`) is already at the top of `README.md`
+    (added 19 November 2026 at the owner's request). `github-header.svg` is its source and needs the Inter font.
 
 ## Ideas raised, not yet requested
 

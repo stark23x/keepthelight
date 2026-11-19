@@ -1,3 +1,5 @@
+<p align="center"><img src=".github/header.png" alt="Keep the Light: converts HDR video to HEVC, and keeps the HDR intact. HDR10, HLG, HDR10+, Dolby Vision." width="100%"></p>
+
 # Keep the Light
 
 **Keep the Light** is a free Windows program that makes your video files smaller without losing the things that make
