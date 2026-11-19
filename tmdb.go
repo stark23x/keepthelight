@@ -225,6 +225,23 @@ type tmdbFill struct {
 	Link        string `json:"link"` // the TMDB page
 	Note        string `json:"note,omitempty"`
 	PlexName    string `json:"plexName,omitempty"` // the Plex-style file name, without extension ("" for a show without an episode)
+	Animation   bool   `json:"animation,omitempty"` // TMDB lists the film or show as Animation
+}
+
+// tmdbGenre is one of a film's or show's genres; 16 is Animation for both.
+type tmdbGenre struct {
+	ID int `json:"id"`
+}
+
+const tmdbAnimation = 16
+
+func hasAnimation(gs []tmdbGenre) bool {
+	for _, g := range gs {
+		if g.ID == tmdbAnimation {
+			return true
+		}
+	}
+	return false
 }
 
 // tmdbDetails gets a film, or a show's episode (season, episode > 0) or the
@@ -238,10 +255,12 @@ func tmdbDetails(ctx context.Context, key, kind string, id, season, episode int,
 			Title, Overview string
 			ReleaseDate     string `json:"release_date"`
 			PosterPath      string `json:"poster_path"`
+			Genres          []tmdbGenre
 		}
 		if err := tmdbGet(ctx, key, fmt.Sprintf("/movie/%d", id), nil, &m); err != nil {
 			return nil, err
 		}
+		f.Animation = hasAnimation(m.Genres)
 		f.Title, f.Date, f.Description, poster = m.Title, m.ReleaseDate, m.Overview, m.PosterPath
 		f.Link = fmt.Sprintf("https://www.themoviedb.org/movie/%d", id)
 		f.PlexName = plexFilmName(m.Title, yearOf(m.ReleaseDate), id)
@@ -250,10 +269,12 @@ func tmdbDetails(ctx context.Context, key, kind string, id, season, episode int,
 			Name, Overview string
 			FirstAirDate   string `json:"first_air_date"`
 			PosterPath     string `json:"poster_path"`
+			Genres         []tmdbGenre
 		}
 		if err := tmdbGet(ctx, key, fmt.Sprintf("/tv/%d", id), nil, &show); err != nil {
 			return nil, err
 		}
+		f.Animation = hasAnimation(show.Genres)
 		f.Title, f.Date, f.Description, poster = show.Name, show.FirstAirDate, show.Overview, show.PosterPath
 		f.Link = fmt.Sprintf("https://www.themoviedb.org/tv/%d", id)
 		if season > 0 {

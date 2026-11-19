@@ -87,6 +87,8 @@ quality.
 - **Crop black bars (576p and 480p only).** Old shows are often stored inside a bigger frame with black bars around
   them. Keep the Light can find the bars and cut them off.
 - **Noise reduction.** Cleans up grain and "fizz" in the picture. This often makes files smaller too.
+- **This is animation.** For anime and cartoons: settings that make the most of flat colour and held drawings, for
+  smaller files with clean lines.
 - **Deinterlace.** Old TV shows and DVDs often have striped edges on anything that moves. Keep the Light spots
   this by looking at the picture itself, and fixes it, either with smooth motion like the original broadcast or at
   the standard frame rate.
@@ -318,6 +320,14 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   Only filters that work in 10-bit are used, so HDR keeps its gradations; Dolby Vision is unaffected. Besides a
   cleaner picture, it usually makes files noticeably smaller. Light keeps film grain recognisable; Strong can look
   smoothed. The log says where "High quality" ran.
+- **This is animation** (under Video): for anime and cartoons, which are flat colour and clean lines, with each
+  drawing often held for a few frames. **x265** uses its animation tune (fewer bits for fine texture, more for edges
+  and flat colour) and up to 8 B-frames, frames that reuse the ones around them; that is where most of the saving
+  comes from. **NVENC** gets B-frames (also used as references), a longer look ahead and AQ that follows motion;
+  **QuickSync** gets more B-frames, placed where they help. Graphics cards differ (NVENC on a GTX 10-series has no
+  B-frames in HEVC), so the options are tried first and the log says which were used. Profiles keep it, so an
+  "Anime" profile can switch it on. When TMDB or TVmaze fills in a title it lists as animation, Keep the Light offers
+  to tick the box (it never ticks it by itself). Command line: `-animation`.
 - **The file's bitrate** is shown in its card next to its length: the file's size and bitrate, and the video's own
   bitrate ("1h 6m 32s · 1.9 GB · 4.2 Mb/s (video 3.9 Mb/s)"). The video's figure comes from the file when it says,
   otherwise it is worked out from the file's bitrate less the audio ("about"). With **Target bitrate**, a line
@@ -471,6 +481,7 @@ private local web server. To choose that yourself, run `keepthelight_cli -server
     keepthelight_cli -low-priority in.mkv     (other programs come first)
     keepthelight_cli -scale 1080p in.mkv      (shrink to fit 1920x1080, keeping HDR / Dolby Vision)
     keepthelight_cli -hw-decode in.mkv        (decode on the GPU, encode on the CPU)
+    keepthelight_cli -animation in.mkv        (anime and cartoons: smaller files with clean lines)
     keepthelight_cli -denoise light -sample 30 -sample-start 1:00:00 in.mkv test.mkv   (try noise reduction on 30 s)
     keepthelight_cli -audio-tracks 1,3:eac3 -sub-tracks 2:forced in.mkv   (choose tracks)
     keepthelight_cli -audio-lang eng -drop-commentary -subs forced in.mkv  (rules, for scripts)

@@ -129,6 +129,7 @@ type settings struct {
 	Denoise                    string    // noise reduction: "" off, light, medium, strong, hq
 	Deinterlace                string    // "" (smooth), smooth, standard, off
 	Crop                       bool      // cut black bars (576p and 480p only)
+	Animation                  bool      // anime and cartoons (see animation.go)
 	TestSeconds                int       // >0: only a test of this many seconds
 	TestStart                  string    // where the test starts ("" = automatic)
 	ReplaceOriginal            bool      // metadata only: the result takes the original's place
@@ -175,7 +176,7 @@ func (s *settings) toConfig() (*Config, error) {
 		return nil, fmt.Errorf("unknown noise reduction option")
 	}
 	if !cfg.CopyVideo {
-		cfg.Denoise, cfg.Deinterlace = s.Denoise, s.Deinterlace
+		cfg.Denoise, cfg.Deinterlace, cfg.Animation = s.Denoise, s.Deinterlace, s.Animation
 	}
 	if s.TestSeconds > 0 {
 		if cfg.CopyVideo {
@@ -371,6 +372,9 @@ func (cfg *Config) cliArgs() []string {
 	}
 	if cfg.Crop {
 		a = append(a, "-crop")
+	}
+	if cfg.Animation {
+		a = append(a, "-animation")
 	}
 	if cfg.Scale != "" {
 		a = append(a, "-scale", cfg.Scale)

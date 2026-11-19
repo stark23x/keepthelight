@@ -657,6 +657,10 @@
           <select id="deinterlace"><option value="">Smooth motion (when needed)</option><option value="standard">Standard frame rate (when needed)</option><option value="off">Off</option></select>
           <div class="hint" id="deintHint">For interlaced video (old TV shows, DVDs, recordings), whose moving edges look striped. Keep the Light checks the picture,
             so normal films are left alone. Smooth gives each half-picture its own frame (50/60 fps), like the original broadcast.</div></div>
+      <div class="nrrow"><label class="check" title="Anime and cartoons are flat colour and clean lines, and each drawing is often held for a few frames. These settings use that to make the file smaller.">
+          <input type="checkbox" id="animation"> <span>This is animation</span></label>
+          <div class="hint" id="animHint">For anime and cartoons: smaller files with clean lines. x265 gains the most (its animation tune);
+            NVENC and QuickSync reuse more frames where the graphics card allows.</div></div>
     </div>
   </details>
 
@@ -1158,7 +1162,7 @@ function settings() {
     preset: $('preset').value, audio: $('audio').value, audioBitrate: $('abitrate').value.trim(),
     dv: $('dv').value, masterDisplay: $('master').value.trim(), maxCLL: $('cll').value.trim(), tmp: $('tmp').value.trim(),
     targetSize: $('targetNum').value.trim().replace(',', '.') + $('targetUnit').value, retries: +$('retries').value,
-    scale: $('scale').value, crop: $('crop').checked, denoise: $('denoise').value, deinterlace: $('deinterlace').value,
+    scale: $('scale').value, crop: $('crop').checked, denoise: $('denoise').value, deinterlace: $('deinterlace').value, animation: $('animation').checked,
     audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, audioChannels: $('audioCh').value, addCompatAudio: $('addCompat').checked, copyCompatible: $('copyCompat').checked, subLang: $('subLang').value.trim(), subMode: $('subMode').value, subToSRT: $('subToSRT').value,
     audioOnePerLang: $('audioOne').value, subNameMode: $('subNameMode').value, subNameWords: $('subNameWords').value.trim(), nameTracks: $('nameTracks').checked, fillFromNames: $('fillFromNames').checked,
     ...trackSettings(),
@@ -1656,7 +1660,7 @@ async function confirmNewFiles(form) {
 // ---------- profiles ----------
 // A profile is a named set of the settings below the Files section. It can
 // name converted files after itself ("Film_Plex 4K.mkv").
-const PROFILE_KEYS = ['mode', 'codec', 'preset', 'scale', 'crop', 'denoise', 'deinterlace', 'dv', 'quality', 'qualityTarget', 'crf', 'bitrate', 'targetSize', 'retries',
+const PROFILE_KEYS = ['mode', 'codec', 'preset', 'scale', 'crop', 'denoise', 'deinterlace', 'animation', 'dv', 'quality', 'qualityTarget', 'crf', 'bitrate', 'targetSize', 'retries',
   'audio', 'audioBitrate', 'audioChannels', 'audioLang', 'dropCommentary', 'addCompatAudio', 'copyCompatible', 'subLang', 'subMode', 'subToSRT', 'audioOnePerLang', 'subNameMode', 'subNameWords', 'nameTracks', 'fillFromNames', 'masterDisplay', 'maxCLL', 'format'];
 let profiles = []; // [{ name, useNameTag, settings }]
 function activeProfile() { const n = $('profile').value; return n ? profiles.find(p => p.name === n) || null : null; }
@@ -1704,6 +1708,7 @@ function applyFields(st, keys) {
   if (has('crop')) $('crop').checked = !!st.crop;
   if (has('denoise')) $('denoise').value = st.denoise;
   if (has('deinterlace')) $('deinterlace').value = st.deinterlace;
+  if (has('animation')) $('animation').checked = !!st.animation;
   if (has('dv')) $('dv').value = st.dv;
   if (has('quality')) setRadio('quality', st.quality);
   if (has('crf')) $('crf').value = st.crf;
@@ -1736,7 +1741,7 @@ function applyFields(st, keys) {
 // a profile's format (MKV or MP4) for an output name
 function withFormat(out, p) { return p && p.settings && ['.mkv', '.mp4'].includes(p.settings.format) ? out.replace(/\.[A-Za-z0-9]+$/, '') + p.settings.format : out; }
 // settings added after a profile was saved: their defaults, so older profiles still apply cleanly
-const PROFILE_DEFAULTS = { qualityTarget: 95, crop: true, denoise: '', deinterlace: '', addCompatAudio: false, copyCompatible: true, subToSRT: '', audioOnePerLang: '', subNameMode: '', subNameWords: '', nameTracks: false, fillFromNames: true };
+const PROFILE_DEFAULTS = { qualityTarget: 95, crop: true, denoise: '', deinterlace: '', animation: false, addCompatAudio: false, copyCompatible: true, subToSRT: '', audioOnePerLang: '', subNameMode: '', subNameWords: '', nameTracks: false, fillFromNames: true };
 function withDefaults(st) { return Object.assign({}, PROFILE_DEFAULTS, st); }
 function applyProfile(p) {
   if (p) applyFields(withDefaults(p.settings), PROFILE_KEYS);
@@ -2018,6 +2023,7 @@ function updateSummaries() {
     if ($('scale').value) v += '  ·  ' + (info && info.scaledTo ? info.scaledTo : $('scale').value);
     if (info && info.crop) v += '  ·  black bars cropped';
     if ($('denoise').value) v += '  ·  noise reduction ' + $('denoise').options[$('denoise').selectedIndex].text.toLowerCase().replace(' (slower)', '');
+    if ($('animation').checked) v += '  ·  animation';
     if (info && info.dv && $('dv').value === 'drop') v += '  ·  drop Dolby Vision';
     const di = $('deinterlace').value;
     if (info && info.interlaced) v += di === 'off' ? '  ·  interlaced, not deinterlaced' : '  ·  deinterlace ' + (di === 'standard' ? 'standard' : 'smooth');
@@ -2657,6 +2663,16 @@ async function tmdbUse(x, btn) {
   t.append(x.kind === 'tvmaze' ? 'Filled in from TVmaze: ' : 'Filled in from TMDB: ', a, '. Check the fields below; "Undo all metadata changes" puts back the file\'s own.');
   if (tv && !episode) t.append(' (No season and episode given, so this is the show\'s information.)');
   if (f.note) t.append(el('div', 'hint', f.note));
+  if (f.animation && radio('mode') === 'encode' && !$('animation').checked) { // an offer, never ticked without asking
+    const d = el('div', 'hint'), b = el('button', '', 'Tick "This is animation"');
+    b.style.marginLeft = '6px';
+    b.onclick = () => {
+      $('animation').checked = true; $('animation').dispatchEvent(new Event('change', { bubbles: true }));
+      d.textContent = '"This is animation" is now ticked (Video section): smaller files with clean lines.';
+    };
+    d.append((x.kind === 'tvmaze' ? 'TVmaze' : 'TMDB') + ' lists this as animation.', b);
+    t.append(d);
+  }
   if ($('plexNames').checked && f.plexName) { // the Plex way, shown in the Output box (still editable)
     const out = $('output').value.trim(), cut = Math.max(out.lastIndexOf('\\'), out.lastIndexOf('/'));
     const ext = extOf(out) || $('container').value || '.mkv', name = plexFinalName(f.plexName, info && info.plexDetails);
@@ -3583,7 +3599,7 @@ $('plexClear').onclick = async () => { await api('renRemove', { all: true }); pl
 // ---------- hints behind a "?" (UI-6) ----------
 // Hints that only explain are shown on request: a "?" next to the setting's label
 // (or in the hint's place) opens them. Hints that prevent mistakes stay visible.
-const TIP_HINTS = ['Slower = smaller', 'Lower = better quality', 'For example 20M', 'Cleans up noise', 'For interlaced video',
+const TIP_HINTS = ['Slower = smaller', 'Lower = better quality', 'For example 20M', 'Cleans up noise', 'For interlaced video', 'For anime and cartoons',
   'For files with the same language', 'Tracks with no language set', '"SDH", "forced"', 'Plex uses the track languages', 'Only needed when the source'];
 function hintsToTips() {
   document.querySelectorAll('#tabConvert div.hint').forEach(h => {
@@ -3617,6 +3633,7 @@ function settingsText(st) {
   if (st.scale) parts.push(st.scale + (st.crop && ['576p', '480p'].includes(st.scale) ? ' (bars cropped)' : ''));
   if (st.denoise) parts.push('NR ' + (st.denoise === 'hq' ? 'high quality' : st.denoise));
   if (st.deinterlace) parts.push(st.deinterlace === 'off' ? 'no deinterlacing' : 'deinterlace standard');
+  if (st.animation) parts.push('animation');
   if (st.testSeconds) parts.unshift(st.testSeconds + ' s test');
   if (st.audioTracks) parts.push(st.audioTracks.length + ' audio' + (st.subTracks ? ', ' + st.subTracks.length + ' subtitle' + (st.subTracks.length === 1 ? '' : 's') : '') + ' (own choice)');
   if (st.meta) parts.push('own metadata');

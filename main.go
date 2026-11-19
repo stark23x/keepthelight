@@ -99,6 +99,8 @@ Choosing tracks (numbers as the window shows them: audio 1, 2, ...; subtitles 1,
   -denoise <level>     noise reduction: light, medium, strong (fast, CPU), or hq (high quality:
                        on the GPU when it can, else slower on the CPU). Keeps 10-bit HDR intact.
   -crop                with -scale 576p or 480p: cut black bars first (found by looking at the picture)
+  -animation          anime and cartoons: x265's animation tune and more B-frames; NVENC and
+                       QuickSync get more B-frames and a longer look ahead where the card allows
   -deinterlace <how>   for interlaced video (old TV, DVDs): smooth (default: a frame per field,
                        50/60 fps), standard (25/30 fps) or off. The picture itself is checked
                        (files are often labelled wrong), in SD files and files marked interlaced.
@@ -214,6 +216,7 @@ func parseArgs() (*Config, bool) {
 	fs.StringVar(&cfg.Denoise, "denoise", "", "")
 	fs.StringVar(&cfg.Deinterlace, "deinterlace", "", "")
 	fs.BoolVar(&cfg.Crop, "crop", false, "")
+	fs.BoolVar(&cfg.Animation, "animation", false, "")
 	fs.Float64Var(&cfg.QualityTarget, "quality-target", 0, "")
 	fs.BoolVar(&cfg.QualityAdvice, "quality-advice", false, "")
 	fs.BoolVar(&cfg.DeepCheck, "thorough-check", false, "")
@@ -674,11 +677,22 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 		if problem := encoderProblem(ctx, ffmpeg, cfg.Codec); problem != "" {
 			return fmt.Errorf("%s", problem)
 		}
+		if cfg.Animation {
+			args, msg := animationOptions(ctx, ffmpeg, cfg.Codec)
+			cfg.animHW = args
+			fmt.Println(msg)
+		}
 		g, msg := chooseGPUPath(ctx, cfg, p, plan)
 		cfg.gpu = g
 		if msg != "" {
 			fmt.Println(msg)
 		}
+	}
+	if cfg.Animation && !cfg.CopyVideo && (cfg.Codec == "nvenc" || cfg.Codec == "qsv") && cfg.DryRun {
+		cfg.animHW = animHWOptions[cfg.Codec][0] // not checked in a dry run: the fullest set is shown
+	} else if cfg.Animation && !cfg.CopyVideo && cfg.Codec != "nvenc" && cfg.Codec != "qsv" {
+		_, msg := animationOptions(ctx, ffmpeg, cfg.Codec)
+		fmt.Println(msg)
 	}
 	if p.DV != nil && !plan.UseDV && !cfg.CopyVideo && !cfg.DryRun && hasBSF(ctx, ffmpeg, "dovi_rpu") {
 		cfg.stripDV = true

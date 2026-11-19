@@ -412,6 +412,7 @@ type tvmazeShowInfo struct {
 	Premiered string `json:"premiered"`
 	Summary   string `json:"summary"`
 	URL       string `json:"url"`
+	Type      string `json:"type"` // "Animation" for cartoons and anime
 	Image     *struct {
 		Medium   string `json:"medium"`
 		Original string `json:"original"`
@@ -476,6 +477,7 @@ func tvmazeDetails(ctx context.Context, show, season int, ep tmdbEp, coverDir st
 		return nil, fmt.Errorf("TVmaze has no such show")
 	}
 	f := &tmdbFill{Title: s.Name, Date: s.Premiered, Description: plainText(s.Summary), Link: s.URL}
+	f.Animation = s.Type == "Animation"
 	if season > 0 && ep.First > 0 {
 		eps, err := tvmazeSeason(ctx, show, season)
 		if err != nil {

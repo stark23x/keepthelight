@@ -14,6 +14,7 @@ type Config struct {
 	Denoise                                      string  // noise reduction: "" off, light, medium, strong, hq
 	Deinterlace                                  string  // "" or smooth, standard, off (see deinterlace.go)
 	Crop                                         bool    // cut black bars (only with 576p / 480p; see crop.go)
+	Animation                                    bool    // anime and cartoons: settings that save space on them (see animation.go)
 	SampleSecs                                   int     // >0: encode only a test of this many seconds
 	SampleStart                                  float64 // where the test starts (seconds; <0 = automatic)
 	SampleOriginal                               string  // where the same stretch of the original is kept, for comparing ("" = automatic)
@@ -64,6 +65,7 @@ type Config struct {
 	testStart                                    float64        // a test: where it starts in the film (added subtitle files are read from there)
 	hqDenoise                                    *denoiseChoice // "high quality" noise reduction as chosen at start-up
 	gpu                                          *gpuPath       // the full-GPU path, when it works for this file
+	animHW                                       []string       // Animation with NVENC / QuickSync: the options this PC's encoder takes (set at start-up)
 	cleanup                                      []string       // files to remove when the job ends (a test's sample)
 	sample                                       string         // a test's cut of the original
 	fullInput                                    string         // a test: the whole original (the bars are found in it, not only in the cut)
@@ -311,6 +313,9 @@ func buildVideoArgs(cfg *Config, p *Probe, plan *Plan, hdr10plusJSON string) ([]
 		} else {
 			args = append(args, "-rc", "vbr", "-cq", fmt.Sprint(cfg.CRF), "-b:v", "0")
 		}
+		if cfg.Animation {
+			args = append(args, cfg.animHW...)
+		}
 		if plan.Reshape {
 			warns = append(warns, "NVENC cannot write the HDR10 mastering-display information for a converted profile 5 file (x265 can); the HDR10 colour tags are set, which most TVs handle fine")
 		} else if plan.Kind != "sdr" {
@@ -324,6 +329,9 @@ func buildVideoArgs(cfg *Config, p *Probe, plan *Plan, hdr10plusJSON string) ([]
 		} else {
 			args = append(args, "-global_quality", fmt.Sprint(cfg.CRF))
 		}
+		if cfg.Animation {
+			args = append(args, cfg.animHW...)
+		}
 		if plan.Reshape {
 			warns = append(warns, "QuickSync cannot write the HDR10 mastering-display information for a converted profile 5 file (x265 can); the HDR10 colour tags are set, which most TVs handle fine")
 		} else if plan.Kind != "sdr" {
@@ -331,12 +339,18 @@ func buildVideoArgs(cfg *Config, p *Probe, plan *Plan, hdr10plusJSON string) ([]
 		}
 	default:
 		args = append(args, "-c:v", "libx265", "-preset", cfg.Preset, "-pix_fmt", "yuv420p10le")
+		if cfg.Animation {
+			args = append(args, "-tune", "animation")
+		}
 		if cfg.Bitrate != "" {
 			args = append(args, "-b:v", cfg.Bitrate)
 		} else {
 			args = append(args, "-crf", fmt.Sprint(cfg.CRF))
 		}
 		xp := []string{"repeat-headers=1"}
+		if cfg.Animation {
+			xp = append(xp, fmt.Sprintf("bframes=%d", animX265BFrames))
+		}
 		if cfg.Pass > 0 {
 			// stats file is relative: the process runs inside the temp folder
 			xp = append(xp, fmt.Sprintf("pass=%d", cfg.Pass), "stats=x265_2pass.log")

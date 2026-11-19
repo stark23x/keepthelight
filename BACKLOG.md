@@ -6,16 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **Settings for anime and animated shows** (requested 19 November 2026), to save more space on them:
-  - A "This is animation" tick box. Profiles can hold it, so an "Anime" profile can switch it on.
-  - With x265 it adds `-tune animation`: fewer bits for fine texture, more for clean lines and flat colour.
-  - With every encoder it lets more frames be reused, because anime holds drawings and has still shots. x265 gets
-    more B-frames (about 8); NVENC gets B-frames as references, a longer look-ahead and temporal AQ; QuickSync gets
-    more B-frames. The Dell (QuickSync) must get the same as the laptop where its hardware allows.
-  - When TMDB lists a title as Animation, offer to tick the box. Never tick it silently.
-  - Aim for quality works on top of this as it does now.
-  - Not included: dropping duplicate frames (`mpdecimate`, which gives a variable frame rate that can upset Plex,
-    sync and Dolby Vision) and debanding (no space saved).
+Nothing at the moment.
 
 ## Ideas raised, not yet requested
 
@@ -23,6 +14,7 @@ None at the moment.
 
 ## Done
 
+- 1.44.0: "This is animation" (under Video, kept in profiles): x265 animation tune and 8 B-frames; NVENC B-frames as references, longer look ahead and temporal AQ, QuickSync more B-frames (each tried first, fullest set the card takes); offer to tick it when TMDB or TVmaze lists a title as animation; `-animation`.
 - 1.43.1: Tidy up originals pairs files by Keep the Light's mark and length when the names differ (Plex-style names); episode number decides in season folders; "not sure" pairs left alone; clearer "nothing found" message.
 - 1.43.0: Keep this PC awake for the whole queue run (network copies, gaps, Plex), released while paused; "and keep the screen on", on to begin with on Modern Standby PCs such as the laptop.
 - 1.42.0: Aim for quality (VMAF search per film) and "Find the right setting" advice (Convert tab and Library scan); Tidy up originals (Recycle Bin, or "(original)" with undo); optional thorough check of new files (a PC setting); a report after every queue run; Plex told after Rename now and Undo.

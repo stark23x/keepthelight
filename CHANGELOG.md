@@ -18,6 +18,21 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.44.0 - 2026-11-19
+
+- **This is animation** (under Video, and in profiles, so an "Anime" profile can switch it on). For anime and
+  cartoons, which are flat colour and clean lines, with each drawing often held for a few frames:
+  - **x265** uses its animation tune (fewer bits for fine texture, more for clean edges and flat colour) and up to
+    8 B-frames (frames that reuse the ones around them). In a test on a cartoon-like clip the file came out about a
+    quarter smaller at the same quality setting.
+  - **NVENC** uses B-frames (also as references), a longer look ahead and AQ that follows motion; **QuickSync** uses
+    more B-frames, placed where they help. Not every graphics card can do all of this (NVENC on a GTX 10-series
+    has no B-frames in HEVC), so Keep the Light tries the options first and uses all that the card takes. The log
+    says what was used.
+  - After **TMDB** (or TVmaze) fills in a title it lists as animation, Keep the Light offers to tick the box. It
+    never ticks it by itself.
+  - Command line: `-animation`.
+
 ## 1.43.1 - 2026-11-17
 
 - Fixed: **Tidy up originals** found nothing when the converted copy had a different name from the original (a
