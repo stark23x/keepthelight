@@ -6,7 +6,14 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing at the moment.
+- **New logo** (chosen 19 November 2026: option "B2 · Kept light, film strip": two straight strips of film with a
+  point of blue light between them). The files are ready in `res/new-logo/`:
+  - `keepthelight.svg` (the master), `keepthelight-1024.png`, `about-icon.png` (128 px, header and About box) and
+    `keepthelight.ico` (16–256 px; 16 and 20 px have no sprocket holes and 24 px has three, so they stay clean).
+    Copy them over the files of the same name in `res/` and run `go generate`. `keepthelight-original.png` and
+    `mkicon.py` belong to the old bulb logo: `mkicon.py` is not needed for the new one.
+  - `github-header.png` (3200×960, shown at 1600×480): put it at the top of `README.md` (for example
+    `.github/header.png`). `github-header.svg` is its source and needs the Inter font, so use the PNG on GitHub.
 
 ## Ideas raised, not yet requested
 
