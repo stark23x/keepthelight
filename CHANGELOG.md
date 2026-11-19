@@ -18,6 +18,13 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.44.1 - 2026-11-19
+
+- **New logo.** Two strips of film with a point of light held between them: the light kept while the video
+  changes around it. It replaces the bulb in the program's icon (taskbar, Start menu, File Explorer), in the
+  window's header and in the About box. At the smallest sizes the film strips are drawn without their sprocket
+  holes, so the icon stays clean in the title bar and taskbar.
+
 ## 1.44.0 - 2026-11-19
 
 - **This is animation** (under Video, and in profiles, so an "Anime" profile can switch it on). For anime and

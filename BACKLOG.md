@@ -6,14 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **New logo** (chosen 19 November 2026: option "B2 · Kept light, film strip": two straight strips of film with a
-  point of blue light between them). The files are ready in `res/new-logo/`:
-  - `keepthelight.svg` (the master), `keepthelight-1024.png`, `about-icon.png` (128 px, header and About box) and
-    `keepthelight.ico` (16–256 px; 16 and 20 px have no sprocket holes and 24 px has three, so they stay clean).
-    Copy them over the files of the same name in `res/` and run `go generate`. `keepthelight-original.png` and
-    `mkicon.py` belong to the old bulb logo: `mkicon.py` is not needed for the new one.
-  - The GitHub header (`github-header.png`, also at `.github/header.png`) is already at the top of `README.md`
-    (added 19 November 2026 at the owner's request). `github-header.svg` is its source and needs the Inter font.
+Nothing at the moment.
 
 ## Ideas raised, not yet requested
 
@@ -21,6 +14,7 @@ None at the moment.
 
 ## Done
 
+- 1.44.1: new logo ("B2 · Kept light, film strip"): icon, header and About box; `res/mkicon.py` draws every size from `res/keepthelight.svg`; GitHub header at the top of the README.
 - 1.44.0: "This is animation" (under Video, kept in profiles): x265 animation tune and 8 B-frames; NVENC B-frames as references, longer look ahead and temporal AQ, QuickSync more B-frames (each tried first, fullest set the card takes); offer to tick it when TMDB or TVmaze lists a title as animation; `-animation`.
 - 1.43.1: Tidy up originals pairs files by Keep the Light's mark and length when the names differ (Plex-style names); episode number decides in season folders; "not sure" pairs left alone; clearer "nothing found" message.
 - 1.43.0: Keep this PC awake for the whole queue run (network copies, gaps, Plex), released while paused; "and keep the screen on", on to begin with on Modern Standby PCs such as the laptop.

@@ -731,9 +731,11 @@ The icon, manifest (DPI awareness, modern dialogs) and version details are in `r
 `go build` links in automatically. After changing `VERSION` or the icon, run `go generate` to rewrite them
 (it runs the small generator in `tools/mkres`).
 
-The icon is made from `res/keepthelight-original.png`: `res/mkicon.py` crops it to the artwork, fades the glow at
-the edges and writes `res/keepthelight.ico` with sizes 16-256 (slightly sharpened at 32 and below). To use a new
-image, replace the PNG, adjust the crop box in the script if needed, run it, then `go generate`.
+The logo is `res/keepthelight.svg`. `res/mkicon.py` draws every size from it (with Pillow and `rsvg-convert`) and
+writes `res/keepthelight.ico` (16-256 px; 16 and 20 px without sprocket holes, 24 px with three),
+`res/keepthelight-1024.png` and `res/about-icon.png` (the window's header and the About box). After changing the
+logo, run it, then `go generate`. The README's header picture is `.github/header.png` (source:
+`.github/header.svg`, which needs the Inter font).
 
 ## Licence
 Keep the Light is free to all: its own code is dedicated to the public domain under
