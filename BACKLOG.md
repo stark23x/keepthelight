@@ -6,7 +6,12 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing at the moment.
+- **`keepthelight_cli.exe` still shows the old bulb icon in File Explorer** (reported 19 November 2026, after
+  1.44.1). Checked the same day: both exes in the 1.44.1 zip carry the new icon in all nine sizes (the same
+  `rsrc_windows_*.syso` is linked into both), so the exe itself is right and Windows' icon cache is the likely
+  cause (it can keep an old icon for a file with the same name and path). First ask the owner whether
+  `ie4uinit.exe -show` (or signing out and in) fixes it. If it does not, look further (for example a second icon
+  resource, or something about the CLI build) before changing anything.
 
 ## Ideas raised, not yet requested
 
