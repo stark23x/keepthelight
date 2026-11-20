@@ -241,6 +241,9 @@ Why FFmpeg and GPAC are not included: their Windows builds contain GPL-licensed 
 providing the complete source code of everything in those builds. The included tools are MIT-licensed; their licence
 texts, exact versions and source links are in `tools\licenses`.
 
+After unzipping a new version over an old one, File Explorer can keep showing the old icon for a while (Windows
+keeps copies of icons). To refresh it, run `ie4uinit.exe -show` in a Command Prompt, or sign out and back in.
+
 ## Use
 **Window:** double-click `Keep the Light.exe` (or drag a video onto the exe). Pick the input, check the detected
 HDR / Dolby Vision info, choose quality and audio, press Start. It uses the normal Windows file dialogs; progress
@@ -283,6 +286,10 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   `name_KTL.mkv` (the ending is set under **Add to the name**), or into the folder chosen under **Save converted files**; files whose
   result already exists are skipped. Files run one after another; one that fails
   does not stop the rest. Unfinished queues are remembered and come back when you reopen Keep the Light.
+  If the graphics card stops responding (NVENC or QuickSync suddenly refuses to start, although it worked a moment
+  before), Keep the Light waits 30 seconds and tries once more; if the card still does not answer, the queue
+  **pauses on that file** with a message, instead of failing every file after it. Restarting Windows usually fixes
+  the card; then press **Start** to carry on from that file.
   **Pause** freezes the running file and **Resume** carries on from the same spot (as long as Keep the Light stays
   open; the PC can sleep while paused). **Stop after this file** lets the running file finish and then stops the queue;
   **Stop queue** cancels the running file at once. ⤒ / ↑ / ↓ / ⤓ move a waiting file to the top, up, down or to the
@@ -422,7 +429,8 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   rules, track naming and the Advanced overrides, and can name converted files after itself (`Film_Plex 4K.mkv` instead of `Film_KTL.mkv`; type another
   ending in "Add to the name" to use it for now, ↺ brings the profile's back). "changed"
   next to the dropdown means the form no longer matches the profile; **Update** saves it. **Export…** / **Import…**
-  save profiles to a .json file and read them back (a backup, or another PC). Not included: files and folders,
+  save profiles to a .json file and read them back (a backup, or another PC). You can keep as many profiles as you
+  like (hundreds), and if a profile change ever cannot be saved, the window says so. Not included: files and folders,
   one file's own tracks and metadata, PC settings (temp folder, priority, GPU decoding, sounds), and "Replace the
   original". The command-line program can use a profile too: `keepthelight_cli -profile "Plex 4K" film.mkv`
   (other options on the command line override it).

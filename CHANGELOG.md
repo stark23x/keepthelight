@@ -18,6 +18,19 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.44.2 - 2026-11-20
+
+- **Profiles are no longer lost.** All profiles are saved together, and that save was limited to 8 KB, so from about
+  the 12th profile on every new profile, update, rename or delete was silently thrown away when Keep the Light closed.
+  The limit is now about 1 MB (hundreds of profiles), and if a profile change ever cannot be saved, the window says so
+  and suggests exporting them.
+- **When the graphics card stops responding,** the queue pauses instead of failing every file left. If NVENC or
+  QuickSync suddenly refuses to start an encode ("no encode device"), although it worked a moment before, Keep the
+  Light waits 30 seconds and tries once more. If the card still does not answer, the file goes back to waiting with a
+  plain message (restarting Windows usually fixes the card), the "something failed" sound plays, and the queue stops
+  there; press Start to carry on. The same applies to the start-up check of the encoder and to Aim for quality.
+- README: after updating, File Explorer can keep showing the old icon for a while; `ie4uinit.exe -show` refreshes it.
+
 ## 1.44.1 - 2026-11-19
 
 - **New logo.** Two strips of film with a point of light held between them: the light kept while the video

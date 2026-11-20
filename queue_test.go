@@ -39,7 +39,8 @@ func fakeTools(t *testing.T) {
 		t.Fatal(err)
 	}
 	write("ffprobe", `for a in "$@"; do [ "$a" = "v:0" ] && exec cat "`+dir+`/probe.json"; done; echo '{"streams":[]}'`+"\n")
-	write("ffmpeg", `case "$*" in -version|--version) echo "fake 1.0"; exit 0;; *-encoders*) echo " V..... libx265 x"; exit 0;; *"-h full"*) echo "-fps_mode"; exit 0;; *"-h muxer"*) echo "cues_to_front"; exit 0;; *-filters*) echo " .. ssim  VV->V  x"; exit 0;; esac
+	write("ffmpeg", `case "$*" in -version|--version) echo "fake 1.0"; exit 0;; *-encoders*) printf ' V..... libx265 x\n V..... hevc_nvenc x\n'; exit 0;; *"-h full"*) echo "-fps_mode"; exit 0;; *"-h muxer"*) echo "cues_to_front"; exit 0;; *-filters*) echo " .. ssim  VV->V  x"; exit 0;; esac
+case "$*" in *hevc_nvenc*gpustuck*|*gpustuck*hevc_nvenc*) echo "[hevc_nvenc @ 0x1] OpenEncodeSessionEx failed: no encode device (1): (no details)" >&2; exit 1;; esac
 for a in "$@"; do last="$a"; case "$a" in *bad*) echo "Error: broken file" >&2; exit 1;; *slow*) slow=1;; esac; done
 [ "$last" = "-" ] && { echo "[Parsed_ssim] SSIM Y:0.99 All:0.990000 (20.0)" >&2; exit 0; } # measuring: nothing to write
 [ -n "$slow" ] && sleep 30
@@ -467,4 +468,53 @@ func TestQueueMoveToTopAndBottom(t *testing.T) {
 		t.Error("a bad direction was accepted")
 	}
 	time.Sleep(50 * time.Millisecond)
+}
+
+// The graphics card stops responding: the job tries once more, then the queue
+// pauses on that file (back to waiting, with the reason) and does not fail the rest.
+func TestQueuePausesWhenGPUStuck(t *testing.T) {
+	fakeTools(t)
+	t.Setenv("KTL_GPU_RETRY_WAIT_MS", "10")
+	dir := t.TempDir()
+	mk := func(name string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte("video"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	a, stuck, c := mk("a.mkv"), mk("gpustuck.mkv"), mk("c.mkv")
+	g := newGUIServer()
+	g.prefsPath = filepath.Join(t.TempDir(), "settings.json")
+	out := func(p string) string { return strings.TrimSuffix(p, ".mkv") + "_KTL.mkv" }
+	nv := func(in string) json.RawMessage {
+		var m map[string]any
+		_ = json.Unmarshal(itemSettings(in, out(in)), &m)
+		m["codec"] = "nvenc"
+		b, _ := json.Marshal(m)
+		return b
+	}
+	if ids, errs := g.queueAdd([]json.RawMessage{nv(a), nv(stuck), nv(c)}); len(ids) != 3 || len(errs) != 0 {
+		t.Fatalf("add: ids=%v errs=%v", ids, errs)
+	}
+	waitFor(t, "files to be checked", func() bool { return !strings.Contains(strings.Join(statuses(g), " "), stChecking) })
+	if err := g.startQueue(); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the queue to stop", func() bool { g.mu.Lock(); defer g.mu.Unlock(); return !g.q.running })
+	if got := strings.Join(statuses(g), " "); got != "a.mkv=done gpustuck.mkv=waiting c.mkv=waiting" {
+		t.Fatalf("statuses: %s", got)
+	}
+	g.mu.Lock()
+	note, logFile, notice := g.q.items[1].Note, g.q.items[1].LogFile, g.q.notice
+	g.mu.Unlock()
+	if !strings.Contains(note, "Paused") || !strings.Contains(note, "NVIDIA graphics card stopped responding") {
+		t.Errorf("note: %q", note)
+	}
+	if logFile == "" {
+		t.Error("no log kept for the paused file")
+	}
+	if !strings.Contains(notice, "paused") {
+		t.Errorf("notice: %q", notice)
+	}
 }

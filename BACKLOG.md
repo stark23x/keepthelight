@@ -6,36 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **`keepthelight_cli.exe` still shows the old bulb icon in File Explorer** (reported 19 November 2026, after
-  1.44.1). Checked the same day: both exes in the 1.44.1 zip carry the new icon in all nine sizes (the same
-  `rsrc_windows_*.syso` is linked into both), so the exe itself is right and Windows' icon cache is the likely
-  cause (it can keep an old icon for a file with the same name and path). First ask the owner whether
-  `ie4uinit.exe -show` (or signing out and in) fixes it. If it does not, look further (for example a second icon
-  resource, or something about the CLI build) before changing anything.
-- **When the graphics card stops responding mid-queue** (reported 20 November 2026). On the laptop, a queue of
-  Hell's Paradise S02 (NVENC, animation, light noise reduction, 350 MB target) failed from S02E01 on with
-  `OpenEncodeSessionEx failed: no encode device (1)` at the real encode, although the encoder check and the
-  animation check in the same job had just passed, and Demon Slayer S04E11 with the same settings had finished a
-  minute before. So the card or driver got stuck partway through; one hiccup then failed every job left.
-  - If NVENC or QuickSync will not open at the encode (`OpenEncodeSessionEx failed`, `no encode device`,
-    `Error while opening encoder`, and the QuickSync equivalents), wait about 30 seconds and try once more.
-  - If it still fails, say so plainly ("The NVIDIA card stopped responding. Restarting Windows usually fixes
-    this.") instead of FFmpeg's raw output.
-  - Pause the queue in that case rather than failing the remaining files one by one (the owner can resume after
-    a restart).
-  - Waiting on the owner: whether a restart fixed it, and whether Event Viewer showed `nvlddmkm` errors around
-    23:40 on 19 November.
-- **New profiles are lost after a restart** (reported 20 November 2026, twice, with a profile that has "This is
-  animation" ticked). Cause found: `setPref` in `gui.go` refuses any value over 8,192 bytes ("bad request"), and
-  the page's `saveProfiles()` ignores the answer. All profiles are saved as one value, and each takes about
-  600–700 bytes, so from about the 12th profile on every save fails silently: a new profile, and any update,
-  rename or delete, lasts only until the window closes. The profiles saved before that are safe.
-  - Raise the limit for preferences (for example 1 MB; the file is local and only the window writes it), or at
-    least for `profiles`.
-  - When a preference cannot be saved, say so on the page (for profiles: "Could not save your profiles: …"), never
-    silently.
-  - Add a test with many profiles. The owner expects 30–40 or more (about 28 KB at 40), so test well past that,
-    for example 200.
+Nothing at the moment.
 
 ## Ideas raised, not yet requested
 
@@ -43,6 +14,7 @@ None at the moment.
 
 ## Done
 
+- 1.44.2: profiles no longer lost (preference limit 8 KB → 1 MB; a failed profile save is shown); when the graphics card stops responding ("no encode device", MFX session errors) the job waits 30 s and tries once more, then the queue pauses on that file with a plain message (encode, start-up encoder check, Aim for quality); CLI icon checked (both exes carry the new icon; Windows' icon cache) and `ie4uinit.exe -show` added to the README.
 - 1.44.1: new logo ("B2 · Kept light, film strip"): icon, header and About box; `res/mkicon.py` draws every size from `res/keepthelight.svg`; GitHub header at the top of the README.
 - 1.44.0: "This is animation" (under Video, kept in profiles): x265 animation tune and 8 B-frames; NVENC B-frames as references, longer look ahead and temporal AQ, QuickSync more B-frames (each tried first, fullest set the card takes); offer to tick it when TMDB or TVmaze lists a title as animation; `-animation`.
 - 1.43.1: Tidy up originals pairs files by Keep the Light's mark and length when the names differ (Plex-style names); episode number decides in season folders; "not sure" pairs left alone; clearer "nothing found" message.

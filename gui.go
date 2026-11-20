@@ -684,7 +684,7 @@ func (g *guiServer) handleIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func (g *guiServer) handleAPI(w http.ResponseWriter, r *http.Request) {
-	body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	body, _ := io.ReadAll(io.LimitReader(r.Body, 2*maxPrefBytes)) // a large preference (profiles) plus its wrapping
 	writeJSON(w, g.call(r.Context(), strings.TrimPrefix(r.URL.Path, "/api/"), r.URL.Query(), body))
 }
 
@@ -1243,12 +1243,12 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 			g.titleBar(b.Dark)
 		}
 		return okResult()
-	case "setPref":
+	case "setPref": // one preference; profiles are one value, so it can be large (see maxPrefBytes)
 		var pr struct {
 			Name  string
 			Value json.RawMessage
 		}
-		if err := json.Unmarshal(body, &pr); err != nil || pr.Name == "" || len(pr.Name) > 64 || len(pr.Value) > 8192 {
+		if err := json.Unmarshal(body, &pr); err != nil || pr.Name == "" || len(pr.Name) > 64 || len(pr.Value) > maxPrefBytes {
 			return failResult("bad request")
 		}
 		if err := g.savePref(pr.Name, pr.Value); err != nil {
@@ -1439,6 +1439,11 @@ func (g *guiServer) missingBatchDir() string {
 	}
 	return b.Dir
 }
+
+// maxPrefBytes is the most one preference may hold. Every profile is in one
+// value (about 700 bytes each), so this leaves room for well over a thousand.
+// (It was 8 KB, which silently lost every profile save from about the 12th.)
+const maxPrefBytes = 1 << 20
 
 func (g *guiServer) savePref(name string, value json.RawMessage) error {
 	g.prefsMu.Lock() // read, change and write as one step, so two saves cannot undo each other

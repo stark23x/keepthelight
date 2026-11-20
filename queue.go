@@ -879,6 +879,7 @@ func (g *guiServer) stopQueue() {
 
 func (g *guiServer) runQueue() {
 	stoppedByUser := false
+	gpuPaused := false       // the graphics card stopped responding (exitGPUStuck): the queue waits on that file
 	finished, failed := 0, 0 // files this run got to the end of (for the sound at the end)
 	for {
 		g.mu.Lock()
@@ -953,6 +954,16 @@ func (g *guiServer) runQueue() {
 			it.Status, it.Note = stWaiting, "Interrupted when Keep the Light was closed; it starts again from the beginning."
 		case j.canceled:
 			it.Status, it.Note = stCanceled, "Canceled."
+		case j.exitCode == exitGPUStuck: // the graphics card stopped responding: pause here, do not fail the rest
+			it.Status, it.Percent = stWaiting, 0
+			it.Note = "Paused: " + lastError(j.lines) + " Press Start to carry on from this file."
+			args := ""
+			if j.cmd != nil && len(j.cmd.Args) > 1 {
+				args = strings.Join(j.cmd.Args[1:], " ")
+			}
+			it.LogFile = saveFailureLog(it.Name, it.Input, it.Output, args, j.lines, g.clock())
+			g.q.stopAfter, gpuPaused = true, true
+			g.q.notice, g.q.noticeSeq = "The queue is paused: the graphics card stopped responding. Restarting Windows usually fixes this; then press Start to carry on.", g.q.noticeSeq+1
 		case j.exitCode == 0:
 			it.Status, it.Note, it.Percent = stDone, "", 100
 			it.PlexAfter = nil
@@ -1058,6 +1069,8 @@ func (g *guiServer) runQueue() {
 	}
 	if !stoppedByUser && !closing && finished > 0 {
 		g.finishedAlert(failed > 0) // before a sleep / shut-down countdown starts
+	} else if gpuPaused && !closing {
+		g.finishedAlert(true) // paused by a problem, not by you: the "something failed" alert
 	}
 	g.mu.Lock()
 	if g.q.after != "" && !stoppedByUser {

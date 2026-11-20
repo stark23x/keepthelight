@@ -176,14 +176,16 @@ func (r *runner) run(name string, args ...string) error {
 	if r.dry {
 		return nil
 	}
-	cmd := toolCommand(r.ctx, name, args...)
-	cmd.Dir = r.dir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return toolError(name, err)
-	}
-	return nil
+	return withGPURetry(r.ctx, hwEncoderIn(args), func(stderr io.Writer) error {
+		cmd := toolCommand(r.ctx, name, args...)
+		cmd.Dir = r.dir
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = stderr
+		if err := cmd.Run(); err != nil {
+			return toolError(name, err)
+		}
+		return nil
+	}, os.Stderr)
 }
 
 // pipe runs `n1 a1... | n2 a2...`.
@@ -192,6 +194,10 @@ func (r *runner) pipe(n1 string, a1 []string, n2 string, a2 []string) error {
 	if r.dry {
 		return nil
 	}
+	return withGPURetry(r.ctx, hwEncoderIn(a1), func(stderr io.Writer) error { return r.pipeOnce(n1, a1, n2, a2, stderr) }, os.Stderr)
+}
+
+func (r *runner) pipeOnce(n1 string, a1 []string, n2 string, a2 []string, stderr io.Writer) error {
 	c1 := toolCommand(r.ctx, n1, a1...)
 	c2 := toolCommand(r.ctx, n2, a2...)
 	c1.Dir, c2.Dir = r.dir, r.dir
@@ -200,7 +206,7 @@ func (r *runner) pipe(n1 string, a1 []string, n2 string, a2 []string) error {
 		return err
 	}
 	c2.Stdin = out
-	c1.Stderr = os.Stderr
+	c1.Stderr = stderr
 	c2.Stdout = os.Stdout
 	if strings.Contains(strings.ToLower(filepath.Base(n2)), "dovi_tool") {
 		c2.Stdout = &dropLines{w: os.Stdout, drop: "Reordering metadata"} // dovi_tool's housekeeping, not news

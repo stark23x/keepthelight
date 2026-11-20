@@ -1666,7 +1666,10 @@ let profiles = []; // [{ name, useNameTag, settings }]
 function activeProfile() { const n = $('profile').value; return n ? profiles.find(p => p.name === n) || null : null; }
 function profileTag(p) { return '_' + cleanTagText(p.name.trim().replace(/\s+/g, ' ')); }
 function profileSettings() { const st = settings(), o = {}; PROFILE_KEYS.forEach(k => { o[k] = st[k]; }); return o; }
-function saveProfiles() { api('setPref', { name: 'profiles', value: profiles }); }
+async function saveProfiles() { // never silently: a profile that is not saved is gone at the next start
+  const r = await api('setPref', { name: 'profiles', value: profiles });
+  if (!r || !r.ok) showError('Your profiles could not be saved, so the latest change will be lost when Keep the Light closes: ' + ((r && r.error) || 'no answer') + '. Export them now to keep a copy.');
+}
 function fillProfiles(selected) {
   const sel = $('profile'), qs = $('qProfile');
   sel.innerHTML = ''; qs.innerHTML = '';

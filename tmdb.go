@@ -224,7 +224,7 @@ type tmdbFill struct {
 	Thumb       string `json:"thumb,omitempty"`
 	Link        string `json:"link"` // the TMDB page
 	Note        string `json:"note,omitempty"`
-	PlexName    string `json:"plexName,omitempty"` // the Plex-style file name, without extension ("" for a show without an episode)
+	PlexName    string `json:"plexName,omitempty"`  // the Plex-style file name, without extension ("" for a show without an episode)
 	Animation   bool   `json:"animation,omitempty"` // TMDB lists the film or show as Animation
 }
 

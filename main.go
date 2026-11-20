@@ -499,6 +499,10 @@ func run() int {
 		if err := transcode(ctx, cfg); err != nil {
 			fmt.Fprintln(os.Stderr, "\nERROR:", err)
 			code = 1
+			var stuck *gpuStuckError
+			if errors.As(err, &stuck) {
+				code = exitGPUStuck // the window pauses the queue
+			}
 		}
 		if cfg.Sound && ctx.Err() == nil { // not after Ctrl+C
 			sp := newGUIServer().soundPrefs() // the same choices as the window
@@ -674,8 +678,8 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 	}
 	r := &runner{ctx: ctx, dry: cfg.DryRun, verbose: cfg.Verbose}
 	if (cfg.Codec == "nvenc" || cfg.Codec == "qsv") && !cfg.CopyVideo && !cfg.DryRun {
-		if problem := encoderProblem(ctx, ffmpeg, cfg.Codec); problem != "" {
-			return fmt.Errorf("%s", problem)
+		if err := checkEncoder(ctx, ffmpeg, cfg.Codec); err != nil {
+			return err
 		}
 		if cfg.Animation {
 			args, msg := animationOptions(ctx, ffmpeg, cfg.Codec)

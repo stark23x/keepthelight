@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // ---------- aiming for a quality (VMAF) ----------
@@ -292,6 +293,17 @@ func (j *aimJob) encode(src, out string, q int) error {
 	if err != nil && j.ctx.Err() == nil && tc.hwaccel != nil {
 		tc.hwaccel, tc.p5OnGPU = nil, false
 		b, err = run(&tc)
+	}
+	if codec := hwEncoderIn([]string{map[string]string{"nvenc": "hevc_nvenc", "qsv": "hevc_qsv"}[tc.Codec]}); err != nil && codec != "" && j.ctx.Err() == nil && looksGPUStuck(string(b)) {
+		fmt.Printf("The graphics card did not answer. Waiting %s, then trying once more.\n", gpuWaitWords())
+		select {
+		case <-time.After(gpuRetryWait):
+		case <-j.ctx.Done():
+			return j.ctx.Err()
+		}
+		if b, err = run(&tc); err != nil && j.ctx.Err() == nil && looksGPUStuck(string(b)) {
+			return &gpuStuckError{codec: codec}
+		}
 	}
 	if err != nil {
 		if j.ctx.Err() != nil {

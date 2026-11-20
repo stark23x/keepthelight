@@ -30,6 +30,9 @@ func encoderProblem(ctx context.Context, ffmpeg, codec string) string {
 		"-pix_fmt", "p010le", "-c:v", enc, "-profile:v", "main10", "-f", "null", "-").CombinedOutput()
 	problem := ""
 	if err != nil {
+		if looksGPUStuck(string(out)) {
+			encoderStuck.Store(codec, true)
+		}
 		reason := firstMeaningful(string(out))
 		switch codec {
 		case "nvenc":

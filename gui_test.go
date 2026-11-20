@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -184,5 +185,39 @@ func TestSavedTmpDirMissing(t *testing.T) {
 	callJSON(t, g, "setPref", map[string]any{"name": "tmpDir", "value": ""})
 	if m := callJSON(t, g, "prefs", nil); m["tmpDirMissing"] != nil {
 		t.Fatalf("cleared temp folder reported as missing: %v", m)
+	}
+}
+
+// Many profiles are saved and come back after a restart (the old 8 KB limit
+// silently lost every profile save from about the 12th).
+func TestManyProfilesKept(t *testing.T) {
+	g := newGUIServer("")
+	g.prefsPath = filepath.Join(t.TempDir(), "settings.json")
+	settings := map[string]any{"mode": "encode", "codec": "nvenc", "preset": "faster", "scale": "1080", "crop": false, "denoise": "light",
+		"deinterlace": "", "animation": true, "dv": "auto", "quality": "size", "qualityTarget": 95, "crf": 18, "bitrate": "20M",
+		"targetSize": "350M", "retries": 2, "audio": "copy", "audioBitrate": "", "audioChannels": "5.1", "audioLang": "eng,jpn",
+		"dropCommentary": true, "addCompatAudio": true, "copyCompatible": true, "subLang": "eng", "subMode": "", "subToSRT": "replace",
+		"audioOnePerLang": "compatible", "subNameMode": "drop", "subNameWords": "sdh", "nameTracks": true, "fillFromNames": true,
+		"masterDisplay": "", "maxCLL": "", "format": ".mkv"}
+	var profiles []map[string]any
+	for i := 0; i < 200; i++ {
+		profiles = append(profiles, map[string]any{"name": fmt.Sprintf("NV 1080Anim 350Mb %03d", i), "useNameTag": true, "settings": settings})
+	}
+	if b, _ := json.Marshal(profiles); len(b) < 100_000 {
+		t.Fatalf("test profiles too small to matter: %d bytes", len(b))
+	}
+	if m := callJSON(t, g, "setPref", map[string]any{"name": "profiles", "value": profiles}); m["ok"] != true {
+		t.Fatalf("200 profiles not saved: %v", m)
+	}
+	g2 := newGUIServer("")
+	g2.prefsPath = g.prefsPath
+	var got []map[string]any
+	raw, _ := json.Marshal(callJSON(t, g2, "prefs", nil)["prefs"].(map[string]any)["profiles"])
+	if json.Unmarshal(raw, &got) != nil || len(got) != 200 || got[199]["name"] != "NV 1080Anim 350Mb 199" {
+		t.Fatalf("profiles after a restart: %d", len(got))
+	}
+	huge := strings.Repeat("x", maxPrefBytes+1)
+	if m := callJSON(t, g, "setPref", map[string]any{"name": "profiles", "value": huge}); m["ok"] != false {
+		t.Error("a value over the limit was accepted")
 	}
 }
