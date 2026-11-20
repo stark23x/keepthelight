@@ -34,7 +34,8 @@ next build". Shipped features move to "Done" with their version number. Nothing 
     least for `profiles`.
   - When a preference cannot be saved, say so on the page (for profiles: "Could not save your profiles: …"), never
     silently.
-  - Add a test with many profiles.
+  - Add a test with many profiles. The owner expects 30–40 or more (about 28 KB at 40), so test well past that,
+    for example 200.
 
 ## Ideas raised, not yet requested
 
