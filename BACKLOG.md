@@ -25,6 +25,16 @@ next build". Shipped features move to "Done" with their version number. Nothing 
     a restart).
   - Waiting on the owner: whether a restart fixed it, and whether Event Viewer showed `nvlddmkm` errors around
     23:40 on 19 November.
+- **New profiles are lost after a restart** (reported 20 November 2026, twice, with a profile that has "This is
+  animation" ticked). Cause found: `setPref` in `gui.go` refuses any value over 8,192 bytes ("bad request"), and
+  the page's `saveProfiles()` ignores the answer. All profiles are saved as one value, and each takes about
+  600–700 bytes, so from about the 12th profile on every save fails silently: a new profile, and any update,
+  rename or delete, lasts only until the window closes. The profiles saved before that are safe.
+  - Raise the limit for preferences (for example 1 MB; the file is local and only the window writes it), or at
+    least for `profiles`.
+  - When a preference cannot be saved, say so on the page (for profiles: "Could not save your profiles: …"), never
+    silently.
+  - Add a test with many profiles.
 
 ## Ideas raised, not yet requested
 
