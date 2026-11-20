@@ -12,6 +12,19 @@ next build". Shipped features move to "Done" with their version number. Nothing 
   cause (it can keep an old icon for a file with the same name and path). First ask the owner whether
   `ie4uinit.exe -show` (or signing out and in) fixes it. If it does not, look further (for example a second icon
   resource, or something about the CLI build) before changing anything.
+- **When the graphics card stops responding mid-queue** (reported 20 November 2026). On the laptop, a queue of
+  Hell's Paradise S02 (NVENC, animation, light noise reduction, 350 MB target) failed from S02E01 on with
+  `OpenEncodeSessionEx failed: no encode device (1)` at the real encode, although the encoder check and the
+  animation check in the same job had just passed, and Demon Slayer S04E11 with the same settings had finished a
+  minute before. So the card or driver got stuck partway through; one hiccup then failed every job left.
+  - If NVENC or QuickSync will not open at the encode (`OpenEncodeSessionEx failed`, `no encode device`,
+    `Error while opening encoder`, and the QuickSync equivalents), wait about 30 seconds and try once more.
+  - If it still fails, say so plainly ("The NVIDIA card stopped responding. Restarting Windows usually fixes
+    this.") instead of FFmpeg's raw output.
+  - Pause the queue in that case rather than failing the remaining files one by one (the owner can resume after
+    a restart).
+  - Waiting on the owner: whether a restart fixed it, and whether Event Viewer showed `nvlddmkm` errors around
+    23:40 on 19 November.
 
 ## Ideas raised, not yet requested
 
