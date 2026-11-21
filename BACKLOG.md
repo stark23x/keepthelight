@@ -13,7 +13,8 @@ next build". Shipped features move to "Done" with their version number. Nothing 
   - Examples: `Movie.year.2160p.HEVC.DV.HDR10.mkv`, `TV Show.Year.S01E01.Episode Name.1080p.HEVC.DV.HDR.mkv`.
   - So Dolby Vision with an HDR10 base gets `DV.HDR10`, with HDR10+ too `DV.HDR10Plus`; Dolby Vision profile 5 (no
     HDR base) only `DV`.
-  - Open question for the owner, before building: when is it plain `HDR` (HLG? the DV.HDR example?).
+  - Plain `HDR` replaces `HLG` (owner's choice, 21 November 2026: easier to grasp), so HLG gets `HDR` and Dolby
+    Vision with an HLG base `DV.HDR`.
   - Both places: the new file's name (Convert tab and queue) and the Plex names tab. Files already renamed with the
     old tags (`HDR10+`, single tag) should then show up as "would be renamed" there, which is expected.
 
