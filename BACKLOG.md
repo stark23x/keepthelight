@@ -6,7 +6,16 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing at the moment.
+- **QuickSync crash on the Dell** (reported 21 November 2026, 1.45.0). `ECW.1996.06.22.Hardcore.Heaven.96.720p...mp4`
+  (H.264 1280×720, 30 fps) with QuickSync, GPU decoding, crop (938×720) + 480p (626×480), light noise reduction and a
+  1 GB target: FFmpeg crashed (exit 0xc0000005, an access violation) right after writing the header, before the first
+  frame. Suspect: the picture size. Keep the Light only rounds sizes to even numbers, and 626 (also 938, 854) is not
+  a multiple of 16, which Intel's encoder works in. Waiting on the owner's tests in Keep the Light on the same file:
+  (1) no crop and no resize (1280×720), (2) crop + 480p with GPU decoding off, (3) crop + 480p with x265.
+  - If (1) works and the others crash: round the picture size to a multiple of 16 for QuickSync (and probably
+    NVENC), e.g. 624×480, keeping the shape as near as possible.
+  - Either way: when a hardware encode crashes like this, say so plainly and suggest x265, instead of only
+    "ffmpeg.exe failed: exit status 0xc0000005".
 
 ## Ideas raised, not yet requested
 
