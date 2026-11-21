@@ -9,8 +9,8 @@ import (
 )
 
 func TestPlexNameFormats(t *testing.T) {
-	film := plexFinal(plexFilmName("Heat", "1995", 949), plexDetails(3840, 1606, "DV"))
-	if film != "Heat (1995).2160p.HEVC.DV.{tmdb-949}" {
+	film := plexFinal(plexFilmName("Heat", "1995", 949), plexDetails(3840, 1606, "DV.HDR10"))
+	if film != "Heat (1995).2160p.HEVC.DV.HDR10.{tmdb-949}" {
 		t.Errorf("film: %q", film)
 	}
 	ep := plexFinal(plexEpisodeName("The Office", "2005", 1, 2, "Diversity Day"), plexDetails(1920, 1080, ""))
@@ -85,10 +85,28 @@ func TestPlexReviewAndApply(t *testing.T) {
 }
 
 func TestPlexHDRKind(t *testing.T) {
-	for want, plan := range map[string]*Plan{"DV": {UseDV: true, Kind: "hdr10"}, "HDR10+": {UseHDR10Plus: true, Kind: "hdr10"},
-		"HDR10": {Kind: "hdr10"}, "HLG": {Kind: "hlg"}, "": {Kind: "sdr"}} {
-		if got := plexHDR(&Probe{}, plan); got != want {
+	for want, plan := range map[string]*Plan{
+		"DV.HDR10":  {UseDV: true, DVProfile: "8.1", Kind: "hdr10"},
+		"DV.HDR":    {UseDV: true, DVProfile: "8.4", Kind: "hlg"},
+		"DV":        {UseDV: true, DVProfile: "8.2", Kind: "sdr"},
+		"HDR10Plus": {UseHDR10Plus: true, Kind: "hdr10"},
+		"HDR10":     {Kind: "hdr10"}, "HDR": {Kind: "hlg"}, "": {Kind: "sdr"}} {
+		if got := plexHDR(&Probe{}, plan, false); got != want {
 			t.Errorf("%+v: %q, want %q", plan, got, want)
 		}
+	}
+	// copied video keeps the source's: profile 5 has no HDR picture of its own
+	for want, p := range map[string]*Probe{
+		"DV":           {DV: &DoviConfig{Profile: 5, Compat: 0}},
+		"DV.HDR10Plus": {DV: &DoviConfig{Profile: 8, Compat: 1}, HDR10Plus: true},
+		"DV.HDR":       {DV: &DoviConfig{Profile: 8, Compat: 4}},
+		"DV.HDR10":     {DV: &DoviConfig{Profile: 7, Compat: 6}},
+	} {
+		if got := plexHDR(p, &Plan{Kind: "sdr"}, true); got != want {
+			t.Errorf("copied %+v: %q, want %q", *p.DV, got, want)
+		}
+	}
+	if got := plexFinal(plexFilmName("Movie", "2020", 0), plexDetails(3840, 2160, "DV.HDR10")); !strings.Contains(got, "2160p.HEVC.DV.HDR10") {
+		t.Errorf("film name: %s", got)
 	}
 }

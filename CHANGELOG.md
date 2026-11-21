@@ -18,6 +18,15 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.45.0 - 2026-11-21
+
+- **Plex-style names show every kind of HDR** a file has, not just one. In this order: `DV` (Dolby Vision), then
+  `HDR10Plus` (HDR10+), `HDR10`, or `HDR` (HLG, the broadcast kind: easier to recognise than "HLG"). For example
+  `Movie (2020).2160p.HEVC.DV.HDR10.mkv` and `TV Show (2021).S01E01.Episode Name.1080p.HEVC.DV.HDR.mkv`. Dolby Vision
+  profile 5, which has no HDR picture of its own, is just `DV`. This applies to new files (Convert tab and queue) and
+  to the Plex names tab; files named before with a single tag (or `HDR10+`, `HLG`) now show up there as "would be
+  renamed". With "Copy video untouched" the name follows the source's HDR.
+
 ## 1.44.2 - 2026-11-20
 
 - **Profiles are no longer lost.** All profiles are saved together, and that save was limited to 8 KB, so from about

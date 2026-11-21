@@ -18,7 +18,7 @@ quality.
 ## New since version 1.27
 
 - **Plex-style names.** After a TMDB match, the new file can be named the way Plex expects, with the details of the
-  new file added: `Heat (1995).2160p.HEVC.DV.{tmdb-949}.mkv` or `The Office (2005).S01E02.Diversity Day.1080p.HEVC.mkv`.
+  new file added: `Heat (1995).2160p.HEVC.DV.HDR10.{tmdb-949}.mkv` or `The Office (2005).S01E02.Diversity Day.1080p.HEVC.mkv`.
   Plex reads the `{tmdb-949}` part and the `S01E02` part to know exactly which film or episode it is. This is optional,
   and nothing is renamed until you have seen and approved the names.
 - **Track details from track names.** Many files have a track called "English" or "Director's Commentary" without
@@ -129,7 +129,7 @@ quality.
   **"Which one?"** window asks you once per show, and your answer fills in every episode.
 - **Remembers your choices,** so next season's episodes match by themselves.
 - **Plex-style names (optional).** Matched files can be named the way Plex expects, such as
-  "The Office (2005).S01E02.Diversity Day.1080p.HEVC.mkv" or "Heat (1995).2160p.HEVC.DV.{tmdb-949}.mkv", with the new
+  "The Office (2005).S01E02.Diversity Day.1080p.HEVC.mkv" or "Heat (1995).2160p.HEVC.DV.HDR10.{tmdb-949}.mkv", with the new
   file's resolution and HDR kind. You see every proposed name before anything changes.
 - **Plex names tab.** A file renamer: see every file's current name next to its Plex-style name, fix any that
   need it, and rename them all at once, with the subtitle files beside them. One click undoes the last batch.
@@ -570,11 +570,13 @@ subtitles and container from the target to get a video bitrate, then:
   This product uses the TMDB API but is not endorsed or certified by TMDB.
 - **Plex-style names** (optional: **Plex-style names after a TMDB match**, under Files): a file matched on TMDB can
   be named the way Plex expects, with the new file's resolution, `HEVC` and its kind of HDR:
-  - films: `Heat (1995).2160p.HEVC.DV.{tmdb-949}.mkv`
+  - films: `Heat (1995).2160p.HEVC.DV.HDR10.{tmdb-949}.mkv`
   - episodes: `The Office (2005).S01E02.Diversity Day.1080p.HEVC.mkv`
 
-  The resolution is the new file's (a 4K film made 1080p says 1080p; a wide 1920×800 film counts as 1080p). The HDR
-  kind is DV, HDR10+, HDR10 or HLG, and is left out for ordinary (SDR) video. There is no "_KTL" ending. Nothing is
+  The resolution is the new file's (a 4K film made 1080p says 1080p; a wide 1920×800 film counts as 1080p). Every
+  kind of HDR the file has is named, in this order: `DV` (Dolby Vision), then `HDR10Plus` (HDR10+), `HDR10`, or `HDR`
+  (HLG, the broadcast kind). So Dolby Vision over HDR10 is `DV.HDR10`, over HLG `DV.HDR`, and Dolby Vision profile 5,
+  which has no HDR picture of its own, just `DV`. Ordinary (SDR) video gets none. There is no "_KTL" ending. Nothing is
   renamed until you have seen it: on the Convert tab the name goes into the Output box, where you can change it; in
   the queue each row shows its proposed name, and **Review names** lists every change with a tick box and **Apply**.
   A name that already exists, or that two files would share, is not used. Only the new files are named so; the

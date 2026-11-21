@@ -31,7 +31,7 @@ func plexClean(s string) string {
 // plexDetailsMark stands (filled in once the file has been checked):
 //
 //	The Office (2005).S01E02.Diversity Day.1080p.HEVC.mkv
-//	Heat (1995).2160p.HEVC.DV.{tmdb-949}.mkv
+//	Heat (1995).2160p.HEVC.DV.HDR10.{tmdb-949}.mkv
 //
 // ("<" cannot be in a Windows file name, so the mark can never clash with a title.)
 const plexDetailsMark = "<details>"
@@ -106,22 +106,66 @@ func plexResolution(w, h int) string {
 	return "480p"
 }
 
-// plexHDR is the kind of HDR the new file has ("" for SDR).
-func plexHDR(p *Probe, plan *Plan) string {
-	switch {
-	case plan.UseDV:
-		return "DV"
-	case plan.UseHDR10Plus:
-		return "HDR10+"
-	case plan.Kind == "hlg":
-		return "HLG"
-	case plan.Kind == "hdr10":
-		return "HDR10"
+// plexHDR is every kind of HDR the new file has, for its name ("" for SDR):
+// "DV.HDR10", "HDR10Plus", "HDR" (HLG)... Copied video keeps the source's.
+func plexHDR(p *Probe, plan *Plan, copyVideo bool) string {
+	if copyVideo && p != nil {
+		if p.DV != nil {
+			return hdrTags(true, dvBase(p.DV.Profile, p.DV.Compat, p.Kind()), p.HDR10Plus)
+		}
+		return hdrTags(false, p.Kind(), p.HDR10Plus)
 	}
-	return ""
+	base := plan.Kind
+	if plan.UseDV {
+		switch plan.DVProfile {
+		case "8.1":
+			base = "hdr10"
+		case "8.4":
+			base = "hlg"
+		case "8.2":
+			base = "sdr"
+		}
+	}
+	return hdrTags(plan.UseDV, base, plan.UseHDR10Plus)
 }
 
-// plexDetails: "1080p.HEVC", "2160p.HEVC.DV" for the new file.
+// dvBase is the picture underneath Dolby Vision: "hdr10", "hlg", or "sdr"
+// (profile 5 has none of its own; 8.2 is SDR).
+func dvBase(profile, compat int, kind string) string {
+	switch {
+	case profile == 5:
+		return "sdr"
+	case compat == 1 || compat == 6:
+		return "hdr10"
+	case compat == 4:
+		return "hlg"
+	case compat == 2:
+		return "sdr"
+	}
+	return kind
+}
+
+// hdrTags names the kinds of HDR in a file name, in the owner's order and
+// spelling: DV, then HDR10Plus / HDR10 / HDR (HLG is called HDR: easier to grasp).
+func hdrTags(dv bool, base string, hdr10plus bool) string {
+	var t []string
+	if dv {
+		t = append(t, "DV")
+	}
+	switch base {
+	case "hdr10":
+		if hdr10plus {
+			t = append(t, "HDR10Plus")
+		} else {
+			t = append(t, "HDR10")
+		}
+	case "hlg":
+		t = append(t, "HDR")
+	}
+	return strings.Join(t, ".")
+}
+
+// plexDetails: "1080p.HEVC", "2160p.HEVC.DV.HDR10" for the new file.
 func plexDetails(w, h int, hdr string) string { return plexDetailsFor(w, h, "HEVC", hdr) }
 
 // plexDetailsFor: the same for any video format ("1080p.H264" for a file renamed as it is).

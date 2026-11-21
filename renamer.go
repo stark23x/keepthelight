@@ -236,7 +236,7 @@ func probeForName(ffprobe, path string) (string, []string, float64) {
 	}
 	secs, _ := strconv.ParseFloat(p.Format.Duration, 64)
 	var w, h int
-	codec, hdr := "", ""
+	codec, base, dv := "", "", false
 	for _, s := range p.Streams {
 		if s.Type != "video" || s.Disp["attached_pic"] == 1 || codec != "" {
 			continue
@@ -244,19 +244,22 @@ func probeForName(ffprobe, path string) (string, []string, float64) {
 		w, h, codec = s.Width, s.Height, nameCodec(s.Codec)
 		switch s.Transfer {
 		case "smpte2084":
-			hdr = "HDR10"
+			base = "hdr10"
 		case "arib-std-b67":
-			hdr = "HLG"
+			base = "hlg"
 		}
 		for _, sd := range s.SideData {
 			if t, _ := sd["side_data_type"].(string); strings.Contains(strings.ToLower(t), "dovi") {
-				hdr = "DV"
+				dv = true
+				prof, _ := sd["dv_profile"].(float64)
+				compat, _ := sd["dv_bl_signal_compatibility_id"].(float64)
+				if base == "" || int(prof) == 5 { // untagged colours: the record says what is underneath
+					base = dvBase(int(prof), int(compat), base)
+				}
 			}
 		}
 	}
-	if hdr == "HDR10" && hasHDR10Plus(ctx, ffprobe, path) {
-		hdr = "HDR10+"
-	}
+	hdr := hdrTags(dv, base, base == "hdr10" && hasHDR10Plus(ctx, ffprobe, path))
 	total, _ := strconv.ParseFloat(p.Format.BitRate, 64)
 	var plex []string
 	for _, x := range plexIssues(plexSrcFromScan(&p, int(total/1000))) {

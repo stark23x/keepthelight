@@ -2,9 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -155,5 +157,48 @@ func TestRenamerFollowsQueue(t *testing.T) {
 	}
 	if rows = renWait(t, g); len(rows) != 1 || rows[0].State != "same" {
 		t.Errorf("after: %+v", rows)
+	}
+}
+
+// Files renamed as they are get every kind of HDR they have: DV.HDR10, DV.HDR10Plus, DV (profile 5), HDR (HLG).
+func TestProbeForNameHDRTags(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a shell script")
+	}
+	dir := t.TempDir()
+	fake := filepath.Join(dir, "ffprobe")
+	stream := func(transfer, side string, plus bool) {
+		frames := `{"frames":[{}]}`
+		if plus {
+			frames = `{"frames":[{"side_data_list":[{"side_data_type":"HDR Dynamic Metadata SMPTE2094-40 (HDR10+)"}]}]}`
+		}
+		body := fmt.Sprintf(`#!/bin/sh
+case "$*" in *show_frames*) echo '%s'; exit 0;; esac
+echo '{"streams":[{"codec_type":"video","codec_name":"hevc","width":3840,"height":2160,"color_transfer":"%s","side_data_list":[%s]}],"format":{"duration":"60","bit_rate":"20000000"}}'
+`, frames, transfer, side)
+		_ = os.WriteFile(fake, []byte(body), 0o755)
+	}
+	dvRec := func(p, c int) string {
+		return fmt.Sprintf(`{"side_data_type":"DOVI configuration record","dv_profile":%d,"dv_bl_signal_compatibility_id":%d}`, p, c)
+	}
+	for _, c := range []struct {
+		transfer, side string
+		plus           bool
+		want           string
+	}{
+		{"smpte2084", dvRec(8, 1), false, "2160p.HEVC.DV.HDR10"},
+		{"smpte2084", dvRec(8, 1), true, "2160p.HEVC.DV.HDR10Plus"},
+		{"", dvRec(5, 0), false, "2160p.HEVC.DV"},
+		{"", dvRec(8, 1), false, "2160p.HEVC.DV.HDR10"}, // untagged colours: the record says HDR10 underneath
+		{"arib-std-b67", dvRec(8, 4), false, "2160p.HEVC.DV.HDR"},
+		{"arib-std-b67", "", false, "2160p.HEVC.HDR"},
+		{"smpte2084", "", true, "2160p.HEVC.HDR10Plus"},
+		{"smpte2084", "", false, "2160p.HEVC.HDR10"},
+		{"bt709", "", false, "2160p.HEVC"},
+	} {
+		stream(c.transfer, c.side, c.plus)
+		if got, _, _ := probeForName(fake, filepath.Join(dir, "x.mkv")); got != c.want {
+			t.Errorf("%s %s plus=%v: %q, want %q", c.transfer, c.side, c.plus, got, c.want)
+		}
 	}
 }

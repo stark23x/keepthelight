@@ -6,17 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **Every kind of HDR in Plex-style names** (requested 21 November 2026). Today the name gets one tag, with Dolby
-  Vision winning (`plexHDR` in `plexnames.go` for new files, the scan in `renamer.go` for files renamed as they are):
-  DV, HDR10+, HLG or HDR10. The owner wants all that apply, in this order and spelling:
-  - Dolby Vision = `DV`, HDR10 = `HDR10`, HDR10+ = `HDR10Plus` (no "+"), HDR = `HDR`.
-  - Examples: `Movie.year.2160p.HEVC.DV.HDR10.mkv`, `TV Show.Year.S01E01.Episode Name.1080p.HEVC.DV.HDR.mkv`.
-  - So Dolby Vision with an HDR10 base gets `DV.HDR10`, with HDR10+ too `DV.HDR10Plus`; Dolby Vision profile 5 (no
-    HDR base) only `DV`.
-  - Plain `HDR` replaces `HLG` (owner's choice, 21 November 2026: easier to grasp), so HLG gets `HDR` and Dolby
-    Vision with an HLG base `DV.HDR`.
-  - Both places: the new file's name (Convert tab and queue) and the Plex names tab. Files already renamed with the
-    old tags (`HDR10+`, single tag) should then show up as "would be renamed" there, which is expected.
+Nothing at the moment.
 
 ## Ideas raised, not yet requested
 
@@ -24,6 +14,7 @@ None at the moment.
 
 ## Done
 
+- 1.45.0: every kind of HDR in Plex-style names (`DV`, then `HDR10Plus` / `HDR10` / `HDR` for HLG; profile 5 only `DV`), for new files and the Plex names tab; copied video follows the source.
 - 1.44.2: profiles no longer lost (preference limit 8 KB → 1 MB; a failed profile save is shown); when the graphics card stops responding ("no encode device", MFX session errors) the job waits 30 s and tries once more, then the queue pauses on that file with a plain message (encode, start-up encoder check, Aim for quality); CLI icon checked (both exes carry the new icon; Windows' icon cache) and `ie4uinit.exe -show` added to the README.
 - 1.44.1: new logo ("B2 · Kept light, film strip"): icon, header and About box; `res/mkicon.py` draws every size from `res/keepthelight.svg`; GitHub header at the top of the README.
 - 1.44.0: "This is animation" (under Video, kept in profiles): x265 animation tune and 8 B-frames; NVENC B-frames as references, longer look ahead and temporal AQ, QuickSync more B-frames (each tried first, fullest set the card takes); offer to tick it when TMDB or TVmaze lists a title as animation; `-animation`.
