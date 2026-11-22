@@ -7,14 +7,17 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 ## Requested for the next build
 
 - **QuickSync crash on the Dell** (reported 21 November 2026, 1.45.0). `ECW.1996.06.22.Hardcore.Heaven.96.720p...mp4`
-  (H.264 1280×720, 30 fps) with QuickSync, GPU decoding, crop (938×720) + 480p (626×480), light noise reduction and a
-  1 GB target: FFmpeg crashed (exit 0xc0000005, an access violation) right after writing the header, before the first
-  frame. Suspect: the picture size. Keep the Light only rounds sizes to even numbers, and 626 (also 938, 854) is not
-  a multiple of 16, which Intel's encoder works in. Waiting on the owner's tests in Keep the Light on the same file:
-  (1) no crop and no resize (1280×720), (2) crop + 480p with GPU decoding off, (3) crop + 480p with x265.
-  - If (1) works and the others crash: round the picture size to a multiple of 16 for QuickSync (and probably
-    NVENC), e.g. 624×480, keeping the shape as near as possible.
-  - Either way: when a hardware encode crashes like this, say so plainly and suggest x265, instead of only
+  (H.264 1280×720, 30 fps) with QuickSync, crop (938×720) + 480p (626×480), light noise reduction and a 1 GB target:
+  FFmpeg crashed (exit 0xc0000005, an access violation) right after writing the header, before the first frame.
+  **The owner's tests on the same file (22 November) point at the picture size:** QuickSync with no crop and no
+  resize (1280×720) worked; crop + 480p with GPU decoding off still crashed; crop + 480p with x265 worked.
+  Keep the Light only rounds sizes to even numbers, and 626 is not a multiple of 16, which Intel's encoder works in.
+  - For QuickSync, make the picture **width** a multiple of 16. The height stays as it is (1080 is not a multiple of
+    16 and QuickSync encodes it all the time; 480 was fine here). Resizing: the nearest multiple of 16, height kept
+    (626×480 → 624×480, a 0.3% change nobody sees). Crop only: round the width up, keeping a sliver of the bar rather
+    than cutting picture (the crop's own rule: keep a little more rather than less), e.g. 938 → 944.
+  - NVENC has not shown this; leave its sizes as they are unless it does.
+  - When a hardware encode crashes (0xc0000005 and the like), say so plainly and suggest x265, instead of only
     "ffmpeg.exe failed: exit status 0xc0000005".
 - **A × to close the pop-up notices** (requested 22 November 2026, after "Same tracks for others"). Its message (how
   many files changed, and up to 15 left as they were) is a toast from `notify()` in `index.html`: it closes only
