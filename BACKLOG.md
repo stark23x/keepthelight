@@ -16,6 +16,12 @@ next build". Shipped features move to "Done" with their version number. Nothing 
     NVENC), e.g. 624×480, keeping the shape as near as possible.
   - Either way: when a hardware encode crashes like this, say so plainly and suggest x265, instead of only
     "ffmpeg.exe failed: exit status 0xc0000005".
+- **A × to close the pop-up notices** (requested 22 November 2026, after "Same tracks for others"). Its message (how
+  many files changed, and up to 15 left as they were) is a toast from `notify()` in `index.html`: it closes only
+  when clicked anywhere (not obvious) or after 4–12 seconds by its length. Add a visible × button in its top-right
+  corner (a real `<button>` with `aria-label="Close"`, at least 44 px to click) to every toast, so they all work
+  the same; keep the automatic fading as it is. (The owner's fallback, fading after 5 seconds, is only needed if a ×
+  were not possible, and it is.)
 
 ## Ideas raised, not yet requested
 
