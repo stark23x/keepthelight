@@ -25,6 +25,23 @@ next build". Shipped features move to "Done" with their version number. Nothing 
   corner (a real `<button>` with `aria-label="Close"`, at least 44 px to click) to every toast, so they all work
   the same; keep the automatic fading as it is. (The owner's fallback, fading after 5 seconds, is only needed if a ×
   were not possible, and it is.)
+- **An NFO file for Plex beside each new file, from TMDB** (requested 22 November 2026). Plex reads NFOs since
+  Plex Media Server 1.43.1, with the "Plex NFO Movie" / "Plex NFO Series" agents
+  (https://support.plex.tv/articles/using-nfo-metadata-files-with-plex/):
+  - Films: `<movie>` in `<film name>.nfo` beside the file (or `movie.nfo`). Tags Plex reads: title, originaltitle,
+    plot, tagline, ratings, mpaa, premiered, studio, genre, tag, country, set, uniqueid, id, credits, director,
+    actor, thumb, fanart.
+  - Episodes: `<episodedetails>` in `<episode name>.nfo` beside the file (the minimum Plex needs): title, season,
+    episode, plot, aired, director, credits, actor. A double episode (S01E01-E02) gets one NFO with one
+    `<episodedetails>` per episode.
+  - Shows: `<tvshow>` in `tvshow.nfo` in the show's folder (Plex: "highly recommended"): title, plot, mpaa,
+    premiered, status, studio, genre, uniqueid, namedseason, actor.
+  - `<uniqueid type="tmdb" default="true">` (plus imdb / tvdb when TMDB has them) keeps watch history across
+    rescans.
+  - Plex: cast from Plex's own online source needs NFOs without cast, so leave `<actor>` out by default.
+  - Never overwrite an NFO that is already there.
+  - Open questions for the owner, before building: also write `tvshow.nfo`? NFOs for files already in the library
+    too (Library scan / Plex names tab), or only new files?
 
 ## Ideas raised, not yet requested
 
