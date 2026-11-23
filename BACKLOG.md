@@ -34,14 +34,13 @@ next build". Shipped features move to "Done" with their version number. Nothing 
   - Episodes: `<episodedetails>` in `<episode name>.nfo` beside the file (the minimum Plex needs): title, season,
     episode, plot, aired, director, credits, actor. A double episode (S01E01-E02) gets one NFO with one
     `<episodedetails>` per episode.
-  - Shows: `<tvshow>` in `tvshow.nfo` in the show's folder (Plex: "highly recommended"): title, plot, mpaa,
-    premiered, status, studio, genre, uniqueid, namedseason, actor.
+  - No `tvshow.nfo` (owner's choice, 22 November 2026): episode NFOs only.
   - `<uniqueid type="tmdb" default="true">` (plus imdb / tvdb when TMDB has them) keeps watch history across
     rescans.
-  - Plex: cast from Plex's own online source needs NFOs without cast, so leave `<actor>` out by default.
+  - No cast (owner's choice): Plex fills in the cast from its own online data only when the NFO has none.
+  - Only new files that Keep the Light converts and that have a TMDB match (owner's choice; not files already in the
+    library). An option beside "Plex-style names after a TMDB match", remembered.
   - Never overwrite an NFO that is already there.
-  - Open questions for the owner, before building: also write `tvshow.nfo`? NFOs for files already in the library
-    too (Library scan / Plex names tab), or only new files?
 
 ## Ideas raised, not yet requested
 
