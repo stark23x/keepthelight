@@ -267,8 +267,11 @@
   /* UI-9: messages that fade by themselves */
   #toasts { position: fixed; right: 16px; bottom: 120px; z-index: 50; display: flex; flex-direction: column; gap: 8px; max-width: min(420px, calc(calc(100vw / var(--z)) - 32px)); }
   .toast { background: var(--panel2); border: 1px solid var(--accent2); border-radius: 8px; padding: 10px 12px; font-size: 13px; white-space: pre-line;
-    box-shadow: 0 6px 24px var(--shadow); cursor: pointer; transition: opacity .5s; }
+    box-shadow: 0 6px 24px var(--shadow); cursor: pointer; transition: opacity .5s; position: relative; padding-right: 44px; }
   .toast.gone { opacity: 0; }
+  .toast .x { position: absolute; top: 0; right: 0; width: 44px; height: 44px; background: none; border: 0; color: var(--muted);
+    font-size: 22px; line-height: 1; cursor: pointer; border-radius: 8px; }
+  .toast .x:hover, .toast .x:focus-visible { color: var(--text); }
   /* TMDB lookup */
   .tmdb { border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 14px; background: var(--panel2); }
   #tResults { max-height: 360px; overflow-y: auto; margin-top: 10px; }
@@ -551,6 +554,10 @@
       "Heat (1995).2160p.HEVC.DV.HDR10.{tmdb-949}.mkv" or "The Office (2005).S01E02.Diversity Day.1080p.HEVC.mkv": the resolution, HEVC and the
       kind of HDR are those of the new file (no other ending is added). Only the new file is named so,
       and nothing is renamed until you have seen it: here, in the Output box; in the queue, with <b>Review names</b>. Remembered.</span></label>
+    <label class="check" style="margin-top:8px"><input type="checkbox" id="nfoFiles"> <span><b>NFO file for Plex after a TMDB match</b>: beside the new
+      file, with the same name, Plex's details for the film or episode (title, plot, date, genres, director, writers and the TMDB number that keeps
+      your watch history). No cast, so Plex fills in its own, with photos. An NFO already there is never replaced. Plex reads NFOs from Plex Media
+      Server 1.43.1 on, with the library's agent set to "Plex NFO Movie" or "Plex NFO Series" (library, Edit, Advanced). Remembered.</span></label>
     <div class="hint" style="margin-top:6px">Used for this file and the queue, and remembered.
       <details class="help"><summary>More</summary>Choosing another place with Save as… changes the folder too; saving next to the original sets it back.
       With nothing added to the name, save in another folder or as MP4: a file cannot replace its original.</details></div>
@@ -1149,8 +1156,11 @@ function showError(msg) {
 function notify(msg) {
   let box = $('toasts');
   if (!box) { box = el('div'); box.id = 'toasts'; box.setAttribute('role', 'status'); document.body.append(box); }
-  const t = el('div', 'toast', msg);
-  t.onclick = () => t.remove();
+  const t = el('div', 'toast', msg), x = el('button', 'x', '×');
+  x.type = 'button'; x.setAttribute('aria-label', 'Close'); x.title = 'Close';
+  x.onclick = e => { e.stopPropagation(); t.remove(); };
+  t.onclick = () => t.remove(); // a click anywhere on it still closes it too
+  t.prepend(x);
   box.append(t);
   setTimeout(() => { t.classList.add('gone'); setTimeout(() => t.remove(), 600); }, Math.min(12000, 4000 + msg.length * 40));
 }
@@ -1166,7 +1176,7 @@ function settings() {
     audioLang: $('audioLang').value.trim(), dropCommentary: $('dropComm').checked, audioChannels: $('audioCh').value, addCompatAudio: $('addCompat').checked, copyCompatible: $('copyCompat').checked, subLang: $('subLang').value.trim(), subMode: $('subMode').value, subToSRT: $('subToSRT').value,
     audioOnePerLang: $('audioOne').value, subNameMode: $('subNameMode').value, subNameWords: $('subNameWords').value.trim(), nameTracks: $('nameTracks').checked, fillFromNames: $('fillFromNames').checked,
     ...trackSettings(),
-    meta: metaEdits(), replaceOriginal: replacing(), profile: $('profile').value,
+    meta: metaEdits(), nfo: (metaFor() && metaFor().nfo) || null, replaceOriginal: replacing(), profile: $('profile').value,
     extSubs: extSubsFor === $('input').value.trim() ? extSubs.filter(x => x.use).map(({ use, found, ...x }) => x) : [], findSubs: $('findSubs').checked
   };
 }
@@ -2086,6 +2096,7 @@ async function restorePrefs() {
   if (typeof r.prefs.scanSub === 'boolean') $('scanSub').checked = r.prefs.scanSub;
   if (typeof r.prefs.scanExtras === 'boolean') $('scanExtras').checked = r.prefs.scanExtras;
   if (typeof r.prefs.plexNames === 'boolean') $('plexNames').checked = r.prefs.plexNames;
+  if (typeof r.prefs.nfoFiles === 'boolean') $('nfoFiles').checked = r.prefs.nfoFiles;
   if (r.prefs.watch) {
     watchProfiles();
     $('watchDir').value = r.prefs.watch.dir || ''; $('watchStart').checked = !!r.prefs.watch.start;
@@ -2244,7 +2255,7 @@ async function probe() {
   if (info && r.audioChoice && (!tracks || tracks.input !== s.input))
     tracks = load && load.audioTracks ? tracksFromSettings(load, s.input) : tracksFromProbe(r, s.input);
   const freshMeta = info && r.meta && (!metaState || metaState.input !== s.input);
-  if (freshMeta) { metaState = newMetaState(r, s.input); if (load) applyMetaEdits(metaState, load.meta); tmdbPrefill(s.input); }
+  if (freshMeta) { metaState = newMetaState(r, s.input); if (load) { applyMetaEdits(metaState, load.meta); metaState.nfo = load.nfo || null; } tmdbPrefill(s.input); }
   if (info && extSubsFor !== s.input) { // a new file: its subtitle files (a queued file's own list, or the ones named after it)
     extSubsFor = s.input;
     if (load && Array.isArray(load.extSubs)) extSubs = load.extSubs.map(x => ({ ...x, use: true }));
@@ -2657,6 +2668,7 @@ async function tmdbUse(x, btn) {
   if (editing) editing.tmdbPicked = true;
   m.tags.title = f.title; m.tags.date = f.date; m.tags.description = f.description;
   if (f.cover) { m.cover = f.cover; m.removeCover = false; }
+  m.nfo = f.nfo || null; // written beside the new file if "NFO file for Plex" is ticked
   renderMeta(); metaChanged();
   $('tResults').innerHTML = '';
   const box = $('tFilled'); box.innerHTML = ''; box.classList.remove('hidden');
@@ -2666,6 +2678,7 @@ async function tmdbUse(x, btn) {
   t.append(x.kind === 'tvmaze' ? 'Filled in from TVmaze: ' : 'Filled in from TMDB: ', a, '. Check the fields below; "Undo all metadata changes" puts back the file\'s own.');
   if (tv && !episode) t.append(' (No season and episode given, so this is the show\'s information.)');
   if (f.note) t.append(el('div', 'hint', f.note));
+  if ($('nfoFiles').checked && f.nfo) t.append(el('div', 'hint', 'An NFO file for Plex will be written beside the new file.'));
   if (f.animation && radio('mode') === 'encode' && !$('animation').checked) { // an offer, never ticked without asking
     const d = el('div', 'hint'), b = el('button', '', 'Tick "This is animation"');
     b.style.marginLeft = '6px';
@@ -2705,6 +2718,7 @@ $('qTMDB').onclick = async () => {
 // ---------- Plex-style names (optional) ----------
 // After a TMDB match a file can be named the Plex way. Nothing changes until it has
 // been seen: in the Output box on the Convert tab, and in Review names for the queue.
+$('nfoFiles').onchange = () => api('setPref', { name: 'nfoFiles', value: $('nfoFiles').checked });
 $('plexNames').onchange = () => { api('setPref', { name: 'plexNames', value: $('plexNames').checked }); if (queue) renderQueue(queue); };
 // a proposed name with the new file's details ("1080p.HEVC.DV") in their place
 function plexFinalName(name, details) {

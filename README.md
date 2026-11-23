@@ -581,6 +581,15 @@ subtitles and container from the target to get a video bitrate, then:
   the queue each row shows its proposed name, and **Review names** lists every change with a tick box and **Apply**.
   A name that already exists, or that two files would share, is not used. Only the new files are named so; the
   originals keep their names.
+- **NFO file for Plex** (optional: **NFO file for Plex after a TMDB match**, under Files, remembered): each new file
+  with a TMDB (or TVmaze) match gets an NFO beside it, with the same name (`Heat (1995).2160p.HEVC.DV.HDR10.{tmdb-949}.nfo`).
+  A film's says its title, plot, tagline, release date, US rating, TMDB rating, genres, studios, countries,
+  collection, director, writers, and its TMDB and IMDb numbers (the numbers keep your watch history when Plex
+  rescans). An episode's says its title, season, episode, plot, air date, director and writers; a double episode
+  (S05E09-E10) gets one block for each episode. There is no cast, so Plex fills in its own, with photos, and no
+  `tvshow.nfo` for the show. An NFO already there is never replaced, and a problem writing one never fails the file.
+  Plex reads NFOs from Plex Media Server 1.43.1 on, when the library's agent is "Plex NFO Movie" or "Plex NFO Series"
+  (in Plex: the library, Edit, Advanced). Only files Keep the Light converts get one.
 - **Plex names** (its own tab): a file renamer for the queue's waiting files and for files added on the tab with
   **Add files…** or **Add folder…** (they do not join the queue). Each row shows the file's name, its Plex-style name
   (from its TMDB match, with the file's own resolution, video format and HDR kind, such as

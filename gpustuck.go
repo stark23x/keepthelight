@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
@@ -124,6 +126,9 @@ func (g *gpuWatch) stuck() bool {
 func withGPURetry(ctx context.Context, codec string, step func(stderr io.Writer) error, stderr io.Writer) error {
 	w := &gpuWatch{w: stderr}
 	err := step(w)
+	if err != nil && codec != "" && ctx.Err() == nil && !w.stuck() && crashed(err) {
+		return &hwCrashError{codec: codec, err: err}
+	}
 	if err == nil || codec == "" || !w.stuck() || ctx.Err() != nil {
 		return err
 	}
@@ -136,6 +141,8 @@ func withGPURetry(ctx context.Context, codec string, step func(stderr io.Writer)
 	w = &gpuWatch{w: stderr}
 	if err = step(w); err != nil && w.stuck() && ctx.Err() == nil {
 		return &gpuStuckError{codec: codec}
+	} else if err != nil && ctx.Err() == nil && crashed(err) {
+		return &hwCrashError{codec: codec, err: err}
 	}
 	return err
 }
@@ -169,4 +176,34 @@ func checkEncoder(ctx context.Context, ffmpeg, codec string) error {
 		return &gpuStuckError{codec: codec}
 	}
 	return fmt.Errorf("%s", p)
+}
+
+// ---------- when a hardware encode crashes ----------
+//
+// An encoder that crashes (Windows: exit status 0xc0000005, an access
+// violation) says nothing useful by itself. Seen with QuickSync on a picture
+// whose width was not a multiple of 16 (see alignForQSV).
+
+type hwCrashError struct {
+	codec string
+	err   error
+}
+
+func (e *hwCrashError) Error() string {
+	name := map[string]string{"nvenc": "NVENC (the NVIDIA graphics card)", "qsv": "QuickSync (the Intel graphics)"}[e.codec]
+	return "FFmpeg crashed while encoding with " + name + " (" + e.err.Error() + "). This is usually the graphics driver " +
+		"not coping with these settings, not the file. Try x265 (Encoder), or another size (Resolution / Crop)."
+}
+
+func (e *hwCrashError) Unwrap() error { return e.err }
+
+// crashed: the tool did not exit by itself but was ended by a crash
+// (Windows reports one as a code from 0xC0000000 up; elsewhere, a signal).
+func crashed(err error) bool {
+	var ee *exec.ExitError
+	if !errors.As(err, &ee) {
+		return false
+	}
+	c := ee.ExitCode()
+	return c == -1 || uint32(c) >= 0xC0000000
 }

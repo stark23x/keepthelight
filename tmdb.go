@@ -217,20 +217,22 @@ func tmdbImage(ctx context.Context, size, path string, limit int64) ([]byte, str
 
 // tmdbFill is what goes into the metadata fields.
 type tmdbFill struct {
-	Title       string `json:"title"`
-	Date        string `json:"date"`
-	Description string `json:"description"`
-	Cover       string `json:"cover,omitempty"` // the poster, saved on this PC
-	Thumb       string `json:"thumb,omitempty"`
-	Link        string `json:"link"` // the TMDB page
-	Note        string `json:"note,omitempty"`
-	PlexName    string `json:"plexName,omitempty"`  // the Plex-style file name, without extension ("" for a show without an episode)
-	Animation   bool   `json:"animation,omitempty"` // TMDB lists the film or show as Animation
+	Title       string  `json:"title"`
+	Date        string  `json:"date"`
+	Description string  `json:"description"`
+	Cover       string  `json:"cover,omitempty"` // the poster, saved on this PC
+	Thumb       string  `json:"thumb,omitempty"`
+	Link        string  `json:"link"` // the TMDB page
+	Note        string  `json:"note,omitempty"`
+	PlexName    string  `json:"plexName,omitempty"`  // the Plex-style file name, without extension ("" for a show without an episode)
+	Animation   bool    `json:"animation,omitempty"` // TMDB lists the film or show as Animation
+	NFO         *nfoDoc `json:"nfo,omitempty"`       // what an NFO file for Plex says (nfo.go); nil for a show without an episode
 }
 
 // tmdbGenre is one of a film's or show's genres; 16 is Animation for both.
 type tmdbGenre struct {
-	ID int `json:"id"`
+	ID   int    `json:"id"`
+	Name string `json:"name"`
 }
 
 const tmdbAnimation = 16
@@ -253,14 +255,55 @@ func tmdbDetails(ctx context.Context, key, kind string, id, season, episode int,
 	case "movie":
 		var m struct {
 			Title, Overview string
-			ReleaseDate     string `json:"release_date"`
-			PosterPath      string `json:"poster_path"`
+			OriginalTitle   string  `json:"original_title"`
+			Tagline         string  `json:"tagline"`
+			ReleaseDate     string  `json:"release_date"`
+			PosterPath      string  `json:"poster_path"`
+			IMDB            string  `json:"imdb_id"`
+			VoteAverage     float64 `json:"vote_average"`
+			VoteCount       int     `json:"vote_count"`
 			Genres          []tmdbGenre
+			Companies       []struct {
+				Name string `json:"name"`
+			} `json:"production_companies"`
+			Countries []struct {
+				Name string `json:"name"`
+			} `json:"production_countries"`
+			Collection *struct {
+				Name string `json:"name"`
+			} `json:"belongs_to_collection"`
+			Credits struct {
+				Crew []tmdbCrew `json:"crew"`
+			} `json:"credits"`
+			ReleaseDates struct {
+				Results []struct {
+					Country string `json:"iso_3166_1"`
+					Dates   []struct {
+						Certification string `json:"certification"`
+					} `json:"release_dates"`
+				} `json:"results"`
+			} `json:"release_dates"`
 		}
-		if err := tmdbGet(ctx, key, fmt.Sprintf("/movie/%d", id), nil, &m); err != nil {
+		if err := tmdbGet(ctx, key, fmt.Sprintf("/movie/%d", id), url.Values{"append_to_response": {"credits,release_dates"}}, &m); err != nil {
 			return nil, err
 		}
 		f.Animation = hasAnimation(m.Genres)
+		nm := &nfoMovie{Title: m.Title, OriginalTitle: m.OriginalTitle, Plot: m.Overview, Tagline: m.Tagline, Premiered: m.ReleaseDate,
+			MPAA: usCertification(m.ReleaseDates), Rating: m.VoteAverage, Votes: m.VoteCount, Studios: names(m.Companies),
+			Countries: names(m.Countries), TMDB: id, IMDB: m.IMDB}
+		for _, g := range m.Genres {
+			if g.Name != "" {
+				nm.Genres = append(nm.Genres, g.Name)
+			}
+		}
+		if m.Collection != nil {
+			nm.Set = m.Collection.Name
+		}
+		nm.Directors, nm.Writers = crewNames(m.Credits.Crew)
+		if m.VoteCount == 0 { // no votes: no rating
+			nm.Rating = 0
+		}
+		f.NFO = &nfoDoc{Movie: nm}
 		f.Title, f.Date, f.Description, poster = m.Title, m.ReleaseDate, m.Overview, m.PosterPath
 		f.Link = fmt.Sprintf("https://www.themoviedb.org/movie/%d", id)
 		f.PlexName = plexFilmName(m.Title, yearOf(m.ReleaseDate), id)
@@ -290,13 +333,14 @@ func tmdbDetails(ctx context.Context, key, kind string, id, season, episode int,
 			f.Link += fmt.Sprintf("/season/%d", season)
 		}
 		if season > 0 && episode > 0 {
-			var e struct {
-				Name, Overview string
-				AirDate        string `json:"air_date"`
-			}
+			var e tmdbEpisode
 			if err := tmdbGet(ctx, key, fmt.Sprintf("/tv/%d/season/%d/episode/%d", id, season, episode), nil, &e); err != nil {
 				return nil, fmt.Errorf("season %d, episode %d: %v", season, episode, err)
 			}
+			if e.Number == 0 {
+				e.Number = episode
+			}
+			f.NFO = &nfoDoc{Episodes: []nfoEpisode{tmdbEpisodeNFO(e, season)}}
 			f.Title = fmt.Sprintf("%s – S%02dE%02d", show.Name, season, episode)
 			if e.Name != "" {
 				f.Title += " – " + e.Name
@@ -832,6 +876,9 @@ func (g *guiServer) queueTMDBAgain(ids []int, again bool) map[string]any {
 					if meta.plexName != "" { // a proposal: only used once confirmed in Review names
 						setRawField(it, "plexName", meta.plexName)
 					}
+					if meta.nfo != nil { // written beside the new file only if "NFO file for Plex" is ticked
+						setRawField(it, "nfo", meta.nfo)
+					}
 				}
 				setRawField(it, "tmdbNote", note)
 				var s settings
@@ -994,6 +1041,7 @@ func (lk *tmdbLookup) file(input string) (string, *MetaEdit) {
 		what += " (" + hit.Year + ")"
 	}
 	m.plexName = f.PlexName
+	m.nfo = f.NFO
 	m.tvID, m.tmdbEp = 0, ep
 	if hit.Kind == "tv" {
 		m.tvID = hit.ID

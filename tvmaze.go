@@ -346,6 +346,7 @@ func tvmazeFill(ctx context.Context, key string, hit *tmdbResult, season int, ep
 		plexTitle = baseTitle(title)
 	}
 	f.PlexName = plexEpisodeRangeName(name, year, season, ep, plexTitle)
+	f.NFO = &nfoDoc{Episodes: tvmazeEpisodesNFO(eps, season, ep.First, ep.Last)}
 	return f, ""
 }
 
@@ -501,6 +502,7 @@ func tvmazeDetails(ctx context.Context, show, season int, ep tmdbEp, coverDir st
 			plexTitle = baseTitle(title)
 		}
 		f.PlexName = plexEpisodeRangeName(s.Name, yearOf(s.Premiered), season, ep, plexTitle)
+		f.NFO = &nfoDoc{Episodes: tvmazeEpisodesNFO(eps, season, ep.First, ep.Last)}
 	}
 	if s.Image != nil && s.Image.Original != "" && coverDir != "" {
 		if b, mime, err := tvmazeImage(ctx, s.Image.Original, 15<<20); err == nil {

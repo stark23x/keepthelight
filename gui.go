@@ -133,6 +133,7 @@ type settings struct {
 	TestSeconds                int       // >0: only a test of this many seconds
 	TestStart                  string    // where the test starts ("" = automatic)
 	ReplaceOriginal            bool      // metadata only: the result takes the original's place
+	NFO                        *nfoDoc   // what an NFO file for Plex says, from the TMDB lookup (written only with the "nfoFiles" setting; nfo.go)
 	Retries                    int       // hardware encoders: extra attempts to hit the target
 	Overwrite                  bool      // replace an existing output (the user confirmed it)
 }
@@ -249,6 +250,9 @@ func (s *settings) toConfig() (*Config, error) {
 	}
 	if !s.Meta.empty() {
 		cfg.Meta = s.Meta
+	}
+	if !s.NFO.empty() && !cfg.QualityAdvice {
+		cfg.nfo = s.NFO
 	}
 	for _, e := range s.ExtSubs {
 		if strings.TrimSpace(e.Path) != "" {

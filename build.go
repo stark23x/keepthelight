@@ -66,6 +66,7 @@ type Config struct {
 	hqDenoise                                    *denoiseChoice // "high quality" noise reduction as chosen at start-up
 	gpu                                          *gpuPath       // the full-GPU path, when it works for this file
 	animHW                                       []string       // Animation with NVENC / QuickSync: the options this PC's encoder takes (set at start-up)
+	nfo                                          *nfoDoc        // the window writes this NFO beside the finished file (nfo.go)
 	cleanup                                      []string       // files to remove when the job ends (a test's sample)
 	sample                                       string         // a test's cut of the original
 	fullInput                                    string         // a test: the whole original (the bars are found in it, not only in the cut)
@@ -244,6 +245,7 @@ func makePlan(cfg *Config, p *Probe) (*Plan, error) {
 			warn("the video is %dx%d, which already fits %s, so it is not resized (Keep the Light never enlarges)", p.Width, p.Height, cfg.Scale)
 		}
 	}
+	alignForQSV(cfg, p, plan)
 
 	if g := qualityGuide(cfg, p, plan); g != nil {
 		plan.Quality = g

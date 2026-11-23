@@ -111,11 +111,12 @@ func joinTitles(names []string) string {
 }
 
 type tmdbEpisode struct {
-	Number   int     `json:"episode_number"`
-	Name     string  `json:"name"`
-	AirDate  string  `json:"air_date"`
-	Runtime  float64 `json:"runtime"`
-	Overview string  `json:"overview"`
+	Number   int        `json:"episode_number"`
+	Name     string     `json:"name"`
+	AirDate  string     `json:"air_date"`
+	Runtime  float64    `json:"runtime"`
+	Overview string     `json:"overview"`
+	Crew     []tmdbCrew `json:"crew"` // for the NFO's director and writers
 }
 
 // tmdbSeason lists a season's episodes (number, title, running time).
@@ -145,11 +146,16 @@ func tmdbEpisodes(ctx context.Context, key string, id, season int, ep tmdbEp, co
 		return nil, err
 	}
 	var names, overviews []string
+	var nfoEps []nfoEpisode
 	for e := ep.First; e <= max(ep.First, ep.Last); e++ {
 		var x tmdbEpisode
 		if err := tmdbGet(ctx, key, fmt.Sprintf("/tv/%d/season/%d/episode/%d", id, season, e), nil, &x); err != nil {
 			return nil, fmt.Errorf("season %d, episode %d: %v", season, e, err)
 		}
+		if x.Number == 0 {
+			x.Number = e
+		}
+		nfoEps = append(nfoEps, tmdbEpisodeNFO(x, season))
 		names = append(names, x.Name)
 		if x.Overview != "" && (len(overviews) == 0 || overviews[len(overviews)-1] != x.Overview) {
 			overviews = append(overviews, x.Overview)
@@ -173,6 +179,7 @@ func tmdbEpisodes(ctx context.Context, key string, id, season int, ep tmdbEp, co
 		plexTitle = baseTitle(names[0]) // the name stays short: S05E09-E10 already says it is both
 	}
 	f.PlexName = plexEpisodeRangeName(show.Name, yearOf(show.FirstAirDate), season, ep, plexTitle)
+	f.NFO = &nfoDoc{Episodes: nfoEps}
 	return f, nil
 }
 

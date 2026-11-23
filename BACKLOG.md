@@ -6,41 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **QuickSync crash on the Dell** (reported 21 November 2026, 1.45.0). `ECW.1996.06.22.Hardcore.Heaven.96.720p...mp4`
-  (H.264 1280×720, 30 fps) with QuickSync, crop (938×720) + 480p (626×480), light noise reduction and a 1 GB target:
-  FFmpeg crashed (exit 0xc0000005, an access violation) right after writing the header, before the first frame.
-  **The owner's tests on the same file (22 November) point at the picture size:** QuickSync with no crop and no
-  resize (1280×720) worked; crop + 480p with GPU decoding off still crashed; crop + 480p with x265 worked.
-  Keep the Light only rounds sizes to even numbers, and 626 is not a multiple of 16, which Intel's encoder works in.
-  - For QuickSync, make the picture **width** a multiple of 16. The height stays as it is (1080 is not a multiple of
-    16 and QuickSync encodes it all the time; 480 was fine here). Resizing: the nearest multiple of 16, height kept
-    (626×480 → 624×480, a 0.3% change nobody sees). Crop only: round the width up, keeping a sliver of the bar rather
-    than cutting picture (the crop's own rule: keep a little more rather than less), e.g. 938 → 944.
-  - NVENC has not shown this; leave its sizes as they are unless it does.
-  - When a hardware encode crashes (0xc0000005 and the like), say so plainly and suggest x265, instead of only
-    "ffmpeg.exe failed: exit status 0xc0000005".
-- **A × to close the pop-up notices** (requested 22 November 2026, after "Same tracks for others"). Its message (how
-  many files changed, and up to 15 left as they were) is a toast from `notify()` in `index.html`: it closes only
-  when clicked anywhere (not obvious) or after 4–12 seconds by its length. Add a visible × button in its top-right
-  corner (a real `<button>` with `aria-label="Close"`, at least 44 px to click) to every toast, so they all work
-  the same; keep the automatic fading as it is. (The owner's fallback, fading after 5 seconds, is only needed if a ×
-  were not possible, and it is.)
-- **An NFO file for Plex beside each new file, from TMDB** (requested 22 November 2026). Plex reads NFOs since
-  Plex Media Server 1.43.1, with the "Plex NFO Movie" / "Plex NFO Series" agents
-  (https://support.plex.tv/articles/using-nfo-metadata-files-with-plex/):
-  - Films: `<movie>` in `<film name>.nfo` beside the file (or `movie.nfo`). Tags Plex reads: title, originaltitle,
-    plot, tagline, ratings, mpaa, premiered, studio, genre, tag, country, set, uniqueid, id, credits, director,
-    actor, thumb, fanart.
-  - Episodes: `<episodedetails>` in `<episode name>.nfo` beside the file (the minimum Plex needs): title, season,
-    episode, plot, aired, director, credits, actor. A double episode (S01E01-E02) gets one NFO with one
-    `<episodedetails>` per episode.
-  - No `tvshow.nfo` (owner's choice, 22 November 2026): episode NFOs only.
-  - `<uniqueid type="tmdb" default="true">` (plus imdb / tvdb when TMDB has them) keeps watch history across
-    rescans.
-  - No cast (owner's choice): Plex fills in the cast from its own online data only when the NFO has none.
-  - Only new files that Keep the Light converts and that have a TMDB match (owner's choice; not files already in the
-    library). An option beside "Plex-style names after a TMDB match", remembered.
-  - Never overwrite an NFO that is already there.
+Nothing at the moment.
 
 ## Ideas raised, not yet requested
 
@@ -48,6 +14,7 @@ None at the moment.
 
 ## Done
 
+- 1.46.0: NFO file for Plex beside each new file with a TMDB / TVmaze match (films and episodes, doubles one block each; no cast, no tvshow.nfo; never overwrites; setting `nfoFiles`); QuickSync widths a multiple of 16 (`alignForQSV`); a plain message when a hardware encode crashes; a × on every pop-up notice.
 - 1.45.0: every kind of HDR in Plex-style names (`DV`, then `HDR10Plus` / `HDR10` / `HDR` for HLG; profile 5 only `DV`), for new files and the Plex names tab; copied video follows the source.
 - 1.44.2: profiles no longer lost (preference limit 8 KB → 1 MB; a failed profile save is shown); when the graphics card stops responding ("no encode device", MFX session errors) the job waits 30 s and tries once more, then the queue pauses on that file with a plain message (encode, start-up encoder check, Aim for quality); CLI icon checked (both exes carry the new icon; Windows' icon cache) and `ie4uinit.exe -show` added to the README.
 - 1.44.1: new logo ("B2 · Kept light, film strip"): icon, header and About box; `res/mkicon.py` draws every size from `res/keepthelight.svg`; GitHub header at the top of the README.

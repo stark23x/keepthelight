@@ -95,3 +95,79 @@ func TestCheckEncoderStuck(t *testing.T) {
 		t.Errorf("no NVIDIA card: %v", err)
 	}
 }
+
+// QuickSync: picture widths that are multiples of 16 (626×480 crashed on the Dell).
+func TestAlignForQSV(t *testing.T) {
+	qsv := &Config{Codec: "qsv"}
+	p := &Probe{Width: 1280, Height: 720}
+	// crop + 480p: 938×720 cropped, then 626×480 → 624×480
+	plan := &Plan{}
+	applyCrop(&Config{Codec: "qsv", Crop: true, Scale: "480p"}, p, plan, &cropBox{938, 720, 172, 0})
+	if plan.ScaleW != 624 || plan.ScaleH != 480 || plan.CropW != 938 {
+		t.Errorf("crop + 480p: crop %dx%d scale %dx%d", plan.CropW, plan.CropH, plan.ScaleW, plan.ScaleH)
+	}
+	// cropped, already small enough (a 576p DVD): a little more of the frame is kept, centred
+	dvd := &Probe{Width: 720, Height: 576}
+	plan = &Plan{}
+	applyCrop(&Config{Codec: "qsv", Crop: true, Scale: "576p"}, dvd, plan, &cropBox{690, 432, 14, 72})
+	if plan.CropW != 704 || plan.CropX != 6 || plan.ScaleW != 0 {
+		t.Errorf("crop only: crop %dx%d+%d scale %d", plan.CropW, plan.CropH, plan.CropX, plan.ScaleW)
+	}
+	// a crop near the right-hand edge is kept inside the frame
+	plan = &Plan{}
+	applyCrop(&Config{Codec: "qsv", Crop: true, Scale: "576p"}, dvd, plan, &cropBox{690, 432, 30, 72})
+	if plan.CropW != 704 || plan.CropX+plan.CropW > 720 || plan.CropX%2 != 0 {
+		t.Errorf("crop at the edge: crop %dx%d+%d", plan.CropW, plan.CropH, plan.CropX)
+	}
+	// already fine: nothing changes
+	plan = &Plan{ScaleW: 1920, ScaleH: 800}
+	alignForQSV(qsv, p, plan)
+	if plan.ScaleW != 1920 || len(plan.Notes) != 0 {
+		t.Errorf("1920 wide changed: %+v", plan)
+	}
+	// a source whose own width is not a multiple of 16
+	plan = &Plan{}
+	alignForQSV(qsv, &Probe{Width: 854, Height: 480}, plan)
+	if plan.ScaleW != 848 || plan.ScaleH != 480 {
+		t.Errorf("854 wide source: %+v", plan)
+	}
+	// other encoders, and copied video, are left alone
+	for _, c := range []*Config{{Codec: "nvenc"}, {Codec: "x265"}, {Codec: "qsv", CopyVideo: true}} {
+		plan = &Plan{ScaleW: 626, ScaleH: 480}
+		alignForQSV(c, p, plan)
+		if plan.ScaleW != 626 {
+			t.Errorf("%+v: changed to %d", c, plan.ScaleW)
+		}
+	}
+	// the whole path: makePlan with 480p on a 1280×720 source gives 848×480 (854 is not a multiple of 16)
+	pr, _ := parseProbe([]byte(sampleProbe))
+	pr.DV, pr.Width, pr.Height = nil, 1280, 720
+	cfg := baseCfg()
+	cfg.Codec, cfg.Scale = "qsv", "480p"
+	if pl, err := makePlan(cfg, pr); err != nil || pl.ScaleW%16 != 0 {
+		t.Errorf("makePlan 480p qsv: %v %+v", err, pl)
+	}
+}
+
+// A hardware encode that crashes gets a plain message (and is not retried).
+func TestHWCrash(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a shell script")
+	}
+	n := 0
+	err := withGPURetry(context.Background(), "qsv", func(io.Writer) error {
+		n++
+		return toolCommand(context.Background(), "sh", "-c", "kill -SEGV $$").Run()
+	}, io.Discard)
+	var hc *hwCrashError
+	if !errors.As(err, &hc) || n != 1 || !strings.Contains(err.Error(), "Try x265") || !strings.Contains(err.Error(), "QuickSync") {
+		t.Errorf("n=%d err=%v", n, err)
+	}
+	// an ordinary failure stays as it is
+	err = withGPURetry(context.Background(), "qsv", func(io.Writer) error {
+		return toolCommand(context.Background(), "sh", "-c", "exit 1").Run()
+	}, io.Discard)
+	if errors.As(err, &hc) {
+		t.Errorf("exit 1 called a crash: %v", err)
+	}
+}

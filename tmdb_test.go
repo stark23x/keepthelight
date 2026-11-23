@@ -110,13 +110,24 @@ func fakeTMDBServer(t *testing.T, jpeg []byte, auth *[]string) *httptest.Server 
 			}
 			_, _ = w.Write([]byte(`{"results":[{"id":949,"title":"Heat","release_date":"1995-12-15","overview":"Cops and robbers.","poster_path":"/p.jpg"},{"id":2,"title":"Heat 2","release_date":""}]}`))
 		case "/3/movie/949":
-			_, _ = w.Write([]byte(`{"title":"Heat","release_date":"1995-12-15","overview":"Cops and robbers.","poster_path":"/p.jpg"}`))
+			if r.URL.Query().Get("append_to_response") != "credits,release_dates" {
+				t.Errorf("film details without credits: %s", r.URL)
+			}
+			_, _ = w.Write([]byte(`{"title":"Heat","original_title":"Heat","release_date":"1995-12-15","overview":"Cops and robbers.","poster_path":"/p.jpg",
+				"tagline":"A Los Angeles crime saga","imdb_id":"tt0113277","vote_average":7.9,"vote_count":7000,
+				"genres":[{"id":28,"name":"Action"},{"id":80,"name":"Crime"}],"production_companies":[{"name":"Regency Enterprises"}],
+				"production_countries":[{"name":"United States of America"}],
+				"credits":{"cast":[{"name":"Al Pacino"}],"crew":[{"job":"Director","department":"Directing","name":"Michael Mann"},
+				{"job":"Screenplay","department":"Writing","name":"Michael Mann"},{"job":"Producer","department":"Production","name":"Art Linson"}]},
+				"release_dates":{"results":[{"iso_3166_1":"DE","release_dates":[{"certification":"16"}]},{"iso_3166_1":"US","release_dates":[{"certification":""},{"certification":"R"}]}]}}`))
 		case "/3/tv/136315":
 			_, _ = w.Write([]byte(`{"name":"The Bear","first_air_date":"2022-06-23","overview":"A chef.","poster_path":"/show.jpg"}`))
 		case "/3/tv/136315/season/2":
 			_, _ = w.Write([]byte(`{"poster_path":"/s2.jpg"}`))
 		case "/3/tv/136315/season/2/episode/3":
-			_, _ = w.Write([]byte(`{"name":"Sundae","air_date":"2023-06-22","overview":"Sydney eats."}`))
+			_, _ = w.Write([]byte(`{"name":"Sundae","air_date":"2023-06-22","overview":"Sydney eats.","episode_number":3,
+				"crew":[{"job":"Director","department":"Directing","name":"Ramy Youssef"},{"job":"Writer","department":"Writing","name":"Catherine Schetina"}],
+				"guest_stars":[{"name":"Someone"}]}`))
 		case "/img/w92/p.jpg", "/img/w780/p.jpg", "/img/w780/s2.jpg", "/img/w92/s2.jpg":
 			_, _ = w.Write(jpeg)
 		default:

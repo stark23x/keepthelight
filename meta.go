@@ -26,9 +26,10 @@ type MetaEdit struct {
 	Cover       string            `json:"cover,omitempty"`       // image to use as the cover (MKV)
 	RemoveCover bool              `json:"removeCover,omitempty"` // leave the cover out
 
-	plexName string // a TMDB lookup's Plex-style name for the file (not part of the edit)
-	tvID     int    // ... the show's TMDB number (0: a film)
-	tmdbEp   tmdbEp // ... and the episode(s) it was looked up as
+	plexName string  // a TMDB lookup's Plex-style name for the file (not part of the edit)
+	tvID     int     // ... the show's TMDB number (0: a film)
+	tmdbEp   tmdbEp  // ... and the episode(s) it was looked up as
+	nfo      *nfoDoc // ... and what an NFO file for Plex would say
 }
 
 type TrackMeta struct {

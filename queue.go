@@ -1118,6 +1118,10 @@ func (g *guiServer) launchJob(cfg *Config, duration float64) (*job, error) {
 	final := cfg.Output
 	run := *cfg
 	run.Output = partialName(final)
+	var nfoData *nfoDoc // "NFO file for Plex after a TMDB match": as it is set when the file starts
+	if g.nfoOn() {
+		nfoData = cfg.nfo
+	}
 	g.mu.Lock()
 	run.LowPriority, run.HWDecode = g.lowPrio, g.hwDec
 	run.DeepCheck = g.deepCheck && !run.QualityAdvice
@@ -1190,6 +1194,13 @@ func (g *guiServer) launchJob(cfg *Config, duration float64) (*job, error) {
 				finishErr = fmt.Errorf("could not rename the finished file to %s: %v", j.output, err)
 			} else {
 				lines = []string{"Saved as " + j.output}
+			}
+			if finishErr == nil && nfoData != nil && !cfg.QualityAdvice { // the NFO for Plex: a problem with it never fails the file
+				if msg, err := writeNFO(j.output, nfoData); err != nil {
+					lines = append(lines, "NFO: could not be written: "+err.Error())
+				} else {
+					lines = append(lines, msg)
+				}
 			}
 		}
 

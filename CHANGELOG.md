@@ -18,6 +18,23 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.46.0 - 2026-11-22
+
+- **NFO file for Plex** (new, under Files: **NFO file for Plex after a TMDB match**, remembered). Each new file with a
+  TMDB or TVmaze match gets an NFO beside it with the same name, which Plex reads (Plex Media Server 1.43.1 on, with
+  the "Plex NFO Movie" or "Plex NFO Series" agent). Films: title, plot, tagline, date, US rating, TMDB rating, genres,
+  studios, countries, collection, director, writers, TMDB and IMDb numbers. Episodes: title, season, episode, plot, air
+  date, director, writers; a double episode gets one block per episode. No cast (Plex fills in its own, with photos),
+  no `tvshow.nfo`, and an NFO already there is never replaced.
+- **QuickSync no longer crashes on some picture sizes.** Intel's encoder works in blocks of 16 pixels and could crash
+  (exit status 0xc0000005) on a width such as 626 (crop + 480p of a 720p film). With QuickSync the width is now a
+  multiple of 16: resized pictures take the nearest (626×480 becomes 624×480, a change nobody sees), cropped ones keep
+  a sliver more of the frame. Other encoders are unchanged.
+- **When a graphics-card encode crashes**, the message now says so in plain words and suggests x265 or another size,
+  instead of only "ffmpeg.exe failed: exit status 0xc0000005".
+- **Pop-up notices have a × to close them** (top right). They still fade by themselves, and clicking one still closes
+  it too.
+
 ## 1.45.0 - 2026-11-21
 
 - **Plex-style names show every kind of HDR** a file has, not just one. In this order: `DV` (Dolby Vision), then

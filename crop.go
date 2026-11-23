@@ -129,6 +129,54 @@ func applyCrop(cfg *Config, p *Probe, plan *Plan, c *cropBox) {
 	if w, h, ok := fitSize(c.W, c.H, box[0], box[1]); ok {
 		plan.ScaleW, plan.ScaleH, plan.SrcW, plan.SrcH = w, h, c.W, c.H
 	}
+	alignForQSV(cfg, p, plan)
+}
+
+// alignForQSV makes the picture's width a multiple of 16 for QuickSync, which
+// works in blocks of 16 pixels and can crash on other widths (seen on the
+// Dell: 626×480 crashed, 1280×720 did not). The height is left alone: 1080 is
+// not a multiple of 16 and QuickSync encodes it all the time.
+//   - resized: the nearest multiple of 16, the height kept (626×480 → 624×480);
+//   - cropped only: the crop is made a little wider, keeping a sliver of the bar
+//     rather than cutting picture (938 → 944);
+//   - neither: the picture is resized to the nearest multiple of 16.
+func alignForQSV(cfg *Config, p *Probe, plan *Plan) {
+	if cfg.Codec != "qsv" || cfg.CopyVideo || p == nil || p.Width <= 0 {
+		return
+	}
+	near := func(v int) int { return max(16, 16*((v+8)/16)) }
+	switch {
+	case plan.ScaleW > 0:
+		if plan.ScaleW%16 == 0 {
+			return
+		}
+		was := plan.ScaleW
+		plan.ScaleW = near(was)
+		plan.Notes = append(plan.Notes, fmt.Sprintf("QuickSync works in blocks of 16 pixels and can crash on other widths, so the picture is %d×%d instead of %d×%d", plan.ScaleW, plan.ScaleH, was, plan.ScaleH))
+	case plan.CropW > 0:
+		if plan.CropW%16 == 0 {
+			return
+		}
+		was := plan.CropW
+		w := min(p.Width, (was+15)&^15)
+		if w%16 != 0 { // the whole frame is narrower than the next multiple of 16: no cut across
+			w, plan.CropX = p.Width, 0
+		} else {
+			extra := w - was
+			plan.CropX = max(0, (plan.CropX-extra/2)&^1)
+			if plan.CropX+w > p.Width {
+				plan.CropX = p.Width - w
+			}
+		}
+		plan.CropW = w
+		if plan.CropW%16 != 0 { // still not a multiple of 16: resize it
+			plan.ScaleW, plan.ScaleH, plan.SrcW, plan.SrcH = near(plan.CropW), plan.CropH, plan.CropW, plan.CropH
+		}
+		plan.Notes = append(plan.Notes, fmt.Sprintf("QuickSync works in blocks of 16 pixels and can crash on other widths, so a little more of the frame is kept: %d wide instead of %d", w, was))
+	case p.Width%16 != 0:
+		plan.ScaleW, plan.ScaleH, plan.SrcW, plan.SrcH = near(p.Width), p.Height, p.Width, p.Height
+		plan.Notes = append(plan.Notes, fmt.Sprintf("QuickSync works in blocks of 16 pixels and can crash on other widths, so the picture is resized from %d×%d to %d×%d", p.Width, p.Height, plan.ScaleW, plan.ScaleH))
+	}
 }
 
 // cropFilter cuts the bars (after deinterlacing, before resizing).

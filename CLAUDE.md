@@ -83,6 +83,9 @@ which is not in the repository.
   - `deepcheck.go` – the optional thorough check of a finished file.
   - `report.go` – the page written after each queue run; `tidy.go` – tidying up originals (Library scan tab).
   - `gpupath.go` – the full-GPU path and the encoder check.
+  - `nfo.go` – the NFO file for Plex beside a new file (from the TMDB / TVmaze lookup; written by the window after the
+    finished file is in place, only with the "nfoFiles" setting).
+  - `gpustuck.go` – a graphics card that stops answering (retry, then pause the queue) or crashes (a plain message).
   - `awake.go`, `power_*.go` – keeping the PC awake for a queue run (and the screen on with Modern Standby); sleep /
     shut down when finished.
   - `scale.go` – resizing (including Dolby Vision active area).
