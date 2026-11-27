@@ -17,6 +17,16 @@ next build". Shipped features move to "Done" with their version number. Nothing 
   - The log says which file each check read ("on this PC" / "on the network drive").
   - The network traffic stays about the same (the copy, plus one plain read instead of the thorough check's read),
     but the slow part (decoding the whole film) runs at local disk speed, and the copy itself is now proved.
+- **Start menu shortcut, made by Keep the Light itself** (requested 27 November 2026; it stays portable, no
+  installer, owner's choice).
+  - On first run: put a "Keep the Light" shortcut in the user's Start menu
+    (`%APPDATA%\Microsoft\Windows\Start Menu\Programs`), pointing at the window's exe, with its icon.
+  - In ⚙ Settings: "Start menu shortcut" with **Add** / **Remove** (and whether it is there now). Removing it is
+    remembered, so the next start does not put it back.
+  - On every start, if the shortcut is there but points at another copy (a new version unzipped elsewhere), point it
+    at this one, so it always opens the copy last run. Only Keep the Light's own shortcut is touched.
+  - No uninstall entry in Windows Settings (that needs an installer); removing Keep the Light is still deleting its
+    folder (and the shortcut, from Settings first, or by hand).
 
 ## Ideas raised, not yet requested
 
