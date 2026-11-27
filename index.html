@@ -1056,6 +1056,11 @@
       <label class="check" style="margin-top:10px"><input type="checkbox" id="flashTask" checked> <span>Also flash the taskbar button until the window is used
         (works with sounds muted, too)</span></label>
       <div class="hint">For a queue, the sound plays once, after the last file. Windows sounds follow your Windows sound scheme and volume.</div>
+    <div class="rules-title" style="margin-top:16px">Start menu</div>
+    <div class="row" style="align-items:center"><span class="hint grow" id="startMenuText">Checking…</span>
+      <button id="startMenuBtn" class="hidden"></button></div>
+    <div class="hint">Keep the Light needs no installing: the shortcut simply opens this copy. After unzipping a new version
+      somewhere else, the shortcut follows the copy you open. To remove Keep the Light, remove the shortcut here, then delete its folder.</div>
     <div class="rules-title" style="margin-top:16px">Notices</div>
     <div class="row" style="align-items:center"><span class="hint grow" id="toolsHiddenText">The tools notice at the top is shown when a tool is missing.</span>
       <button id="toolsUnhide" class="hidden">Show the tools notice again</button></div>
@@ -2518,7 +2523,25 @@ function showTab(name) {
 document.querySelectorAll('.tabs .tab').forEach(b => b.onclick = () => showTab(b.dataset.tab));
 $('queueLink').onclick = () => showTab('queue');
 // ---------- settings for this PC ----------
-$('settingsBtn').onclick = () => $('setDlg').showModal();
+$('settingsBtn').onclick = () => { $('setDlg').showModal(); startMenuShow(); };
+// The Start menu shortcut (startmenu.go): Keep the Light makes it itself; no installer.
+function startMenuShow(st, err) {
+  const t = $('startMenuText'), b = $('startMenuBtn');
+  if (!st) { api('startMenu', {}).then(r => r && r.ok && startMenuShow(r.state)); return; }
+  if (!st.supported) { t.textContent = 'There is no Start menu on this system.'; b.classList.add('hidden'); return; }
+  t.textContent = !st.present ? 'There is no Keep the Light shortcut in the Start menu.'
+    : st.here ? 'The Start menu has a shortcut to Keep the Light (this copy).'
+    : 'The Start menu shortcut opens another copy of Keep the Light' + (st.target ? ' (' + st.target + ')' : '') + '.';
+  if (err) t.textContent += ' ' + err;
+  b.textContent = !st.present ? 'Add to the Start menu' : st.here ? 'Remove from the Start menu' : 'Open this copy instead';
+  b.classList.remove('hidden');
+  b.onclick = async () => {
+    b.disabled = true;
+    const r = await api('startMenuSet', { on: !(st.present && st.here) });
+    b.disabled = false;
+    if (r && r.state) startMenuShow(r.state, r.ok ? '' : 'It could not be changed: ' + r.error);
+  };
+}
 // pop-ups and menus close after a choice, or a click elsewhere
 document.addEventListener('click', e => {
   document.querySelectorAll('details.pop[open]').forEach(d => { if (!d.contains(e.target) || (d.classList.contains('menu') && e.target.closest('.popin button'))) d.open = false; });

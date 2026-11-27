@@ -841,6 +841,37 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 	fixInterleaveNew(ctx, cfg.Ffmpeg, cfg.Ffprobe, cfg.Output, work)
 	verify(ctx, cfg, plan)
 	reportTarget(cfg)
+	// The thorough check and the Plex check read the new file through. Working
+	// locally, they read the file here, before it is copied back (the copy is
+	// then proved by its fingerprint), not the copy on the network drive.
+	checked := false
+	checks := func(where string) error {
+		checked = true
+		if cfg.DeepCheck && cfg.sample == "" { // optional: the whole new file is read through once
+			fmt.Println("\nThorough check" + where + ": reading the whole new file through (this takes a few minutes for a film)")
+			res := deepCheck(ctx, cfg, plan, p, cfg.Output, work)
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			if len(res.Problems) > 0 {
+				fmt.Println("WARNING: " + res.line() + ". The new file is kept: play it before relying on it.")
+			} else {
+				fmt.Println(res.line())
+			}
+		}
+		if cfg.sample == "" { // the same Plex check as the library scan, on the new file
+			fmt.Println()
+			for _, l := range plexCheckFile(ctx, cfg.Ffprobe, cfg.Ffmpeg, cfg.Output, plan.Deint != "") {
+				fmt.Println(l)
+			}
+		}
+		return nil
+	}
+	if lw != nil && lw.finalOut != "" && cfg.sample == "" {
+		if err := checks(" (on this PC, before copying back)"); err != nil {
+			return err
+		}
+	}
 	if lw != nil {
 		if err := lw.finish(cfg); err != nil {
 			return err
@@ -873,22 +904,9 @@ func transcode(ctx context.Context, cfg *Config) (retErr error) {
 		}
 	}
 	keepOriginalClip(cfg)
-	if cfg.DeepCheck && cfg.sample == "" { // optional: the whole new file is read through once
-		fmt.Println("\nThorough check: reading the whole new file through (this takes a few minutes for a film)")
-		res := deepCheck(ctx, cfg, plan, p, cfg.Output, work)
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		if len(res.Problems) > 0 {
-			fmt.Println("WARNING: " + res.line() + ". The new file is kept: play it before relying on it.")
-		} else {
-			fmt.Println(res.line())
-		}
-	}
-	if cfg.sample == "" { // the same Plex check as the library scan, on the new file
-		fmt.Println()
-		for _, l := range plexCheckFile(ctx, cfg.Ffprobe, cfg.Ffmpeg, cfg.Output, plan.Deint != "") {
-			fmt.Println(l)
+	if !checked {
+		if err := checks(""); err != nil {
+			return err
 		}
 	}
 	if cfg.sample == "" && origSize > 0 {

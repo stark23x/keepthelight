@@ -46,3 +46,39 @@ func TestWorkLocally(t *testing.T) {
 		t.Error("metadata only must not copy")
 	}
 }
+
+// The copy back is proved by its fingerprint: a bad copy is made once more, and
+// if it is bad twice the file made here is kept.
+func TestCopyBackChecked(t *testing.T) {
+	net, local := t.TempDir(), t.TempDir()
+	made := filepath.Join(local, "film_KTL.partial.mkv")
+	if err := os.WriteFile(made, []byte(strings.Repeat("picture ", 100000)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { copyBackHook = nil })
+	spoil := func(bad map[int]bool) {
+		copyBackHook = func(p string, try int) {
+			if bad[try] {
+				_ = os.WriteFile(p, []byte("spoilt"), 0o644)
+			}
+		}
+	}
+	for _, c := range []struct {
+		name string
+		bad  map[int]bool
+		ok   bool
+	}{{"good", nil, true}, {"bad once", map[int]bool{1: true}, true}, {"bad twice", map[int]bool{1: true, 2: true}, false}} {
+		spoil(c.bad)
+		final := filepath.Join(net, c.name+".mkv")
+		cfg := &Config{Output: made}
+		lw := &localWork{dir: local, finalOut: final}
+		err := lw.finish(cfg)
+		b, _ := os.ReadFile(final)
+		switch {
+		case c.ok && (err != nil || cfg.Output != final || len(b) != 800000):
+			t.Errorf("%s: %v, output %s, %d bytes", c.name, err, cfg.Output, len(b))
+		case !c.ok && (err == nil || !lw.keep || cfg.Output != made || fileExists(final) || !strings.Contains(err.Error(), "kept at")):
+			t.Errorf("%s: %v keep=%v final there=%v", c.name, err, lw.keep, fileExists(final))
+		}
+	}
+}

@@ -241,6 +241,11 @@ Why FFmpeg and GPAC are not included: their Windows builds contain GPL-licensed 
 providing the complete source code of everything in those builds. The included tools are MIT-licensed; their licence
 texts, exact versions and source links are in `tools\licenses`.
 
+**Start menu:** Keep the Light needs no installing. The first time its window opens, it puts a "Keep the Light"
+shortcut in your Start menu. If you unzip a new version somewhere else, the shortcut follows the copy you open. To
+add or remove the shortcut, use **⚙ Settings → Start menu**; once removed (there, or by deleting it), it is not put
+back. To remove Keep the Light, remove the shortcut, then delete its folder.
+
 After unzipping a new version over an old one, File Explorer can keep showing the old icon for a while (Windows
 keeps copies of icons). To refresh it, run `ie4uinit.exe -show` in a Command Prompt, or sign out and back in.
 
@@ -420,7 +425,10 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   network too), converted there, and the result copied back. Reading and writing over the network during a long
   encode is avoided, and a network hiccup cannot break the encode. Needs free space for the file and its result;
   without enough, the file is converted over the network as before, and the log says so. If a job fails, the local
-  copy is kept and the log says where.
+  copy is kept and the log says where. The checks that read the whole new file (the thorough check and the Plex
+  check) run on this PC, before the copy back. The copy on the network drive is then read back once and its
+  fingerprint (SHA-256) compared with the file made here: a copy that does not match is made once more, and if it
+  still does not match, the file made here is kept and the log says so.
 - **Decode on the GPU** (⚙ Settings): the graphics chip reads the source video, so the CPU only encodes.
   Speeds up x265, most with 4K sources. Before each file, Keep the Light test-decodes a few frames; if the GPU
   cannot decode it, that file is decoded on the CPU as before, and the log says which was used. Remembered.

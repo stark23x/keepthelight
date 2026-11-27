@@ -6,27 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **Check locally before copying back** (requested 27 November 2026). When working locally, `transcode()` in
-  `main.go` runs the quick checks (interleave, HDR `verify`, target) on the local file, then `lw.finish` copies the
-  result back, and only then runs the thorough check (`deepCheck`) and the Plex check, on the network copy. Change:
-  - Run the thorough check and the Plex check on the local file, before the copy back. A file that fails the
-    thorough check is still copied back (as now: "the new file is kept"), with the same warning.
-  - After the copy back, read the network copy once and compare a fingerprint (SHA-256) with the local file's,
-    worked out while copying. If they differ, copy once more; if they still differ, keep the local file (as when a
-    copy fails) and say so plainly.
-  - The log says which file each check read ("on this PC" / "on the network drive").
-  - The network traffic stays about the same (the copy, plus one plain read instead of the thorough check's read),
-    but the slow part (decoding the whole film) runs at local disk speed, and the copy itself is now proved.
-- **Start menu shortcut, made by Keep the Light itself** (requested 27 November 2026; it stays portable, no
-  installer, owner's choice).
-  - On first run: put a "Keep the Light" shortcut in the user's Start menu
-    (`%APPDATA%\Microsoft\Windows\Start Menu\Programs`), pointing at the window's exe, with its icon.
-  - In ⚙ Settings: "Start menu shortcut" with **Add** / **Remove** (and whether it is there now). Removing it is
-    remembered, so the next start does not put it back.
-  - On every start, if the shortcut is there but points at another copy (a new version unzipped elsewhere), point it
-    at this one, so it always opens the copy last run. Only Keep the Light's own shortcut is touched.
-  - No uninstall entry in Windows Settings (that needs an installer); removing Keep the Light is still deleting its
-    folder (and the shortcut, from Settings first, or by hand).
+Nothing at the moment.
 
 ## Ideas raised, not yet requested
 
@@ -34,6 +14,7 @@ None at the moment.
 
 ## Done
 
+- 1.47.0: Start menu shortcut made by Keep the Light (first start; ⚙ Settings Add/Remove; follows the copy last opened; removal remembered); working locally, the thorough and Plex checks read the local file before the copy back, and the copy back is proved by SHA-256 (once more if it differs, then the local file is kept).
 - 1.46.0: NFO file for Plex beside each new file with a TMDB / TVmaze match (films and episodes, doubles one block each; no cast, no tvshow.nfo; never overwrites; setting `nfoFiles`); QuickSync widths a multiple of 16 (`alignForQSV`); a plain message when a hardware encode crashes; a × on every pop-up notice.
 - 1.45.0: every kind of HDR in Plex-style names (`DV`, then `HDR10Plus` / `HDR10` / `HDR` for HLG; profile 5 only `DV`), for new files and the Plex names tab; copied video follows the source.
 - 1.44.2: profiles no longer lost (preference limit 8 KB → 1 MB; a failed profile save is shown); when the graphics card stops responding ("no encode device", MFX session errors) the job waits 30 s and tries once more, then the queue pauses on that file with a plain message (encode, start-up encoder check, Aim for quality); CLI icon checked (both exes carry the new icon; Windows' icon cache) and `ie4uinit.exe -show` added to the README.

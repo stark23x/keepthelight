@@ -86,12 +86,15 @@ which is not in the repository.
   - `nfo.go` – the NFO file for Plex beside a new file (from the TMDB / TVmaze lookup; written by the window after the
     finished file is in place, only with the "nfoFiles" setting).
   - `gpustuck.go` – a graphics card that stops answering (retry, then pause the queue) or crashes (a plain message).
+  - `startmenu*.go` – the Start menu shortcut Keep the Light makes itself (first start, ⚙ Settings, follows the copy
+    last opened; pref "startMenu"). Keep the Light stays portable: no installer (owner's choice, 27 November 2026).
   - `awake.go`, `power_*.go` – keeping the PC awake for a queue run (and the screen on with Modern Standby); sleep /
     shut down when finished.
   - `scale.go` – resizing (including Dolby Vision active area).
   - `reshape.go` – Dolby Vision profile 5: colours to HDR10 with libplacebo, HDR10 information from the RPU.
   - `interleave.go` – picture and sound stored together: the check of each new file, the remux, the scan's Fix.
-  - `worklocal.go`, `fsretry.go` – working locally, and retries when another program has a file open.
+  - `worklocal.go`, `fsretry.go` – working locally (checks on the local file, then a fingerprint-checked copy back),
+    and retries when another program has a file open.
   - `profilecli.go` – `-profile`.
   - `secret_*.go` – Credential Manager.
 - Platform code sits in `*_windows.go` / `*_other.go` pairs.

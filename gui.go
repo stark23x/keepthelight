@@ -513,6 +513,7 @@ func runGUI(initialFiles []string, forceServer bool) (code int) {
 		if hasConsole() {
 			fmt.Printf("Keep the Light %s - opening the window (closing it quits)...\n", version)
 		}
+		go g.startMenuAtStart() // the Start menu shortcut: added on the first start, kept pointing at this copy
 		err := runWindow(g)
 		if err == nil {
 			return 0
@@ -1178,6 +1179,13 @@ func (g *guiServer) call(ctx context.Context, name string, q url.Values, body []
 		raw, _ := json.Marshal(b.On)
 		_ = g.savePref("hwDecode", raw)
 		return okResult()
+	case "startMenu": // the Start menu shortcut, for ⚙ Settings
+		return map[string]any{"ok": true, "state": g.startMenuInfo()}
+	case "startMenuSet":
+		var b struct{ On bool }
+		_ = json.Unmarshal(body, &b)
+		st := g.startMenuSet(b.On)
+		return map[string]any{"ok": st.Error == "", "error": st.Error, "state": st}
 	case "keepawake": // keep the PC awake (and the screen on) while the queue runs; takes effect at once
 		var b struct{ On, Screen bool }
 		_ = json.Unmarshal(body, &b)

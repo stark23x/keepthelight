@@ -18,6 +18,16 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.47.0 - 2026-11-27
+
+- **Start menu shortcut.** Keep the Light stays portable (no installer), but the first time its window opens it puts a
+  "Keep the Light" shortcut in your Start menu. **⚙ Settings → Start menu** adds or removes it; once removed, it is
+  not put back. If you unzip a new version somewhere else, the shortcut follows the copy you open.
+- **Working locally: checks before the copy back, and the copy is proved.** The thorough check and the Plex check now
+  read the new file on this PC, before it is copied back, instead of reading the copy over the network. The copy on
+  the network drive is then read back once and its fingerprint (SHA-256) compared with the file made here; a copy
+  that does not match is made once more, and if it still does not, the file made here is kept and the log says so.
+
 ## 1.46.0 - 2026-11-22
 
 - **NFO file for Plex** (new, under Files: **NFO file for Plex after a TMDB match**, remembered). Each new file with a

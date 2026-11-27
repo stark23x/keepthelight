@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -58,7 +60,7 @@ func startLocal(cfg *Config) (*localWork, error) {
 	lw := &localWork{dir: dir}
 	if inNet {
 		local := filepath.Join(dir, filepath.Base(cfg.Input))
-		if err := copyWithProgress(cfg.Input, local, "Copying the source to this PC"); err != nil {
+		if _, err := copyWithProgress(cfg.Input, local, "Copying the source to this PC"); err != nil {
 			removeTemp(dir)
 			return nil, err
 		}
@@ -77,14 +79,59 @@ func startLocal(cfg *Config) (*localWork, error) {
 // finish copies the result back to the network. On failure the local result is
 // kept and its place reported, so the conversion is not lost.
 func (lw *localWork) finish(cfg *Config) error {
-	if lw.finalOut != "" {
-		if err := copyWithProgress(cfg.Output, lw.finalOut, "Copying the result back"); err != nil {
+	if lw.finalOut == "" {
+		return nil
+	}
+	// The copy is proved: its fingerprint (SHA-256) must match the file made
+	// here. A copy that does not match is made once more; if it still does not,
+	// the file made here is kept and nothing is left half-right on the drive.
+	for try := 1; ; try++ {
+		sum, err := copyWithProgress(cfg.Output, lw.finalOut, "Copying the result back")
+		if err != nil {
 			lw.keep = true
 			return fmt.Errorf("the result could not be copied to %s (%v); it is kept at %s", lw.finalOut, err, cfg.Output)
 		}
-		cfg.Output = lw.finalOut
+		if copyBackHook != nil {
+			copyBackHook(lw.finalOut, try)
+		}
+		got, err := fileSum(lw.finalOut, "Checking the copy on the network drive")
+		if err == nil && got == sum {
+			fmt.Println("The copy on the network drive matches the file made on this PC")
+			break
+		}
+		why := "it does not match the file made on this PC"
+		if err != nil {
+			why = "it could not be read back (" + err.Error() + ")"
+		}
+		_ = removeFile(lw.finalOut)
+		if try == 2 {
+			lw.keep = true
+			return fmt.Errorf("the copy at %s was not right twice: %s; the result is kept at %s", lw.finalOut, why, cfg.Output)
+		}
+		fmt.Printf("WARNING: the copy on the network drive was not right (%s): copying it once more\n", why)
 	}
+	cfg.Output = lw.finalOut
 	return nil
+}
+
+var copyBackHook func(path string, try int) // tests spoil a copy
+
+// fileSum reads a file through and returns its SHA-256, showing progress.
+func fileSum(path, label string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return "", err
+	}
+	h := sha256.New()
+	if err := pump(f, h, st.Size(), label); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 func (lw *localWork) cleanup() {
@@ -94,33 +141,46 @@ func (lw *localWork) cleanup() {
 }
 
 // copyWithProgress copies a file, printing "label: 35% (12.3 GB of 35.0 GB)"
-// now and then, so the window shows how far it is.
-func copyWithProgress(src, dst, label string) error {
+// now and then, so the window shows how far it is. It returns the copied
+// bytes' SHA-256, worked out on the way.
+func copyWithProgress(src, dst, label string) (string, error) {
 	in, err := os.Open(src)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer in.Close()
 	st, err := in.Stat()
 	if err != nil {
-		return err
+		return "", err
 	}
 	out, err := os.Create(dst)
 	if err != nil {
-		return err
+		return "", err
 	}
-	total := st.Size()
+	h := sha256.New()
+	if err := pump(in, io.MultiWriter(out, h), st.Size(), label); err != nil {
+		out.Close()
+		_ = removeFile(dst)
+		return "", err
+	}
+	if err := out.Close(); err != nil {
+		_ = removeFile(dst)
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// pump copies r to w in large pieces, with a progress line every few seconds.
+func pump(r io.Reader, w io.Writer, total int64, label string) error {
 	fmt.Printf("\n%s (%s)\n", label, formatBytes(total))
 	buf := make([]byte, 8<<20)
 	var done int64
 	last := time.Now()
 	start := last
 	for {
-		n, rerr := in.Read(buf)
+		n, rerr := r.Read(buf)
 		if n > 0 {
-			if _, werr := out.Write(buf[:n]); werr != nil {
-				out.Close()
-				_ = removeFile(dst)
+			if _, werr := w.Write(buf[:n]); werr != nil {
 				return werr
 			}
 			done += int64(n)
@@ -131,17 +191,10 @@ func copyWithProgress(src, dst, label string) error {
 			}
 		}
 		if rerr == io.EOF {
-			break
+			return nil
 		}
 		if rerr != nil {
-			out.Close()
-			_ = removeFile(dst)
 			return rerr
 		}
 	}
-	if err := out.Close(); err != nil {
-		_ = removeFile(dst)
-		return err
-	}
-	return nil
 }
