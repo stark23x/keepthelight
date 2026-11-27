@@ -6,7 +6,17 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing at the moment.
+- **Check locally before copying back** (requested 27 November 2026). When working locally, `transcode()` in
+  `main.go` runs the quick checks (interleave, HDR `verify`, target) on the local file, then `lw.finish` copies the
+  result back, and only then runs the thorough check (`deepCheck`) and the Plex check, on the network copy. Change:
+  - Run the thorough check and the Plex check on the local file, before the copy back. A file that fails the
+    thorough check is still copied back (as now: "the new file is kept"), with the same warning.
+  - After the copy back, read the network copy once and compare a fingerprint (SHA-256) with the local file's,
+    worked out while copying. If they differ, copy once more; if they still differ, keep the local file (as when a
+    copy fails) and say so plainly.
+  - The log says which file each check read ("on this PC" / "on the network drive").
+  - The network traffic stays about the same (the copy, plus one plain read instead of the thorough check's read),
+    but the slow part (decoding the whole film) runs at local disk speed, and the copy itself is now proved.
 
 ## Ideas raised, not yet requested
 
