@@ -18,6 +18,14 @@ The version lives in one place, the `VERSION` file. To release:
 3. Run `go generate` (stamps the version into the exe's file properties).
 4. Run `build.cmd`.
 
+## 1.47.1 - 2026-11-28
+
+- **Browse can no longer crash Keep the Light.** Windows loads File Explorer's add-ons into any program that opens an
+  Open or Save window, and a faulty one crashed Keep the Light now and then when choosing a file (here it was
+  ExplorerPatcher's "Register as shell extension"). Each Browse window now opens in a small helper of its own: if an
+  add-on crashes it, only the Browse window closes, with a message saying how to find the add-on in Event Viewer, and
+  Keep the Light and its queue carry on. Only one Browse window opens at a time.
+
 ## 1.47.0 - 2026-11-27
 
 - **Start menu shortcut.** Keep the Light stays portable (no installer), but the first time its window opens it puts a

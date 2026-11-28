@@ -453,6 +453,8 @@ func main() {
 	// file. Anything else is command-line mode.
 	args := os.Args[1:]
 	switch {
+	case len(args) >= 1 && args[0] == "-dialog-helper": // one Browse window, for the window (dialoghelper_windows.go)
+		os.Exit(dialogHelperMain(args[1:]))
 	case len(args) >= 1 && (args[0] == "-gui" || args[0] == "-server"):
 		os.Exit(runGUI(args[1:], args[0] == "-server"))
 	case !cliBuild && len(args) == 0:

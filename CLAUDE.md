@@ -86,6 +86,9 @@ which is not in the repository.
   - `nfo.go` – the NFO file for Plex beside a new file (from the TMDB / TVmaze lookup; written by the window after the
     finished file is in place, only with the "nfoFiles" setting).
   - `gpustuck.go` – a graphics card that stops answering (retry, then pause the queue) or crashes (a plain message).
+  - `dialogs_windows.go`, `dialoghelper*.go` – the Browse windows: each opens in a helper process (`-dialog-helper`)
+    so a crashing File Explorer add-on cannot take the window down (ExplorerPatcher did, 28 November 2026); one at a
+    time; in-process fallback on one dedicated STA thread.
   - `startmenu*.go` – the Start menu shortcut Keep the Light makes itself (first start, ⚙ Settings, follows the copy
     last opened; pref "startMenu"). Keep the Light stays portable: no installer (owner's choice, 27 November 2026).
   - `awake.go`, `power_*.go` – keeping the PC awake for a queue run (and the screen on with Modern Standby); sleep /

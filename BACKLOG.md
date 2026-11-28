@@ -6,29 +6,7 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-- **Keep the Light crashes now and then on Browse… when adding a file** (reported 28 November 2026, 1.47.0). The window
-  closes outright (no message), so it is a crash inside the process, not a Go error (`runGUI`'s recover would report
-  that). Likely causes, from the code (`dialogs_windows.go`):
-  - Each dialog runs on whatever OS thread the request's goroutine is locked to, and `CoInitializeEx` (STA) is called
-    there; if that thread was already set up for COM another way, the call fails (RPC_E_CHANGED_MODE) and the dialog
-    still opens. Windows' file dialogs need a single-threaded COM apartment; the shell extensions they load
-    (thumbnail and property handlers for video files, from codec packs and the like) can crash otherwise. Which OS
-    thread is used changes from call to call: that fits "now and then".
-  - The dialogs share globals (`dialogKind`, `folderTitle`) with no lock, and nothing stops two dialogs at once.
-  - A shell extension that crashes on its own (a video thumbnail handler) would crash any program's Open dialog in
-    that folder; the faulting module in Windows' Application log would say so.
-  - Fix: run every dialog on one dedicated OS thread, started once, set up as a single-threaded COM apartment, one
-    dialog at a time (a second Browse waits, or is ignored while one is open); check `CoInitializeEx`'s result. If
-    the owner's Event Viewer entry names a shell extension, say so in the README (and consider the newer
-    IFileOpenDialog).
-  - **Found (owner's Event Viewer, 28 November 2026):** faulting module `ExplorerPatcher.amd64.dll` (ExplorerPatcher
-    26100.9711.71.3, `C:\Program Files\ExplorerPatcher`), exception 0xc0000005. With its "Register as shell
-    extension" setting on, ExplorerPatcher loads itself into every program that opens an Open/Save dialog; Firefox
-    blocks this DLL for the same crashes (Mozilla bug 1798707). The owner has turned that setting off (28 November);
-    the protection below is still wanted, for any other add-on.
-  - Still worth doing: the dedicated dialog thread above, and **opening the dialog in a helper process** (Keep the
-    Light's own exe with a hidden option, owned by the window), so a crashing add-on only closes the dialog: then say
-    "The Browse window crashed (…); the file was not chosen" and name the add-on if Windows says which.
+Nothing at the moment.
 
 ## Ideas raised, not yet requested
 
@@ -36,6 +14,7 @@ None at the moment.
 
 ## Done
 
+- 1.47.1: Browse windows in a helper process (`-dialog-helper`), so a crashing File Explorer add-on (ExplorerPatcher) only closes the Browse window, with a message; the owner window is re-enabled; one at a time; in-process fallback on one dedicated STA thread, and a failed COM set-up is no longer ignored.
 - 1.47.0: Start menu shortcut made by Keep the Light (first start; ⚙ Settings Add/Remove; follows the copy last opened; removal remembered); working locally, the thorough and Plex checks read the local file before the copy back, and the copy back is proved by SHA-256 (once more if it differs, then the local file is kept).
 - 1.46.0: NFO file for Plex beside each new file with a TMDB / TVmaze match (films and episodes, doubles one block each; no cast, no tvshow.nfo; never overwrites; setting `nfoFiles`); QuickSync widths a multiple of 16 (`alignForQSV`); a plain message when a hardware encode crashes; a × on every pop-up notice.
 - 1.45.0: every kind of HDR in Plex-style names (`DV`, then `HDR10Plus` / `HDR10` / `HDR` for HLG; profile 5 only `DV`), for new files and the Plex names tab; copied video follows the source.

@@ -280,6 +280,9 @@ Closing the window while a transcode runs asks first; stopping deletes the unfin
   optional tools (GPAC for Dolby Vision, say) is a single line (**Details** opens it) and can be hidden; Dolby
   Vision files still say so if a tool is missing. **Browse** dialogs open where you last were: videos, the output
   folder, the scan folder and the others each remember their own folder (a path already typed in the box wins).
+  Each Browse window opens in a small helper of its own: Windows loads File Explorer's add-ons into whatever opens an
+  Open window, and a faulty add-on (ExplorerPatcher's "Register as shell extension" was one) would otherwise crash
+  Keep the Light. Now only the Browse window closes, with a message saying how to find the add-on.
 - **Sections:** click a section's heading to close or open it. Closed sections show a summary of their
   settings, and the layout is remembered (in `%LOCALAPPDATA%\Keep the Light\settings.json`).
 - **Save converted files** (under Files): next to the original, or in a folder you choose. One remembered

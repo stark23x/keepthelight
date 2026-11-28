@@ -115,8 +115,11 @@ var dialogParent atomic.Uintptr
 func withOwner(fn func(owner uintptr) (string, error)) (string, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	if hr, _, _ := procCoInit.Call(0, 2); hr == 0 || hr == 1 {
+	switch hr, _, _ := procCoInit.Call(0, 2); int32(hr) {
+	case 0, 1: // S_OK, S_FALSE: a single-threaded apartment, as the dialogs need
 		defer procCoUninit.Call()
+	default: // the thread is set up another way: the dialog's add-ons could crash in it
+		return "", fmt.Errorf("could not prepare the dialog (COM 0x%08X)", uint32(hr))
 	}
 	if p := dialogParent.Load(); p != 0 {
 		return fn(p)
@@ -293,7 +296,7 @@ func folderDialog(initial string) (string, error) {
 	})
 }
 
-func browseDialog(kind, initial string) (string, error) {
+func browseDialogHere(kind, initial string) (string, error) {
 	var p string
 	var err error
 	switch kind {
@@ -329,8 +332,8 @@ func browseDialog(kind, initial string) (string, error) {
 	return p, nil
 }
 
-// browseFiles lets the user pick several video files.
-func browseFiles(initial string) ([]string, error) {
+// browseFilesHere lets the user pick several video files (in this process).
+func browseFilesHere(initial string) ([]string, error) {
 	p, err := withRetryPS(func() (string, error) { return fileDialogEx(false, true, initial) }, "openMulti", initial)
 	if err != nil || p == "" {
 		return nil, err

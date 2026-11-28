@@ -54,3 +54,6 @@ func revealFile(path string) {}
 func browseFiles(initial string) ([]string, error) {
 	return nil, errors.New("file dialogs are only available on Windows; paste the path instead")
 }
+
+// dialogHelperMain: there are no Browse windows here.
+func dialogHelperMain(args []string) int { return 2 }
