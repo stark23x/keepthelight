@@ -6,7 +6,22 @@ next build". Shipped features move to "Done" with their version number. Nothing 
 
 ## Requested for the next build
 
-Nothing at the moment.
+- **Keep the Light crashes now and then on Browse… when adding a file** (reported 28 November 2026, 1.47.0). The window
+  closes outright (no message), so it is a crash inside the process, not a Go error (`runGUI`'s recover would report
+  that). Likely causes, from the code (`dialogs_windows.go`):
+  - Each dialog runs on whatever OS thread the request's goroutine is locked to, and `CoInitializeEx` (STA) is called
+    there; if that thread was already set up for COM another way, the call fails (RPC_E_CHANGED_MODE) and the dialog
+    still opens. Windows' file dialogs need a single-threaded COM apartment; the shell extensions they load
+    (thumbnail and property handlers for video files, from codec packs and the like) can crash otherwise. Which OS
+    thread is used changes from call to call: that fits "now and then".
+  - The dialogs share globals (`dialogKind`, `folderTitle`) with no lock, and nothing stops two dialogs at once.
+  - A shell extension that crashes on its own (a video thumbnail handler) would crash any program's Open dialog in
+    that folder; the faulting module in Windows' Application log would say so.
+  - Fix: run every dialog on one dedicated OS thread, started once, set up as a single-threaded COM apartment, one
+    dialog at a time (a second Browse waits, or is ignored while one is open); check `CoInitializeEx`'s result. If
+    the owner's Event Viewer entry names a shell extension, say so in the README (and consider the newer
+    IFileOpenDialog).
+  - Waiting on the owner: the "Application Error" entry for Keep the Light from Event Viewer (faulting module).
 
 ## Ideas raised, not yet requested
 
