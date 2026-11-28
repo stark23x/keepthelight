@@ -21,7 +21,13 @@ next build". Shipped features move to "Done" with their version number. Nothing 
     dialog at a time (a second Browse waits, or is ignored while one is open); check `CoInitializeEx`'s result. If
     the owner's Event Viewer entry names a shell extension, say so in the README (and consider the newer
     IFileOpenDialog).
-  - Waiting on the owner: the "Application Error" entry for Keep the Light from Event Viewer (faulting module).
+  - **Found (owner's Event Viewer, 28 November 2026):** faulting module `ExplorerPatcher.amd64.dll` (ExplorerPatcher
+    26100.9711.71.3, `C:\Program Files\ExplorerPatcher`), exception 0xc0000005. With its "Register as shell
+    extension" setting on, ExplorerPatcher loads itself into every program that opens an Open/Save dialog; Firefox
+    blocks this DLL for the same crashes (Mozilla bug 1798707). The owner was told how to turn that setting off.
+  - Still worth doing: the dedicated dialog thread above, and **opening the dialog in a helper process** (Keep the
+    Light's own exe with a hidden option, owned by the window), so a crashing add-on only closes the dialog: then say
+    "The Browse window crashed (…); the file was not chosen" and name the add-on if Windows says which.
 
 ## Ideas raised, not yet requested
 
